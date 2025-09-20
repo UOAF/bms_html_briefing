@@ -1,0 +1,95 @@
+<style>
+  tr.primary {
+      font-weight: bold;
+  }
+</style>
+<table width=100%>
+    <thead>
+      <tr>
+	  <th colspan="7" class="header">Package</th>
+      </tr>
+        <tr>
+            <th width="15%">Callsign</th>
+            <th width="15%">Flight #</th>
+            <th width="15%">Role</th>
+            <th width="15%">Aircraft</th>
+            <th width="15%">Takeoff</th>
+            <th width="15%">Push</th>
+            <th width="15%">TOT</th>
+        </tr>
+    </thead>
+    <tbody>
+      {% for flight in package %}
+      <tr {% if flight.roster.own %} class="primary" {% endif %}>
+	<td>{{flight.callsign}}</td>
+	<td>{{flight.flight}}</td>
+	<td>{{flight.role}}</td>
+	<td>{{flight.aircraft}}</td>
+	<td>{{flight.takeoff}}</td>
+	<td>{{flight.push}}</td>
+	<td>{{flight.tot}}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>
+<table width=100%>
+    <thead>
+      <tr>
+	  <th colspan="7" class="header">Supporting package</th>
+      </tr>
+        <tr>
+            <th width="15%">Callsign</th>
+            <th width="15%">Flight #</th>
+            <th width="15%">Role</th>
+            <th width="15%">Aircraft</th>
+            <th width="15%">Takeoff</th>
+            <th width="15%">Push</th>
+            <th width="15%">TOT</th>
+        </tr>
+    </thead>
+    <tbody>
+      <tr>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+      </tr>
+    </tbody>
+    <tbody>
+      <tr>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+      </tr>
+    </tbody>
+    <tbody>
+      <tr>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+      </tr>
+    </tbody>
+    <tbody>
+      <tr>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+	<td></td>
+      </tr>
+    </tbody>
+
+</table>

@@ -1,0 +1,29 @@
+<table width=100%>
+    <tbody>
+      <tr>
+	  <th colspan="5" class="header">Support</th>
+      </tr>
+        <tr>
+	  <th width="20%">Callsign</th>
+          <th width="15%">Type</th>
+          <th>Comment</th>
+        </tr>
+        {% for s in support %}
+        <tr>
+	    <td>{{ s.callsign }}</td>
+            <td>{{ s.type }}</td>
+            <td>{{ s.comment }}</td>
+        </tr>
+        {% endfor %}
+      <tr>
+	    <td> &nbsp </td>
+	    <td></td>
+	    <td></td>
+      </tr>
+      <tr>
+	    <td> &nbsp </td>
+	    <td></td>
+	    <td></td>
+      </tr>
+    </tbody>
+</table>

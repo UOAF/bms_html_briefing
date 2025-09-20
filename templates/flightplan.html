@@ -1,0 +1,36 @@
+<style>
+</style>
+<table width=100%>
+    <thead>
+      <tr>
+	  <th colspan="10" class="header">Flightplan</th>
+      </tr>
+        <tr>
+            <th>#</th>
+            <th>Description</th>
+            <th>Time</th>
+            <th>Distance</th>
+            <th>Heading</th>
+            <th>CAS</th>
+            <th>Altitude</th>
+            <th>Action</th>
+            <th>Form.</th>
+
+        </tr>
+    </thead>
+    <tbody>
+      {% for stpt in steerpoints %}
+      <tr>
+	<td>{{stpt.number}}</td>
+	<td>{{stpt.description}}</td>
+	<td>{{stpt.time}}</td>
+	<td>{{stpt.distance}}</td>
+	<td>{{stpt.heading}}</td>
+	<td>{{stpt.cas}}</td>
+	<td>{{stpt.altitude}}</td>
+	<td>{{stpt.action}}</td>
+	<td>{{stpt.form}}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>

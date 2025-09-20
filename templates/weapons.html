@@ -1,0 +1,19 @@
+<style>
+</style>
+<table width=100%>
+    <thead>
+      <tr>
+	  <th colspan="100" class="header">Weapons</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in range(4) %}
+        <tr>
+	    <td>{{i + 1}}</td>
+	    {% for j in own_flight.weapons[i] %}
+      <td>{{j}}</td>
+      {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+</table>

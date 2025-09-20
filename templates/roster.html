@@ -1,0 +1,45 @@
+<style>
+</style>
+<table width=100%>
+    <thead>
+      <tr>
+	  <th colspan="5" class="header">Flight</th>
+      </tr>
+        <tr>
+            <th width="10%"></th>
+            <th>Name</th>
+            <th width="5%">TCN</th>
+            <th width="10%">LSR</th>
+        </tr>
+    </thead>
+    <tbody>
+      {% for i in range(package_size) %}
+      {% if package[i].roster.own %}
+        <tr>
+	    <td>1 Lead</td>
+            <td>{% if package[i].roster.lead != "Unassigned" %} {{ package[i].roster.lead }} {% endif %}</td>
+	    <td>{{i+15}}X</td>
+	    <td></td>
+        </tr>
+	<tr>
+	    <td>2 Wing</td>
+            <td>{% if package[i].roster.wing != "Unassigned" %} {{ package[i].roster.wing }} {% endif %}</td>
+	    <td>{{i+15+63}}X</td>
+	    <td></td>
+	</tr>
+        <tr>
+	    <td>3 Element</td>
+	  <td>{% if package[i].roster.element != "Unassigned" %} {{ package[i].roster.element }} {% endif %}</td>
+	    <td>{{i+15+63}}Y</td>
+	    <td></td>
+	</tr>
+	<tr>
+	    <td>4 Wing</td>
+            <td>{% if package[i].roster.four != "Unassigned" %} {{ package[i].roster.four }} {% endif %}</td>
+	    <td>{{i+15}}Y</td>
+	    <td></td>
+	</tr>
+	{% endif %}
+        {% endfor %}
+    </tbody>
+</table>

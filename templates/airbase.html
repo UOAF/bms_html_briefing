@@ -1,0 +1,23 @@
+<table width=100%>
+    <tbody>
+      <tr>
+	  <th colspan="5" class="header">Airbase</th>
+      </tr>
+        <tr>
+	  <th width="30%">Loc</th>
+          <th width="30%">Ground</th>
+          <th width="30%">Approach</th>
+          <th>TCN</th>
+          <th>ILS</th>
+        </tr>
+        {% for base in airbases %}
+        <tr>
+	    <td>{{ base.agency }}</td>
+            <td>{{ base.ground }}</td>
+            <td>{{ base.approach }}</td>
+            <td>{{ base.tcn }}</td>
+            <td>{{ base.ils }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

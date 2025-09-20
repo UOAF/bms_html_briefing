@@ -1,0 +1,52 @@
+<!DOCTYPE = html>
+<head>
+<title>HTML BRIEFING - PAGE 1</title>
+<link rel="shortcut icon" type="image/png" href="icon.png">
+<style>
+  body {
+      width: 800px;
+  }
+table, th, td {
+  border: 2px solid black;
+  border-collapse: collapse;
+  text-align: center;
+  align-items: center; 
+  vertical-align : middle;
+  padding: 3px;
+}
+td {
+    height: 25px;
+}
+.header {
+    background-color: eeeeee;
+}
+</style>
+</head>
+<body contenteditable="true">
+<table width=100%>
+    <thead>
+      <tr>
+	<th colspan="5" class="header">{{ overview.callsign }} ({{overview.mission_type}}) #{{overview.package_id}}</th>
+        </tr>
+    </thead>
+</table>
+
+{% include "airbase.html" %}
+{% include "package.html" %}
+{% include "weapons.html" %}
+{% include "flightplan.html" %}
+<style>
+img:hover {
+  -webkit-transform: scaleX(-1);
+  transform: scaleX(-1);
+}
+</style>
+<table width=100%>
+    <thead>
+      <tr>
+	<th colspan="5" class="header"><div style="float: left"><img src="icon.png" height="70px"></div>
+</th>
+        </tr>
+    </thead>
+</table>
+</body>
