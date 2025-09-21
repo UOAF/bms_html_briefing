@@ -30,3 +30,9 @@ It will generate two .html files, html_left.html and html_right.html. You can op
 Modification
 -------------
 The templates to generate kneeboards are in the "templates" folder. These are jinja2 templates written in simple HTML, so should be easy to modify. 
+
+Example output
+-------------
+![Left kneeboard](examples/ex_left.png)
+![Right kneeboard](examples/ex_right.png)
+
