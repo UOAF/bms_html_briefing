@@ -19,7 +19,7 @@ Usage
 ------------
 In the config file, set the location of your briefing.txt file, e.g. 
 ```
-briefing_location = C:\Falcon BMS 4.37\User\Briefings\briefing.txt
+briefing_location = "C:\Falcon BMS 4.37\User\Briefings\briefing.txt"
 ```
 Then go to the html_brief folder and run
 ```
