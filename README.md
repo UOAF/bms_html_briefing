@@ -33,6 +33,7 @@ The templates to generate kneeboards are in the "templates" folder. These are ji
 
 Example output
 -------------
-<div style="float: left"><img src="examples/ex_left.png" alt="left" width="300"/></div>
-<div style="float: right"><img src="examples/ex_right.png" alt="right" width="300"/></div>
-
+<p float="left">
+<img src="examples/ex_left.png" alt="left" width="30%"/>
+<img src="examples/ex_right.png" alt="right" width="30%"/>
+</p>
