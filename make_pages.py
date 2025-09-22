@@ -24,6 +24,7 @@ def generate_html_file(name, brief_parts, page_num):
             env = Environment(loader=FileSystemLoader(templates_dir))
             index_tmpl = env.get_template("index.html")
 
+        os.makedirs(os.path.join(script_dir, "output"), exist_ok = True)
         with open(os.path.join(script_dir, "output", name+".html"), "w") as index_output:
             index_output.write(index_tmpl.render(airbases = brf.airbases,
                                                  package_size = len(brf.package),
