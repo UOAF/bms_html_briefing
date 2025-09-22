@@ -10,13 +10,13 @@
           <th>TCN</th>
           <th>ILS</th>
         </tr>
-        {% for base in airbases %}
+        {% for i in range(3)%}
         <tr>
-	    <td>{{ base.agency }}</td>
-            <td>{{ base.ground }}</td>
-            <td>{{ base.approach }}</td>
-            <td>{{ base.tcn }}</td>
-            <td>{{ base.ils }}</td>
+	    <td>{{ airbases[i].agency }}</td>
+            <td>{{ airbases[i].ground }}</td>
+            <td>{{ airbases[i].approach }}</td>
+            <td contenteditable="true" class="editable" id="airbase_{{2*i}}">{{ airbases[i].tcn }}</td>
+            <td contenteditable="true" class="editable" id="airbase_{{2*i+1}}">{{ airbases[i].ils }}</td>
         </tr>
         {% endfor %}
     </tbody>

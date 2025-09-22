@@ -3,7 +3,7 @@
 <table width=100%>
     <thead>
       <tr>
-	  <th colspan="5" class="header">Flight</th>
+	  <th colspan="5" class="header">Flight {{ overview.callsign }} ({{overview.mission_type}}) #{{overview.package_id}}</th>
       </tr>
         <tr>
             <th width="10%"></th>
@@ -17,27 +17,27 @@
       {% if package[i].roster.own %}
         <tr>
 	    <td>1 Lead</td>
-            <td>{% if package[i].roster.lead != "Unassigned" %} {{ package[i].roster.lead }} {% endif %}</td>
-	    <td>{{i+15}}X</td>
-	    <td></td>
+            <td contenteditable="true" class="editable" id="roster_lead_1">{% if package[i].roster.lead != "Unassigned" %} {{ package[i].roster.lead }} {% endif %}</td>
+	    <td contenteditable="true" class="editable" id="roster_lead_2">{{i+15}}X</td>
+	    <td contenteditable="true" class="editable" id="roster_lead_3"></td>
         </tr>
 	<tr>
 	    <td>2 Wing</td>
-            <td>{% if package[i].roster.wing != "Unassigned" %} {{ package[i].roster.wing }} {% endif %}</td>
-	    <td>{{i+15+63}}X</td>
-	    <td></td>
+            <td contenteditable="true" class="editable" id="roster_2wing_1">{% if package[i].roster.wing != "Unassigned" %} {{ package[i].roster.wing }} {% endif %}</td>
+	    <td contenteditable="true" class="editable" id="roster_2wing_2">{{i+15+63}}X</td>
+	    <td contenteditable="true" class="editable" id="roster_2wing_3"></td>
 	</tr>
         <tr>
 	    <td>3 Element</td>
-	  <td>{% if package[i].roster.element != "Unassigned" %} {{ package[i].roster.element }} {% endif %}</td>
-	    <td>{{i+15+63}}Y</td>
-	    <td></td>
+	    <td contenteditable="true" class="editable" id="roster_3elmnt_1">{% if package[i].roster.element != "Unassigned" %} {{ package[i].roster.element }} {% endif %}</td>
+	    <td contenteditable="true" class="editable" id="roster_3elmnt_2">{{i+15+63}}Y</td>
+	    <td contenteditable="true" class="editable" id="roster_3elmnt_3"></td>
 	</tr>
 	<tr>
 	    <td>4 Wing</td>
-            <td>{% if package[i].roster.four != "Unassigned" %} {{ package[i].roster.four }} {% endif %}</td>
-	    <td>{{i+15}}Y</td>
-	    <td></td>
+            <td contenteditable="true" class="editable" id="roster_4wing_1">{% if package[i].roster.four != "Unassigned" %} {{ package[i].roster.four }} {% endif %}</td>
+	    <td contenteditable="true" class="editable" id="roster_4wing_2">{{i+15}}Y</td>
+	    <td contenteditable="true" class="editable" id="roster_4wing_3"></td>
 	</tr>
 	{% endif %}
         {% endfor %}

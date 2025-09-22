@@ -1,0 +1,67 @@
+<!DOCTYPE = html>
+<head>
+<title>HTML BRIEFING - PAGE {{num}}</title>
+<link rel="shortcut icon" type="image/png" href="icon.png">
+<style>
+  body {
+      width: 800px;
+  }
+table, th, td {
+  border: 2px solid black;
+  border-collapse: collapse;
+  text-align: center;
+  align-items: center; 
+  vertical-align : middle;
+  padding: 3px;
+  background-color: eeeeee;
+}
+.editable {
+  background-color: ffffff;
+}
+td {
+    height: 25px;
+}
+.header {
+    background-color: dddddd;
+}
+</style>
+</head>
+<body>
+
+{% for p in brief_parts %}
+   {% include (p+".html") %}
+{% endfor %}
+<style>
+</style>
+<table width="100%">
+    <thead>
+      <tr>
+	<th class="header"><button id="save" onclick="saveContenteditables()">Save changes</button> <button id="load" onclick="loadContenteditables()">Load changes</button>
+	</th>
+	<th class="header" width="10%"> Page {{num}}</th>
+	</th>
+        </tr>
+    </thead>
+</table>
+</body>
+<script>
+    function saveContenteditables() {
+      const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
+      const contentData = {};
+      contenteditableElements.forEach(el => {
+        const key = el.id;
+        contentData[key] = el.innerHTML;
+      });
+      localStorage.setItem('contenteditables', JSON.stringify(contentData));
+    }
+
+    function loadContenteditables() {
+      const contentData = JSON.parse(localStorage.getItem('contenteditables') || '{}');
+      Object.keys(contentData).forEach(key => {
+        const el = document.getElementById(key);
+        if (el) {
+          el.innerHTML = contentData[key];
+        }
+      });
+    }
+</script>

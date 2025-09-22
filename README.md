@@ -1,6 +1,6 @@
 Falcon BMS HTML Briefings [WIP, may break]
 ==========
-This is a collection of Python scripts to generate editable HTML kneeboard files for use with Falcon BMS. Currently it only parses data from briefing.txt.
+This is a collection of Python scripts to generate editable HTML kneeboard files for use with Falcon BMS. Currently it only parses data from briefing.txt and callsign.ini.
 
 This is heavily inspired by other wonderful BMS kneeboard tools, such as [bms-kneeboard-server](https://github.com/AviiNL/bms-kneeboard-server) and [EZBoards](https://forum.falcon-bms.com/topic/19901/ezboards-generate-kneeboards-flights-comms-stpts-weather-from-briefings)
 
@@ -17,15 +17,20 @@ should work, depending on your operating system.
 
 Usage
 ------------
-In the config file, set the location of your briefing.txt file, e.g. 
+In the config file, set the location of your BMS folder and your callsign, e.g. 
 ```
-briefing_location = "C:\Falcon BMS 4.37\User\Briefings\briefing.txt"
+briefing_location = "C:\\Falcon BMS 4.38"
+callsign = "pilot"
 ```
-Then go to the html_brief folder and run
+Then run
 ```
 python make_pages.py
 ```
-It will generate two .html files, html_left.html and html_right.html. You can open them in browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and use with [OpenKneeboard](https://openkneeboard.com/).
+It will generate .html files in the output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and use with [OpenKneeboard](https://openkneeboard.com/).
+
+When an .html kneeboard is opened in a browser, the "Save" and "Load" buttons can be clicked. This will save/load the contents of the editable fields to/from the browser memory. The intention is to be able to preserve some of the entered information (e.g. delivery method) even if some other information was changed in the briefing (e.g. flightplan has changed and you have to reload the briefing).
+
+In the config.py file you may also modify page_contents list: it is a list of lists of strings, a single list of strings producing a page of the kneeboard. Strings refer to various kneeboard sections and coincide with the names of files in the templates folder. 
 
 Modification
 -------------
@@ -34,6 +39,8 @@ The templates to generate kneeboards are in the "templates" folder. These are ji
 Example output
 -------------
 <p float="left">
-<img src="examples/ex_left.png" alt="left" width="30%"/>
-<img src="examples/ex_right.png" alt="right" width="30%"/>
+<img src="examples/1.png" alt="left" width="33%"/>
+<img src="examples/2.png" alt="right" width="33%"/>
+<img src="examples/3.png" alt="right" width="33%"/>
+
 </p>

@@ -2,6 +2,8 @@ class Briefing:
     def __init__(self, file_contents = None):
         self.overview = self.Overview(file_contents)
         self.situation = self.Situation(file_contents)
+        self.weather = self.Weather(file_contents)
+        self.roe = self.init_roe(file_contents)
         self.package = self.fill_package(self, file_contents)
         self.threat = self.Threat(file_contents)
         self.steerpoints = self.fill_steerpoints(file_contents)
@@ -571,4 +573,71 @@ class Briefing:
                 print(f"Error reading support: {e}")
                 return []
 
+    class Weather:
+        def __init__(self, file_contents = None):
+            for attr in ["sit", "wind", "vis", "temp", "cloud", "con"]:
+                init_func = getattr(self, f'init_{attr}', None)
+                if callable(init_func):
+                    try:
+                        value = init_func(file_contents)
+                        setattr(self, attr, value)
+                    except Exception as e:
+                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        setattr(self, attr, "")
+                else:
+                    print(f"No function to find {type(self).__name__}.{attr}")
 
+        def init_sit(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                start = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Weather"))
+                return file_contents[start + 4].strip("\t \n").split("\t")[1:4]
+
+        def init_wind(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                start = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Weather"))
+                return file_contents[start + 5].strip("\t \n").split("\t")[1:4]
+
+        def init_vis(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                start = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Weather"))
+                return file_contents[start + 6].strip("\t \n").split("\t")[1:4]
+
+        def init_temp(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                start = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Weather"))
+                return file_contents[start + 7].strip("\t \n").split("\t")[1:4]
+
+        def init_cloud(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                start = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Weather"))
+                return file_contents[start + 8].strip("\t \n").split("\t")[1:4]
+
+        def init_con(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                start = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Weather"))
+                return file_contents[start + 9].strip("\t \n").split("\t")[1:4]
+           
+    def init_roe(self, file_contents):
+        if file_contents == None:
+            return ""
+        else:
+            try:
+                start = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Rules of Engagement"))
+                end = next(i for i, l in enumerate(file_contents) if l.strip("\t \n) ").startswith("Emergency"))
+                s = file_contents[start+1:end]
+                return ''.join(s).strip("\t\n").replace("\t","")
+            except Exception as e:
+                print(f"Error reading ROE: {e}")
+                return ""
