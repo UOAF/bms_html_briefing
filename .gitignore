@@ -3,3 +3,6 @@ test/
 __pycache__
 /*.html
 output/*
+dist/
+build/
+*.spec

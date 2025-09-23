@@ -9,28 +9,37 @@ The main difference is that I wanted a tool that has minimal dependencies, is cr
 Installation
 ------------
 # Requirements: 
-You need [Python 3](https://www.python.org/downloads/) and jinja2 module for it. If you already have Python you probably know what to do, something like
+If you use the Python script (and not the provided Windows executable), you need [Python 3](https://www.python.org/downloads/) and jinja2 module for it. If you already have Python you probably know what to do, something like
 ```
 pip install jinja2
 ```
-should work, depending on your operating system.
+should work, depending on your operating system. Released executable should work on Windows with no dependencies.
 
 Usage
 ------------
-In the config file, set the location of your BMS folder and your callsign, e.g. 
+In the config.ini file (see the example provided!), set the location of your BMS folder, the desired output folder for the .thml files and your callsign. E.g.
 ```
-briefing_location = "C:\\Falcon BMS 4.38"
-callsign = "pilot"
+bms_location = D:\Falcon BMS 4.38
+output_folder = C:\Games\bms_html_briefing\output
+callsign = wsy
 ```
+
 Then run
 ```
-python make_pages.py
+python make_pages.py config.ini
 ```
+or, if you are on Windows and don't want to install Python,
+```
+make_pages.exe config.ini
+```
+
 It will generate .html files in the output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and use with [OpenKneeboard](https://openkneeboard.com/).
+
+If you set the option ```joined = True``` it will generate a single .html file with all pages in it. When you open it in a (modern) browser and print it to PDF, it should automatically separate pages correctly. This saves some time compared to printing each page separately.
 
 When an .html kneeboard is opened in a browser, the "Save" and "Load" buttons can be clicked. This will save/load the contents of the editable fields to/from the browser memory. The intention is to be able to preserve some of the entered information (e.g. delivery method) even if some other information was changed in the briefing (e.g. flightplan has changed and you have to reload the briefing).
 
-In the config.py file you may also modify page_contents list: it is a list of lists of strings, a single list of strings producing a page of the kneeboard. Strings refer to various kneeboard sections and coincide with the names of files in the templates folder. 
+In the config.ini file you may also modify the page contents: it is a list of lines of the form "page = section1, section2, ...", a single list of keywords producing a page of the kneeboard. Keywords refer to various kneeboard sections and coincide with the names of files in the templates folder. 
 
 Modification
 -------------
@@ -42,5 +51,4 @@ Example output
 <img src="examples/1.png" alt="left" width="33%"/>
 <img src="examples/2.png" alt="right" width="33%"/>
 <img src="examples/3.png" alt="right" width="33%"/>
-
 </p>

@@ -46,7 +46,7 @@ class Callsign_ini:
         else:
             prgrms = [{} for i in range(6)]
             try:
-                s = [l.strip("\n") for l in file_contents if l.startswith("PGM")]
+                s = [l.strip("\n") for l in file_contents if l.startswith("PGM") and l.split(" ")[2].split("=")[0] != "Comment"]
                 for l in s:
                     sl = l.split(" ")
                     val = sl[-1].split("=")[-1]
@@ -55,4 +55,4 @@ class Callsign_ini:
                 return prgrms
             except Exception as e:
                 print(f"Error reading cmds: {e}")
-                return []
+                return prgrms
