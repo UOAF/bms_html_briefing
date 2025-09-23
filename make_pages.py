@@ -11,7 +11,7 @@ callsignini_location = os.path.join(config.bms_location, "User/Config", config.c
 script_dir = os.path.dirname(__file__)
 templates_dir = os.path.join(script_dir, 'templates')
 
-def generate_html_file(name, brief_parts, page_num):
+def generate_html_file(name, page_num = 0):
     try:
         with open(briefing_location, encoding = "latin1") as briefing_file:
             briefing_contents = briefing_file.readlines()
@@ -22,7 +22,10 @@ def generate_html_file(name, brief_parts, page_num):
                 ci = parse_callsignini.Callsign_ini(callsignini_contents)
 
             env = Environment(loader=FileSystemLoader(templates_dir))
-            index_tmpl = env.get_template("index.html")
+            if page_num == 0:
+                index_tmpl = env.get_template("index_joined.html")
+            else:
+                index_tmpl = env.get_template("index.html")
 
         os.makedirs(os.path.join(script_dir, "output"), exist_ok = True)
         with open(os.path.join(script_dir, "output", name+".html"), "w") as index_output:
@@ -36,12 +39,15 @@ def generate_html_file(name, brief_parts, page_num):
                                                  roe = brf.roe,
                                                  weather = brf.weather,
                                                  tgtsteerpoints = ci.tgtsteerpoints,
-                                                 brief_parts = brief_parts,
+                                                 brief_pages = config.page_contents,
                                                  cmds = ci.cmds,
                                                  num = page_num))
     except Exception as e:
         print(f"Couldn't generate HTML: {e}")
 
 
-for i, c in enumerate(config.page_contents):
-    generate_html_file("index_"+str(i + 1), c, i+1)
+if config.joined == True:
+    generate_html_file("index_joined", 0)
+else:
+    for i, c in enumerate(config.page_contents):
+        generate_html_file("index_"+str(i + 1), i+1)
