@@ -1,6 +1,6 @@
 <!DOCTYPE = html>
 <head>
-<title>HTML BRIEFING - PAGE {{num}}</title>
+<title>HTML BRIEFING {%- if not brief_is_joined %}- PAGE {{num}}{% endif %}</title>
 <link rel="shortcut icon" type="image/png" href="icon.png">
 <style>
   body {
@@ -19,7 +19,7 @@ table, th, td {
   background-color: ffffff;
 }
 td {
-    height: 25px;
+    height: 1.7em;
 }
 .header {
     background-color: dddddd;
@@ -28,11 +28,32 @@ td {
 </head>
 <body>
 
+{% if brief_is_joined %}
+{% for page in brief_pages %}
+<div {% if loop.index != brief_pages|length %} class="page" {% endif %}>
+  {% for part in page %}
+   {% include (part+".html") %}
+  {% endfor %}
+<style>
+</style>
+<table width="100%">
+    <thead>
+      <tr>
+	<th class="header"><button id="save" onclick="saveContenteditables()">Save changes</button> <button id="load" onclick="loadContenteditables()">Load changes</button>
+	</th>
+	<th class="header" width="10%"> Page {{loop.index}}</th>
+	</th>
+        </tr>
+    </thead>
+</table>
+</div>
+<br>
+{% endfor %}
+
+{% else %}
 {% for p in brief_pages[num - 1] %}
    {% include (p+".html") %}
 {% endfor %}
-<style>
-</style>
 <table width="100%">
     <thead>
       <tr>
@@ -43,6 +64,9 @@ td {
         </tr>
     </thead>
 </table>
+{% endif %}
+<style>
+</style>
 </body>
 <script>
     function saveContenteditables() {

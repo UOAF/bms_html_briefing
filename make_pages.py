@@ -15,6 +15,7 @@ with open(config_path) as config_file:
         config_contents = config_file.readlines()
         bms_location = next(l for l in config_contents if l.startswith("bms_location")).split("=")[1].strip("\n ")
         output_folder = next(l for l in config_contents if l.startswith("output_folder")).split("=")[1].strip("\n ")
+        logo_present = os.path.isfile(os.path.join(output_folder, "logo.png"))
         callsign = next(l for l in config_contents if l.startswith("callsign")).split("=")[1].strip("\n ")
         page_contents = [[p.strip("\n ") for p in l.split("=")[1].split(",")] for l in config_contents if l.startswith("page")]
         joined = (next(l for l in config_contents if l.startswith("joined")).split("=")[1].strip("\n ")) == "True"
@@ -38,10 +39,7 @@ def generate_html_file(name, page_num = 0):
                 ci = parse_callsignini.Callsign_ini(callsignini_contents)
 
             env = Environment(loader=FileSystemLoader(templates_dir))
-            if page_num == 0:
-                index_tmpl = env.get_template("index_joined.html")
-            else:
-                index_tmpl = env.get_template("index.html")
+            index_tmpl = env.get_template("index.html")
 
 #        os.makedirs(os.path.join(script_dir, "output"), exist_ok = True)
         with open(os.path.join(output_folder, name+".html"), "w") as index_output:
@@ -57,7 +55,9 @@ def generate_html_file(name, page_num = 0):
                                                  tgtsteerpoints = ci.tgtsteerpoints,
                                                  brief_pages = page_contents,
                                                  cmds = ci.cmds,
-                                                 num = page_num))
+                                                 num = page_num,
+                                                 logo_present = logo_present,
+                                                 brief_is_joined = joined))
     except Exception as e:
         print(f"Couldn't generate HTML: {e}")
 

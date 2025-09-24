@@ -1,18 +1,16 @@
 <style>
 </style>
 <table width=100%>
-    <thead>
       <tr>
 	  <th colspan="5" class="header">Flight {{ overview.callsign }} ({{overview.mission_type}}) #{{overview.package_id}}</th>
       </tr>
         <tr>
+	    {% if logo_present %}<th rowspan="6" width="15%" style="vertical-align: middle; text-align: center;"> <img src="logo.png" width="100%"></th>{% endif %}
             <th width="10%"></th>
             <th>Name</th>
             <th width="5%">TCN</th>
             <th width="10%">LSR</th>
         </tr>
-    </thead>
-    <tbody>
       {% for i in range(package_size) %}
       {% if package[i].roster.own %}
         <tr>
@@ -41,5 +39,4 @@
 	</tr>
 	{% endif %}
         {% endfor %}
-    </tbody>
 </table>
