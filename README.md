@@ -20,20 +20,19 @@ Usage
 In the config.ini file (see the example provided!), set the location of your BMS folder, the desired output folder for the .thml files and your callsign. E.g.
 ```
 bms_location = D:\Falcon BMS 4.38
-output_folder = C:\Games\bms_html_briefing\output
 callsign = wsy
 ```
 
 Then run
 ```
-python make_pages.py config.ini
+python html_brief.py
 ```
 or, if you are on Windows and don't want to install Python,
 ```
-make_pages.exe config.ini
+html_brief.exe
 ```
 
-It will generate .html files in the output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and use with [OpenKneeboard](https://openkneeboard.com/).
+It will generate .html files in the /output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and use with [OpenKneeboard](https://openkneeboard.com/).
 
 If you set the option ```joined = True``` it will generate a single .html file with all pages in it. When you open it in a (modern) browser and print it to PDF, it should automatically separate pages correctly. This saves some time compared to printing each page separately.
 
@@ -41,7 +40,7 @@ When an .html kneeboard is opened in a browser, the "Save" and "Load" buttons ca
 
 In the config.ini file you may also modify the page contents: it is a list of lines of the form "page = section1, section2, ...", a single list of keywords producing a page of the kneeboard. Keywords refer to various kneeboard sections and coincide with the names of files in the templates folder. 
 
-If you put an image with the filename "logo.png" in the output directory, it will appear as a logo in the flight roster section, because why not.
+If you put an image with the filename "logo.png" in the (previously created) /output directory, after the next launch it will appear as a logo in the flight roster section, because why not.
 
 Modification
 -------------
