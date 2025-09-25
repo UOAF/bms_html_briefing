@@ -4,18 +4,19 @@ import parse_brief, parse_callsignini
 
 # parse config
 
-if len(sys.argv) > 1:
-    config_path = sys.argv[1]
+if getattr(sys, 'frozen', False):
+    script_dir = os.path.dirname(sys.executable)
 else:
-    print("Please provide the config.ini file.")
-    exit()
+    script_dir = os.path.dirname(sys.argv[0])
 
-with open(config_path) as config_file:
+output_dir = os.path.join(script_dir, "output")
+os.makedirs(output_dir, exist_ok=True)
+
+with open(os.path.join(script_dir, "config.ini")) as config_file:
     try:
         config_contents = config_file.readlines()
         bms_location = next(l for l in config_contents if l.startswith("bms_location")).split("=")[1].strip("\n ")
-        output_folder = next(l for l in config_contents if l.startswith("output_folder")).split("=")[1].strip("\n ")
-        logo_present = os.path.isfile(os.path.join(output_folder, "logo.png"))
+        logo_present = os.path.isfile(os.path.join(output_dir, "logo.png"))
         callsign = next(l for l in config_contents if l.startswith("callsign")).split("=")[1].strip("\n ")
         page_contents = [[p.strip("\n ") for p in l.split("=")[1].split(",")] for l in config_contents if l.startswith("page")]
         joined = (next(l for l in config_contents if l.startswith("joined")).split("=")[1].strip("\n ")) == "True"
@@ -25,7 +26,6 @@ with open(config_path) as config_file:
 briefing_location = os.path.join(bms_location, "User", "Briefings", "briefing.txt")
 callsignini_location = os.path.join(bms_location, "User", "Config", callsign + ".ini")
 
-script_dir = os.path.dirname(__file__)
 templates_dir = os.path.join(script_dir, 'templates')
 
 def generate_html_file(name, page_num = 0):
@@ -42,7 +42,7 @@ def generate_html_file(name, page_num = 0):
             index_tmpl = env.get_template("index.html")
 
 #        os.makedirs(os.path.join(script_dir, "output"), exist_ok = True)
-        with open(os.path.join(output_folder, name+".html"), "w") as index_output:
+        with open(os.path.join(output_dir, name+".html"), "w") as index_output:
             index_output.write(index_tmpl.render(airbases = brf.airbases,
                                                  package_size = len(brf.package),
                                                  overview = brf.overview,
