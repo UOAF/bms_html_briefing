@@ -112,6 +112,7 @@ class Briefing:
                 return ''.join(s).strip("\t\n").replace("\t","")
 
     class PilotRoster:
+        weapons = [[],[],[],[]]
         def __init__(self, brf = None, line_contents = None):
             for attr in ["callsign", "lead", "wing", "element", "four"]:
                 init_func = getattr(self, f'init_{attr}', None)
@@ -289,9 +290,13 @@ class Briefing:
 
             for i in range(1, len(fl_weapon_list)):
                 for j in range(4):
-                    s[j].append(fl_weapon_list[i].strip("\t \n").split("\t")[j])
+                    try:
+                        s[j].append(fl_weapon_list[i].strip("\t \n").split("\t")[j])
+                    except Exception as e:
+                        print(f"Error reading weapon list for flight member {j+1}")
 
         except Exception as e:
+            return s
             print(f"Error reading weapon list for {clsgn}: {e}")
         return s
 
@@ -312,6 +317,7 @@ class Briefing:
                         brf.own_flight = pe[i]
                 return pe
             except Exception as e:
+                brf.own_flight = self.PilotRoster()
                 print(f"Error reading package: {e}")
                 return []
 

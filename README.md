@@ -12,7 +12,7 @@ To use the Python script you need [Python 3](https://www.python.org/downloads/) 
 pip install jinja2
 ```
 should work, depending on your operating system.
-### Provided executables
+### Alternative: using the provided executables
 Release should contain Windows and Linux archives with packaged executables. These should have no dependencies.
 
 ## Usage
@@ -38,9 +38,19 @@ In the config.ini file you may also modify the page contents: it is a list of li
 
 If you put an image with the filename "logo.png" into the /assets directory, after the next launch it will appear as a logo in the flight roster section, because why not.
 
+## TLDR, suggested workflow
+1. Set BMS location, callsign in config.ini and "joined = True" (default).
+2. "Print" briefing in BMS 2D and save the DTC.
+3. Launch the executable or feed html_brief.py to Python.
+4. Open or refresh the output/index_joined.html in the browser. Load changes if needed.
+5. Modify it according to the IRL flight brief.
+6. Save changes.
+7. Print to PDF (the pages should be separated automatically), point the Openkneeboard to it if you use it.
+8. Has something changed in the briefing or with target steerpoints? Go to 2.
+
 Modification
 -------------
-The templates to generate kneeboards are in the "templates" folder. These are jinja2 templates written in simple HTML, so should be easy to modify. 
+The templates to generate kneeboards are in the "templates" folder. These are jinja2 templates written in simple HTML, so should be easy to modify.
 
 Example output
 -------------
