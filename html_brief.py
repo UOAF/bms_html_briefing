@@ -1,6 +1,7 @@
 from jinja2 import Template, Environment, FileSystemLoader
 import os, sys
-import parse_brief, parse_callsignini
+from lib.parse_brief import Briefing
+from lib.parse_callsignini import Callsign_ini
 
 # parse config
 
@@ -16,7 +17,7 @@ with open(os.path.join(script_dir, "config.ini")) as config_file:
     try:
         config_contents = config_file.readlines()
         bms_location = next(l for l in config_contents if l.startswith("bms_location")).split("=")[1].strip("\n ")
-        logo_present = os.path.isfile(os.path.join(output_dir, "logo.png"))
+        logo_present = os.path.isfile(os.path.join(script_dir, "assets", "logo.png"))
         callsign = next(l for l in config_contents if l.startswith("callsign")).split("=")[1].strip("\n ")
         page_contents = [[p.strip("\n ") for p in l.split("=")[1].split(",")] for l in config_contents if l.startswith("page")]
         joined = (next(l for l in config_contents if l.startswith("joined")).split("=")[1].strip("\n ")) == "True"
@@ -32,11 +33,11 @@ def generate_html_file(name, page_num = 0):
     try:
         with open(briefing_location, encoding = "latin1") as briefing_file:
             briefing_contents = briefing_file.readlines()
-            brf = parse_brief.Briefing(briefing_contents)
+            brf = Briefing(briefing_contents)
         
             with open(callsignini_location, encoding = "latin1") as callsignini_file:
                 callsignini_contents = callsignini_file.readlines()
-                ci = parse_callsignini.Callsign_ini(callsignini_contents)
+                ci = Callsign_ini(callsignini_contents)
 
             env = Environment(loader=FileSystemLoader(templates_dir))
             index_tmpl = env.get_template("index.html")

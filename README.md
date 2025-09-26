@@ -40,7 +40,7 @@ When an .html kneeboard is opened in a browser, the "Save" and "Load" buttons ca
 
 In the config.ini file you may also modify the page contents: it is a list of lines of the form "page = section1, section2, ...", a single list of keywords producing a page of the kneeboard. Keywords refer to various kneeboard sections and coincide with the names of files in the templates folder. 
 
-If you put an image with the filename "logo.png" in the (previously created) /output directory, after the next launch it will appear as a logo in the flight roster section, because why not.
+If you put an image with the filename "logo.png" into the /assets directory, after the next launch it will appear as a logo in the flight roster section, because why not.
 
 Modification
 -------------
