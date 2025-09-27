@@ -7,3 +7,4 @@ assets/logo.png
 dist/
 build/
 *.spec
+debug.log
