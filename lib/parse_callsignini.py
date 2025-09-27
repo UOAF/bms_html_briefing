@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger('html_brief_log')
+
 class Callsign_ini:
     def __init__(self, file_contents = None):
         self.tgtsteerpoints = self.fill_tgtsteerpoints(file_contents)
@@ -12,10 +15,10 @@ class Callsign_ini:
                         value = init_func(line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_number(self, line_contents):
             if line_contents == None:
@@ -37,7 +40,7 @@ class Callsign_ini:
                 s = [l for l in file_contents if l.startswith("target_") and l.split(", ")[-1].strip(" \n") != "Not set"]
                 return [self.TgtSteerpoint(x) for x in s]
             except Exception as e:
-                print(f"Error reading target steerpoints: {e}")
+                logger.warning(f"Error reading target steerpoints: {e}")
                 return []
 
     def fill_cmds(self, file_contents = None):
@@ -54,5 +57,5 @@ class Callsign_ini:
                     prgrms[int(sl[1])][tp] = val
                 return prgrms
             except Exception as e:
-                print(f"Error reading cmds: {e}")
+                logger.warning(f"Error reading cmds: {e}")
                 return prgrms

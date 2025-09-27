@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger('html_brief_log')
+
 class Briefing:
     def __init__(self, file_contents = None):
         self.overview = self.Overview(file_contents)
@@ -20,10 +23,10 @@ class Briefing:
                         value = init_func(file_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_callsign(self, file_contents):
             if file_contents == None:
@@ -97,10 +100,10 @@ class Briefing:
                         value = init_func(file_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding \'{attr}\': {e}")
+                        logger.warning(f"Error finding \'{attr}\': {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_sitrep(self, file_contents):
             if file_contents == None:
@@ -121,10 +124,10 @@ class Briefing:
                         value = init_func(line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
             for attr in ["own"]:
                 init_func = getattr(self, f'init_{attr}', None)
@@ -133,10 +136,10 @@ class Briefing:
                         value = init_func(brf, line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, False)
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_callsign(self, line_contents):
             if line_contents == None:
@@ -186,7 +189,7 @@ class Briefing:
                 s = [self.PilotRoster(brf, x) for x in name_list]
                 return s
             except Exception as e:
-                print(f"Error reading roster: {e}")
+                logger.warning(f"Error reading roster: {e}")
                 return []
 
     class PackageElement:
@@ -199,10 +202,10 @@ class Briefing:
                         value = init_func(brf, line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
             for attr in ["primary"]:
                 init_func = getattr(self, f'init_{attr}', None)
                 if callable(init_func):
@@ -210,10 +213,10 @@ class Briefing:
                         value = init_func(brf, line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, False)
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
         
         def init_callsign(self, brf, line_contents):
             if line_contents == None:
@@ -293,11 +296,11 @@ class Briefing:
                     try:
                         s[j].append(fl_weapon_list[i].strip("\t \n").split("\t")[j])
                     except Exception as e:
-                        print(f"Error reading weapon list for flight member {j+1}")
+                        logger.warning(f"Error reading weapon list for flight member {j+1}")
 
         except Exception as e:
             return s
-            print(f"Error reading weapon list for {clsgn}: {e}")
+            logger.warning(f"Error reading weapon list for {clsgn}: {e}")
         return s
 
     def fill_package(self, brf, file_contents = None):
@@ -318,7 +321,7 @@ class Briefing:
                 return pe
             except Exception as e:
                 brf.own_flight = self.PilotRoster()
-                print(f"Error reading package: {e}")
+                logger.warning(f"Error reading package: {e}")
                 return []
 
 
@@ -331,10 +334,10 @@ class Briefing:
                         value = init_func(file_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding \'{attr}\': {e}")
+                        logger.warning(f"Error finding \'{attr}\': {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_threat(self, file_contents):
             if file_contents == None:
@@ -354,10 +357,10 @@ class Briefing:
                         value = init_func(line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_number(self, line_contents):
             if line_contents == None:
@@ -430,7 +433,7 @@ class Briefing:
                 s = file_contents[start+4:end-1]
                 return [self.Steerpoint(x) for x in s]
             except Exception as e:
-                print(f"Error reading steerpoints: {e}")
+                logger.warning(f"Error reading steerpoints: {e}")
                 return []
 
 
@@ -443,10 +446,10 @@ class Briefing:
                         value = init_func(line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_agency(self, line_contents):
             if line_contents == None:
@@ -488,7 +491,7 @@ class Briefing:
                 s = list(filter(lambda l: l != "", [x.strip(" \n ") for x in file_contents[start+4:end-1]]))
                 return [self.Comm(x) for x in s]
             except Exception as e:
-                print(f"Error reading comms: {e}")
+                logger.warning(f"Error reading comms: {e}")
                 return []
 
 
@@ -502,10 +505,10 @@ class Briefing:
                         value = init_func(brf, agncy)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_tcn(self, brf, agncy):
             return ""
@@ -543,10 +546,10 @@ class Briefing:
                         value = init_func(line_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_callsign(self, line_contents):
             if line_contents == None:
@@ -576,7 +579,7 @@ class Briefing:
                 s = list(filter(lambda l: l != "", [x.strip(" \n ") for x in file_contents[start+4:end-1]]))
                 return [self.Support(x) for x in s]
             except Exception as e:
-                print(f"Error reading support: {e}")
+                logger.warning(f"Error reading support: {e}")
                 return []
 
     class Weather:
@@ -588,10 +591,10 @@ class Briefing:
                         value = init_func(file_contents)
                         setattr(self, attr, value)
                     except Exception as e:
-                        print(f"Error finding {type(self).__name__}.{attr}: {e}")
+                        logger.warning(f"Error finding {type(self).__name__}.{attr}: {e}")
                         setattr(self, attr, "")
                 else:
-                    print(f"No function to find {type(self).__name__}.{attr}")
+                    logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
         def init_sit(self, file_contents):
             if file_contents == None:
@@ -645,5 +648,5 @@ class Briefing:
                 s = file_contents[start+1:end]
                 return ''.join(s).strip("\t\n").replace("\t","")
             except Exception as e:
-                print(f"Error reading ROE: {e}")
+                logger.warning(f"Error reading ROE: {e}")
                 return ""

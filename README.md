@@ -30,13 +30,19 @@ or, if you are using the packaged executable, just run ```html_brief.exe``` (on 
 
 This will generate .html files in the /output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and use with [OpenKneeboard](https://openkneeboard.com/).
 
-If you set the option ```joined = True``` it will generate a single .html file with all the pages in it. When you open it in a (modern) browser and print it to PDF, it should automatically separate pages correctly. This saves some time compared to printing each page separately.
+If you set the option ```joined = True``` (default) it will generate a single .html file with all the pages in it. When you open it in a (modern) browser and print it to PDF, it should automatically separate pages correctly. This saves some time compared to printing each page separately.
+
+If you set the option ```monitor = True``` (default is ```False```) the program will stay active and watch for changes to briefing.txt or callsign.ini, and run automatically when they change. Saves a click.
 
 When an .html kneeboard is opened in a browser, the "Save" and "Load" buttons can be clicked. This will save/load the contents of the editable fields to/from the browser memory. The intention is to be able to preserve some of the entered information (e.g. delivery method) even if some other information was changed in the briefing (e.g. flightplan has changed and you have to reload the briefing).
 
 In the config.ini file you may also modify the page contents: it is a list of lines of the form "page = section1, section2, ...", a single list of keywords producing a page of the kneeboard. Keywords refer to various kneeboard sections and coincide with the names of files in the templates folder. 
 
 If you put an image with the filename "logo.png" into the /assets directory, after the next launch it will appear as a logo in the flight roster section, because why not.
+
+### Launch options
+``` -m, --monitor```: equivalent to ```monitor = True``` in config.ini (overrides config.ini value)
+``` -s, --separated```: equivalent to ```joined = False``` in config.ini (overrides config.ini value)
 
 ## TLDR, suggested workflow
 1. Set BMS location, callsign in config.ini and "joined = True" (default).
