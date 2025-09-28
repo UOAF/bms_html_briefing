@@ -44,6 +44,8 @@ td {
       <tr>
 	<th class="header"><button id="save" onclick="saveContenteditables()">Save changes</button> <button id="load" onclick="loadContenteditables()">Load changes</button>
 	</th>
+	<th class="header"><button id="reload" onclick="reloadFromFiles()">Reload briefing files</button></th>
+	<th class="header"><button id="reset" onclick="resetContenteditables()">Reset changes</button></th>
 	<th class="header" width="10%"> Page {{loop.index}}</th>
 	</th>
         </tr>
@@ -62,6 +64,8 @@ td {
       <tr>
 	<th class="header"><button id="save" onclick="saveContenteditables()">Save changes</button> <button id="load" onclick="loadContenteditables()">Load changes</button>
 	</th>
+	<th class="header"><button id="reload" onclick="reloadFromFiles()">Reload briefing files</button></th>
+	<th class="header"><button id="reset" onclick="resetContenteditables()">Reset changes</button></th>
 	<th class="header" width="10%"> Page {{num}}</th>
 	</th>
         </tr>
@@ -72,6 +76,19 @@ td {
 </style>
 </body>
 <script>
+  window.onload = function()
+  {
+      var restore = sessionStorage.getItem("onrefresh");
+      if (restore == "restore") {
+       loadContenteditables();
+       sessionStorage.setItem("restore", "");
+  }
+  if (restore == "reset") {
+       saveContenteditables();
+       sessionStorage.setItem("restore", "");
+  }
+  }
+
     function saveContenteditables() {
       const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
       const contentData = {};
@@ -91,4 +108,21 @@ td {
         }
       });
     }
+  
+    function reloadFromFiles() {
+	saveContenteditables();
+        sessionStorage.setItem("onrefresh", "restore");
+	window.location.reload();
+        return "false";
+    }
+
+    function resetContenteditables() {
+    if (confirm("Are you sure? This will overwrite all changes.")){
+        sessionStorage.setItem("onrefresh", "reset");
+	window.location.reload();
+  return "false";
+  }
+    }
+
+
 </script>
