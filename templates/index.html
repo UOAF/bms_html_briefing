@@ -81,11 +81,10 @@ td {
       var restore = sessionStorage.getItem("onrefresh");
       if (restore == "restore") {
        loadContenteditables();
-       sessionStorage.setItem("restore", "");
   }
   if (restore == "reset") {
        saveContenteditables();
-       sessionStorage.setItem("restore", "");
+       sessionStorage.setItem("onrefresh", "restore");
   }
   }
 

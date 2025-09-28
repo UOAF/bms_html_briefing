@@ -49,10 +49,10 @@ If you put an image with the filename "logo.png" into the /assets directory, aft
 1. Launch the executable or python script.
 2. "Print" briefing in BMS 2D and save the DTC.
 3. Open the output/index_joined.html in the browser.
-5. Modify it according to the IRL flight brief.
-6. Save changes.
-7. Print to PDF (the pages should be separated automatically), point the Openkneeboard to it if you use it.
-8. Has something changed in the briefing or with target steerpoints? Press the ```Reload briefing files``` button. Go to 5.
+4. Modify it according to the IRL flight brief.
+5. Save changes.
+6. Print to PDF (the pages should be separated automatically), point the Openkneeboard to it if you use it.
+7. Has something changed in the briefing or with target steerpoints? Press the ```Reload briefing files``` button. Go to 5.
 
 Modification
 -------------
