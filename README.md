@@ -16,7 +16,7 @@ should work, depending on your operating system.
 Release should contain Windows and Linux archives with packaged executables. These should have no dependencies.
 
 ## Usage
-In the config.ini file (see the example provided!), set the location of your BMS folder, the desired output folder for the .thml files and your callsign. E.g.
+In the config.ini file (see the example provided!), set the location of your BMS folder and your callsign. E.g.
 ```
 bms_location = D:\Falcon BMS 4.38
 callsign = wsy
@@ -38,10 +38,23 @@ When an .html kneeboard is opened in a browser, the buttons in the bottom of the
 
 In the config.ini file you may also modify the page contents: it is a list of lines of the form "page = section1, section2, ...", a single list of keywords producing a page of the kneeboard. Keywords refer to various kneeboard sections and coincide with the names of files in the templates folder. 
 
-If you put an image with the filename "logo.png" into the /assets directory, after the next launch it will appear as a logo in the flight roster section, because why not.
+If you put an image with the filename ```logo.png``` into the ```/assets``` directory, after the next launch it will appear as a logo in the flight roster section, because why not.
+
+### Map
+Starting from the version 0.5 there is an option to add a map to the kneeboards. This uses [Leaflet](https://leafletjs.com/).
+
+To use the map, put 4096x4096 map images into the ```/assets``` directory, and choose an appropriate one with "Browse" dialogue on top of the map. Map can be dragged with mouse and zoomed with the mouse wheel. Double click sets bullseye. 
+
+The map images usually come with the theatre install. For example (all folders are relative to the Falcon BMS install path):
+* KTO has several 4K map images to choose from in ```Docs/05 Maps/``` folder
+* ITO similarly has those in ```Data/Add-On Israel/Docs/02 Maps``` folder,
+* Coastal Front for BMS 4.37 has maps in ```Data/Add-On Coastal Front/Docs/Tacview_and_WDP_files/WDP/Coastal Front``` folder.
+
+The map that is loaded by default is ```assets/map.png```.
 
 ### Launch options
 ``` -m, --monitor```: equivalent to ```monitor = True``` in config.ini (overrides config.ini value)
+
 ``` -s, --separated```: equivalent to ```joined = False``` in config.ini (overrides config.ini value)
 
 ## TLDR, suggested workflow

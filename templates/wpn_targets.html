@@ -1,0 +1,19 @@
+<style>
+</style>
+{% if wpntgts|length > 0 %}
+<table width=100%>
+    <thead>
+      <tr>
+	  <th colspan="100" class="header">Weapon targets</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for stpt in wpntgts %}
+      <tr>
+	<td>{{stpt.number}}</td>
+	<td>{{stpt.name}}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>
+{% endif %}

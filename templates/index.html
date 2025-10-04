@@ -78,24 +78,33 @@ td {
 <script>
   window.onload = function()
   {
-      var restore = sessionStorage.getItem("onrefresh");
+      var restore = localStorage.getItem("onrefresh");
       if (restore == "restore") {
        loadContenteditables();
   }
   if (restore == "reset") {
        saveContenteditables();
-       sessionStorage.setItem("onrefresh", "restore");
+       document.getElementById('fileInput').value="";
+       localStorage.setItem("mapFile", "map.png");
+       localStorage.setItem("onrefresh", "restore");
   }
   }
 
     function saveContenteditables() {
-      const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
-      const contentData = {};
-      contenteditableElements.forEach(el => {
-        const key = el.id;
-        contentData[key] = el.innerHTML;
-      });
-      localStorage.setItem('contenteditables', JSON.stringify(contentData));
+	const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
+	const contentData = {};
+	contenteditableElements.forEach(el => {
+            const key = el.id;
+            contentData[key] = el.innerHTML;
+	});
+	contentData["mapZoom"] = map.getZoom();
+	contentData["mapCenter"] = map.getCenter();
+	contentData['bullseyePos'] = bullseye_overlay.getCenter();
+	var selected_files = document.getElementById('fileInput').files;
+	if (selected_files.length > 0) {
+	    localStorage.setItem('mapFile', selected_files[0].name);
+	}
+	localStorage.setItem('contenteditables', JSON.stringify(contentData));
     }
 
     function loadContenteditables() {
@@ -106,20 +115,22 @@ td {
           el.innerHTML = contentData[key];
         }
       });
+	drawMap("../assets/" + localStorage.getItem('mapFile'));
+	map.setView(contentData["mapCenter"], contentData["mapZoom"]);
+	setBullseye(contentData['bullseyePos']);
     }
   
     function reloadFromFiles() {
-	saveContenteditables();
-        sessionStorage.setItem("onrefresh", "restore");
+        localStorage.setItem("onrefresh", "restore");
 	window.location.reload();
         return "false";
     }
 
     function resetContenteditables() {
     if (confirm("Are you sure? This will overwrite all changes.")){
-        sessionStorage.setItem("onrefresh", "reset");
+        localStorage.setItem("onrefresh", "reset");
 	window.location.reload();
-  return "false";
+        return "false";
   }
     }
 

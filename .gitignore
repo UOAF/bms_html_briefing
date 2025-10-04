@@ -3,7 +3,10 @@ test/
 __pycache__
 /*.html
 output/*
-assets/logo.png
+assets/*
+!assets/icon.png
+!assets/map.png
+!assets/bullseye.png
 dist/
 build/
 *.spec

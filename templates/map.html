@@ -1,0 +1,151 @@
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+</style>
+<style>
+		.leaflet-container {
+		    width: 100%;
+		    height: 90%;
+		    max-width: 100%;
+		    max-height: 1100px;
+		}
+		.leaflet-tooltip-own {
+		    position: absolute;
+		    padding: 4px;
+		    background-color: rgba(0, 0, 0, 0.0);
+		    border: 0px solid #000;
+		    color: #fff;
+		    white-space: nowrap;
+		    -webkit-user-select: none;
+		    -moz-user-select: none;
+		    -ms-user-select: none;
+		    user-select: none;
+		    pointer-events: none;
+		box-shadow: 0 0px 0px rgba(0,0,0,0.0);
+		}
+</style>
+
+<table width=100%>
+    <thead>
+      <tr>
+	  <th class="header"><input type="file" accept="image/*" id="fileInput"></th>
+	  <th class="header" width="80%">Map</th>
+      </tr>
+    </thead>
+    <tbody>
+</td>
+    </tbody>
+</table>
+      <div id="image-map" class="leaflet-container"></div>
+<script>
+var map = L.map('image-map', {
+	minZoom: -3,
+	maxZoom: 5,
+	zoom: -2,
+	crs: L.CRS.Simple,
+	zoomControl: false,
+	doubleClickZoom: false,
+    });
+
+var imageWidth = 4096,
+    imageHeight = 4096;
+
+var southWest = map.unproject([0, imageHeight], 0);
+var northEast = map.unproject([imageWidth, 0], 0);
+    
+var bounds = new L.LatLngBounds(southWest, northEast);
+
+map.setMaxBounds([southWest, northEast]);
+
+map_overlay = L.imageOverlay("../assets/map.png", bounds).addTo(map);
+bullseye_overlay = L.imageOverlay("../assets/bullseye.png", bounds).addTo(map);
+
+function setBullseye(latlng) {
+    bullseye_overlay.setBounds([[southWest.lat + latlng.lat + imageWidth/2, southWest.lng + latlng.lng - imageHeight/2], [northEast.lat + latlng.lat + imageWidth/2, northEast.lng + latlng.lng - imageHeight/2]]);
+  }
+ 
+drawings = L.layerGroup();
+
+// dimensions of the Falcon map
+var fWidth = 3359580,
+    fHeight = 3359580;
+
+function convertScalar(iniScalar) {
+    return iniScalar/fHeight*imageHeight;
+}
+
+function convertCoord(iniCoord) {
+    return [convertScalar(iniCoord[0]) - imageHeight, convertScalar(iniCoord[1])];
+}
+
+
+  let stptIniCoords = [{% for point in stpt_coords %}
+		       [ {{point.coord_x}}, {{point.coord_y}}],
+		       {% endfor %}]
+
+    stptMapCoords = [];
+
+let tstptIniCoords = [{% for point in tstpt_coords %}
+		      [ [{{point.coord_x}}, {{point.coord_y}}], "{{point.radius}}", "{{point.name}}" ],
+		       {% endfor %}]
+tstptMapCoords = [];
+
+let stptLineIniCoords = [{% for line in stpt_lines %}
+			 [{% for point in line %}
+		       [{{point.coord_x}}, {{point.coord_y}}],
+			  {% endfor %}],
+		       {% endfor %}]
+
+stptLineMapCoords = [[],[],[],[]];
+
+function drawMap(url) {
+// dimensions of the image
+    map_overlay.setUrl(url);
+    drawings.clearLayers();
+
+    for (i = 0; i < stptIniCoords.length - 1; i ++) {
+	stptMapCoords[i] = convertCoord(stptIniCoords[i]);
+	L.marker(stptMapCoords[i], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+(i+1).toString()+"</b>", {direction: "bottom", permanent: true, opacity: 0.9, className: "leaflet-tooltip-own"}).openTooltip();
+    }
+    stptMapCoords[i] = convertCoord(stptIniCoords[i]);
+    L.marker(stptMapCoords[i], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>ALT</b>", {direction: "bottom", permanent: true, opacity: 0.9, className: "leaflet-tooltip-own"}).openTooltip();
+
+    L.polyline(stptMapCoords.slice(0,-1), {color: 'white', weight: 2}).addTo(drawings);
+    
+    for (i = 0; i < tstptIniCoords.length; i ++) {
+	tstptMapCoords[i] = [convertCoord(tstptIniCoords[i][0]), convertScalar(tstptIniCoords[i][1])];
+	L.marker(tstptMapCoords[i][0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+tstptIniCoords[i][2]+"</b>", {direction: "bottom", permanent: true, opacity: 0.9, className: "leaflet-tooltip-own"}).openTooltip();
+	if ( tstptIniCoords[i][1] != 0.100000 ) {
+	    L.circle(tstptMapCoords[i][0], {radius: tstptMapCoords[i][1], color: 'red', fillColor: 'red', fillOpacity: 0.1, opacity: 0.5, weight: 2}).addTo(drawings);
+	}
+    }
+
+    for (i = 0; i < stptLineIniCoords.length; i ++) {
+	for (j = 0; j < stptLineIniCoords[i].length; j++) {
+	stptLineMapCoords[i][j] = convertCoord(stptLineIniCoords[i][j]);
+	}
+	L.polyline(stptLineMapCoords[i], {color: 'black', weight: 2}).addTo(drawings);
+    }
+    drawings.addTo(map);
+    if (localStorage.getItem('onrefresh') != "restore") {
+			map.setView(stptMapCoords[0], -1);
+	}
+}
+
+drawMap("../assets/map.png");
+
+map.on("dblclick", function(ev) {
+    setBullseye(ev.latlng);
+});
+
+document.getElementById('fileInput')
+    .addEventListener('change', function () {
+	let fr = new FileReader();
+	fr.onload = function () {
+	    drawMap(fr.result);
+	}
+	fr.readAsDataURL(this.files[0]);
+    })
+
+</script>
