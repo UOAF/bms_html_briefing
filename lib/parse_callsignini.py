@@ -240,7 +240,7 @@ class Callsign_ini:
                     s.append([])
                     r.append([])
                     line_points = [l for l in file_contents if l.startswith("lineSTPT_")]
-                    s[i] = [l for l in line_points[6*i:6*i+4] if l.split("=")[1].split(",")[0] != "0.000000"]
+                    s[i] = [l for l in line_points[6*i:6*i+6] if l.split("=")[1].split(",")[0] != "0.000000"]
                     r[i] = [self.SteerpointLinePoint(x) for x in s[i]]
                 return r
             except Exception as e:

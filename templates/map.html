@@ -1,8 +1,5 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-<style>
-</style>
 <style>
 		.leaflet-container {
 		    width: 100%;
@@ -119,12 +116,13 @@ function drawMap(url) {
 	    L.circleMarker(stptMapCoords[i], {color: "white", fillOpacity: 1, radius: 7, zIndexOffset: -i}).addTo(drawings).bindTooltip("<b>"+(i+1).toString()+"</b>", {direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp"}).openTooltip();
 	}
     }
+    if (stptIniCoords.length > 0) {
     stptMapCoords[i] = convertCoord(stptIniCoords[i]);
     L.marker(stptMapCoords[i], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>ALT</b>", {direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat"}).openTooltip();
     L.marker(stptMapCoords[0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>DEP</b>", {direction: "center", permanent: true, opacity: 1, offset: L.point(1,14), className: "leaflet-tooltip-threat"}).openTooltip();
 
     L.polyline(stptMapCoords.slice(0,-1), {color: 'white', weight: 2, lineJoin: "miter"}).addTo(drawings);
-		    
+    }	    
     
     for (i = 0; i < tstptIniCoords.length; i ++) {
 	tstptMapCoords[i] = [convertCoord(tstptIniCoords[i][0]), convertScalar(tstptIniCoords[i][1])];
@@ -142,8 +140,8 @@ function drawMap(url) {
     }
     drawings.addTo(map);
     if (localStorage.getItem('onrefresh') != "restore") {
-			map.setView(stptMapCoords[0], -1);
-	}
+			map.setView([-imageWidth/2, imageHeight/2], -2);
+			}
 }
 
 drawMap("../assets/map.png");

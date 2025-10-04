@@ -116,8 +116,14 @@ td {
         }
       });
 	drawMap("../assets/" + localStorage.getItem('mapFile'));
-	map.setView(contentData["mapCenter"], contentData["mapZoom"]);
+	try {
+	    map.setView(contentData["mapCenter"], contentData["mapZoom"]);
 	setBullseye(contentData['bullseyePos']);
+	}
+	catch (error) {
+	    console.error(error);
+	}
+
     }
   
     function reloadFromFiles() {
