@@ -10,20 +10,29 @@
 		    max-width: 100%;
 		    max-height: 1100px;
 		}
-		.leaflet-tooltip-own {
+		.leaflet-tooltip-fp {
+		    position: absolute;
+		    padding: 4px;
+		    background-color: rgba(0, 0, 0, 0.0);
+		    border: 0px solid #000;
+		    color: #000;
+		    white-space: nowrap;
+		    user-select: none;
+		    pointer-events: none;
+		    box-shadow: 0 0px 0px rgba(0,0,0,0.0);
+		}
+		.leaflet-tooltip-threat {
 		    position: absolute;
 		    padding: 4px;
 		    background-color: rgba(0, 0, 0, 0.0);
 		    border: 0px solid #000;
 		    color: #fff;
 		    white-space: nowrap;
-		    -webkit-user-select: none;
-		    -moz-user-select: none;
-		    -ms-user-select: none;
 		    user-select: none;
 		    pointer-events: none;
-		box-shadow: 0 0px 0px rgba(0,0,0,0.0);
+		    box-shadow: 0 0px 0px rgba(0,0,0,0.0);
 		}
+
 </style>
 
 <table width=100%>
@@ -106,16 +115,20 @@ function drawMap(url) {
 
     for (i = 0; i < stptIniCoords.length - 1; i ++) {
 	stptMapCoords[i] = convertCoord(stptIniCoords[i]);
-	L.marker(stptMapCoords[i], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+(i+1).toString()+"</b>", {direction: "bottom", permanent: true, opacity: 0.9, className: "leaflet-tooltip-own"}).openTooltip();
+	if (i > 0) {
+	    L.circleMarker(stptMapCoords[i], {color: "white", fillOpacity: 1, radius: 7, zIndexOffset: -i}).addTo(drawings).bindTooltip("<b>"+(i+1).toString()+"</b>", {direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp"}).openTooltip();
+	}
     }
     stptMapCoords[i] = convertCoord(stptIniCoords[i]);
-    L.marker(stptMapCoords[i], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>ALT</b>", {direction: "bottom", permanent: true, opacity: 0.9, className: "leaflet-tooltip-own"}).openTooltip();
+    L.marker(stptMapCoords[i], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>ALT</b>", {direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat"}).openTooltip();
+    L.marker(stptMapCoords[0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>DEP</b>", {direction: "center", permanent: true, opacity: 1, offset: L.point(1,14), className: "leaflet-tooltip-threat"}).openTooltip();
 
-    L.polyline(stptMapCoords.slice(0,-1), {color: 'white', weight: 2}).addTo(drawings);
+    L.polyline(stptMapCoords.slice(0,-1), {color: 'white', weight: 2, lineJoin: "miter"}).addTo(drawings);
+		    
     
     for (i = 0; i < tstptIniCoords.length; i ++) {
 	tstptMapCoords[i] = [convertCoord(tstptIniCoords[i][0]), convertScalar(tstptIniCoords[i][1])];
-	L.marker(tstptMapCoords[i][0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+tstptIniCoords[i][2]+"</b>", {direction: "bottom", permanent: true, opacity: 0.9, className: "leaflet-tooltip-own"}).openTooltip();
+	L.marker(tstptMapCoords[i][0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+tstptIniCoords[i][2]+"</b>", {direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat"}).openTooltip();
 	if ( tstptIniCoords[i][1] != 0.100000 ) {
 	    L.circle(tstptMapCoords[i][0], {radius: tstptMapCoords[i][1], color: 'red', fillColor: 'red', fillOpacity: 0.1, opacity: 0.5, weight: 2}).addTo(drawings);
 	}
