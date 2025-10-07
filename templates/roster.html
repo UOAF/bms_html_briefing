@@ -8,7 +8,7 @@
 	    {% if logo_present %}<th rowspan="6" width="15%" style="vertical-align: middle; text-align: center;"> <img src="../assets/logo.png" width="100%"></th>{% endif %}
             <th width="10%"></th>
             <th>Name</th>
-            <th width="5%">TCN</th>
+            <th width="10%">TCN <button class="refreshButton" onclick='restoreDefaultAtId("tcn")'>⟳</button></th>
             <th width="10%">LSR</th>
         </tr>
       {% for i in range(package_size) %}
@@ -16,25 +16,25 @@
         <tr>
 	    <td>1 Lead</td>
             <td id="roster_lead_1">{% if package[i].roster.lead != "Unassigned" %} {{ package[i].roster.lead }} {% endif %}</td>
-	    <td contenteditable="true" class="editable" id="roster_lead_2">{{i+15}}X</td>
+	    <td contenteditable="true" class="editable tcn" id="roster_lead_2">{{i+15}}X</td>
 	    <td contenteditable="true" class="editable" id="roster_lead_3"></td>
         </tr>
 	<tr>
 	    <td>2 Wing</td>
             <td id="roster_2wing_1">{% if package[i].roster.wing != "Unassigned" %} {{ package[i].roster.wing }} {% endif %}</td>
-	    <td contenteditable="true" class="editable" id="roster_2wing_2">{{i+15+63}}X</td>
+	    <td contenteditable="true" class="editable tcn" id="roster_2wing_2">{{i+15+63}}X</td>
 	    <td contenteditable="true" class="editable" id="roster_2wing_3"></td>
 	</tr>
         <tr>
 	    <td>3 Element</td>
 	    <td id="roster_3elmnt_1">{% if package[i].roster.element != "Unassigned" %} {{ package[i].roster.element }} {% endif %}</td>
-	    <td contenteditable="true" class="editable" id="roster_3elmnt_2">{{i+15+63}}Y</td>
+	    <td contenteditable="true" class="editable tcn" id="roster_3elmnt_2">{{i+15+63}}Y</td>
 	    <td contenteditable="true" class="editable" id="roster_3elmnt_3"></td>
 	</tr>
 	<tr>
 	    <td>4 Wing</td>
             <td id="roster_4wing_1">{% if package[i].roster.four != "Unassigned" %} {{ package[i].roster.four }} {% endif %}</td>
-	    <td contenteditable="true" class="editable" id="roster_4wing_2">{{i+15}}Y</td>
+	    <td contenteditable="true" class="editable tcn" id="roster_4wing_2">{{i+15}}Y</td>
 	    <td contenteditable="true" class="editable" id="roster_4wing_3"></td>
 	</tr>
 	{% endif %}

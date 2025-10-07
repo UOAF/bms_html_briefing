@@ -24,6 +24,9 @@ td {
 .header {
     background-color: dddddd;
 }
+.refreshButton {
+    font-weight: bold;
+}
 @media print {
     .page, .page-break { break-after: page; }
 }
@@ -78,6 +81,8 @@ td {
 <script>
   window.onload = function()
   {
+      saveContenteditablesDefaults();
+
       var restore = localStorage.getItem("onrefresh");
       if (restore == "restore") {
        loadContenteditables();
@@ -107,6 +112,32 @@ td {
 	localStorage.setItem('contenteditables', JSON.stringify(contentData));
     }
 
+    function saveContenteditablesDefaults() {
+	const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
+	const contentDataDef = {};
+	contenteditableElements.forEach(el => {
+            const key = el.id;
+            contentDataDef[key] = el.innerHTML;
+	});
+	contentDataDef["mapZoom"] = map.getZoom();
+	contentDataDef["mapCenter"] = map.getCenter();
+	contentDataDef['bullseyePos'] = bullseye_overlay.getCenter();
+	var selected_files = document.getElementById('fileInput').files;
+	if (selected_files.length > 0) {
+	    localStorage.setItem('mapFile', selected_files[0].name);
+	}
+	localStorage.setItem('contenteditablesDef', JSON.stringify(contentDataDef));
+    }
+
+    function restoreDefaultAtId(id) {
+	const toRestore = document.querySelectorAll("." + id);
+	const contentDataDef = JSON.parse(localStorage.getItem('contenteditablesDef') || '{}');
+	for (i = 0; i < toRestore.length; i ++) {
+	toRestore[i].innerHTML = contentDataDef[toRestore[i].id];
+	}
+    }
+
+
     function loadContenteditables() {
       const contentData = JSON.parse(localStorage.getItem('contenteditables') || '{}');
       Object.keys(contentData).forEach(key => {
@@ -127,6 +158,7 @@ td {
     }
   
     function reloadFromFiles() {
+        saveContenteditables();
         localStorage.setItem("onrefresh", "restore");
 	window.location.reload();
         return "false";

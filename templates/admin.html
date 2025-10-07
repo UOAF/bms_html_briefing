@@ -5,7 +5,7 @@
       <tr>
 	  <th class="header" width="10%">ALOW</th>
 	  <th class="header" width="10%">MSL FL</th>
-	  <th class="header" width="10%">VHF</th>
+	  <th class="header" width="10%">VHF <button class="refreshButton" onclick='restoreDefaultAtId("vhf")'>⟳</button></th>
 	  <th class="header" width="10%">UHF (Tac.)</th>
 	  <th class="header" width="10%">BINGO</th>
 	  <th class="header" width="10%">JOKER</th>
@@ -16,11 +16,13 @@
     <tbody>
       <td contenteditable="true" class="editable" id="admin_1"></td>
       <td contenteditable="true" class="editable" id="admin_2"></td>
+      <div id="vhf">
       {% for i in range(package_size) %}
       {% if package[i].roster.own %}
-      <td contenteditable="true" class="editable" id="admin_3">{{i+15}}</td>
+      <td contenteditable="true" class="editable vhf" id="admin_3">{{i+15}}</td>
       {% endif %}
       {% endfor %}
+      </div>
       <td contenteditable="true" class="editable" id="admin_4"></td>
       <td contenteditable="true" class="editable" id="admin_5"></td>
       <td contenteditable="true" class="editable" id="admin_6"></td>

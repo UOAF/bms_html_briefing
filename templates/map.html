@@ -105,6 +105,9 @@ let stptLineIniCoords = [{% for line in stpt_lines %}
 
 stptLineMapCoords = [[],[],[],[]];
 
+map.setView([-imageWidth/2, imageHeight/2], -2);
+localStorage.setItem("mapFile", "map.png");
+
 function drawMap(url) {
 // dimensions of the image
     map_overlay.setUrl(url);
@@ -141,6 +144,7 @@ function drawMap(url) {
     drawings.addTo(map);
     if (localStorage.getItem('onrefresh') != "restore") {
 			map.setView([-imageWidth/2, imageHeight/2], -2);
+			localStorage.setItem("mapFile", "map.png");
 			}
 }
 
