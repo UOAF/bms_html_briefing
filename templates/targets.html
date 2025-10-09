@@ -7,9 +7,9 @@
     <thead>
       <tr>
 	  <th class="header" width="10%"></th>
-	  <th class="header" width="30%">TGT 1:</th>
-	  <th class="header" width="30%">TGT 2:</th>
-	  <th class="header" width="30%">MISC:</th>
+	  <th class="header" width="30%">TGT 1: <input type="file" accept="image/*" id="tgt1Input" class="imageFileInput"></th>
+	  <th class="header" width="30%">TGT 2: <input type="file" accept="image/*" id="tgt2Input" class="imageFileInput"></th>
+	  <th class="header" width="30%">MISC:  <input type="file" accept="image/*" id="tgt3Input" class="imageFileInput"></th>
       </tr>
     </thead>
     <tbody>
@@ -25,5 +25,55 @@
 	<td contenteditable="true" class="editable" id="targets_5"></td>
 	<td contenteditable="true" class="editable" id="targets_6"></td>
       </tr>
+      <tr style="visibility: collapse" id="refImageRow">
+	<td class="header">REF. <button class="refreshButton" onclick='removeRefImg()'>⟳</button></td>
+	<td><img id="tgt1Img" style="max-width: 100%; height: auto; width: auto;"></td>
+	<td><img id="tgt2Img" style="max-width: 100%; height: auto; width: auto;"></td>
+	<td><img id="tgt3Img" style="max-width: 100%; height: auto; width: auto;"></td>
+	</tr>
     </tbody>
 </table>
+<script>
+document.getElementById('tgt1Input')
+    .addEventListener('change', function () {
+	let fr = new FileReader();
+	fr.onload = function () {
+	    let imageRow = document.getElementById("refImageRow");
+	    let imageDisplay = document.getElementById("tgt1Img");
+	    imageRow.style.visibility = "";
+	    imageDisplay.src = fr.result;
+	}
+	fr.readAsDataURL(this.files[0]);
+    })
+
+document.getElementById('tgt2Input')
+    .addEventListener('change', function () {
+	let fr = new FileReader();
+	fr.onload = function () {
+	    let imageRow = document.getElementById("refImageRow");
+	    let imageDisplay = document.getElementById("tgt2Img");
+	    imageRow.style.visibility = "";
+	    imageDisplay.src = fr.result;
+	}
+	fr.readAsDataURL(this.files[0]);
+    })
+
+document.getElementById('tgt3Input')
+    .addEventListener('change', function () {
+	let fr = new FileReader();
+	fr.onload = function () {
+	    let imageRow = document.getElementById("refImageRow");
+	    let imageDisplay = document.getElementById("tgt3Img");
+	    imageRow.style.visibility = "";
+	    imageDisplay.src = fr.result;
+	}
+	fr.readAsDataURL(this.files[0]);
+    })
+
+  function removeRefImg() {
+document.getElementById('tgt1Input').value="";
+document.getElementById('tgt2Input').value="";
+document.getElementById('tgt3Input').value="";
+document.getElementById('refImageRow').style.visibility = "collapse";
+  }
+</script>

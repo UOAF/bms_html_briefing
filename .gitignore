@@ -5,8 +5,9 @@ __pycache__
 output/*
 assets/*
 !assets/icon.png
-!assets/map.png
+!assets/maps/map.png
 !assets/bullseye.png
+!assets/targets/SA-2.jpg
 dist/
 build/
 *.spec

@@ -6,6 +6,9 @@
   body {
       width: 800px;
   }
+  .page {
+      width: 800px;
+  }
 table, th, td {
   border: 2px solid black;
   border-collapse: collapse;
@@ -45,7 +48,7 @@ td {
 <table width="100%">
     <thead>
       <tr>
-	<th class="header"><button id="save" onclick="saveContenteditables()">Save changes</button> <button id="load" onclick="loadContenteditables()">Load changes</button>
+	<th class="header"><button id="save" onclick="saveChangedData()">Save changes</button> <button id="load" onclick="loadChangedData()">Load changes</button>
 	</th>
 	<th class="header"><button id="reload" onclick="reloadFromFiles()">Reload briefing files</button></th>
 	<th class="header"><button id="reset" onclick="resetContenteditables()">Reset changes</button></th>
@@ -65,7 +68,7 @@ td {
 <table width="100%">
     <thead>
       <tr>
-	<th class="header"><button id="save" onclick="saveContenteditables()">Save changes</button> <button id="load" onclick="loadContenteditables()">Load changes</button>
+	<th class="header"><button id="save" onclick="saveChangedData()">Save changes</button> <button id="load" onclick="loadChangedData()">Load changes</button>
 	</th>
 	<th class="header"><button id="reload" onclick="reloadFromFiles()">Reload briefing files</button></th>
 	<th class="header"><button id="reset" onclick="resetContenteditables()">Reset changes</button></th>
@@ -85,29 +88,36 @@ td {
 
       var restore = localStorage.getItem("onrefresh");
       if (restore == "restore") {
-       loadContenteditables();
+	  loadChangedData();
+	  localStorage.setItem("onrefresh", "");
   }
   if (restore == "reset") {
-       saveContenteditables();
-       document.getElementById('fileInput').value="";
-       localStorage.setItem("mapFile", "map.png");
-       localStorage.setItem("onrefresh", "restore");
+       saveChangedData();
+       localStorage.setItem("onrefresh", "");
   }
   }
 
-    function saveContenteditables() {
+    function saveChangedData() {
 	const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
 	const contentData = {};
 	contenteditableElements.forEach(el => {
             const key = el.id;
             contentData[key] = el.innerHTML;
 	});
+	if (typeof map != 'undefined') {
 	contentData["mapZoom"] = map.getZoom();
 	contentData["mapCenter"] = map.getCenter();
 	contentData['bullseyePos'] = bullseye_overlay.getCenter();
-	var selected_files = document.getElementById('fileInput').files;
-	if (selected_files.length > 0) {
-	    localStorage.setItem('mapFile', selected_files[0].name);
+	}
+	var selected_files = document.getElementsByClassName('imageFileInput');
+	for (i = 0; i < selected_files.length; i++) {
+	    try {
+	    contentData[selected_files[i].id] = selected_files[i].files[0].name;
+	    }
+	catch (error) {
+	    console.error(error);
+	}
+
 	}
 	localStorage.setItem('contenteditables', JSON.stringify(contentData));
     }
@@ -119,15 +129,22 @@ td {
             const key = el.id;
             contentDataDef[key] = el.innerHTML;
 	});
+	try {
+	contentDataDef["mapInput"] = "map.png";
 	contentDataDef["mapZoom"] = map.getZoom();
 	contentDataDef["mapCenter"] = map.getCenter();
 	contentDataDef['bullseyePos'] = bullseye_overlay.getCenter();
-	var selected_files = document.getElementById('fileInput').files;
-	if (selected_files.length > 0) {
-	    localStorage.setItem('mapFile', selected_files[0].name);
-	}
+  }
+  catch (error) {
+  console.error(error);
+  }
 	localStorage.setItem('contenteditablesDef', JSON.stringify(contentDataDef));
     }
+
+  function loadChangedData() {
+        loadContenteditables();
+        loadImages();
+  }
 
     function restoreDefaultAtId(id) {
 	const toRestore = document.querySelectorAll("." + id);
@@ -137,6 +154,40 @@ td {
 	}
     }
 
+  function loadImages() {
+      const contentData = JSON.parse(localStorage.getItem('contenteditables') || '{}');
+
+      if (contentData["mapInput"] !== "" && typeof contentData["mapInput"] !== 'undefined') {
+	  drawMap("../assets/maps/" + contentData["mapInput"]);
+      }
+      try {
+	  map.setView(contentData["mapCenter"], contentData["mapZoom"]);
+	  setBullseye(contentData['bullseyePos']);
+      }
+      catch (error) {
+	  console.error(error);
+      }
+
+
+      let imageRow = document.getElementById("refImageRow");
+
+      let imageDisplay1 = document.getElementById("tgt1Img");
+      let imageDisplay2 = document.getElementById("tgt2Img");
+      let imageDisplay3 = document.getElementById("tgt3Img");
+      if (typeof contentData["tgt1Input"] != 'undefined') {
+      imageRow.style.visibility = "";
+	  imageDisplay1.src = "../assets/targets/" + contentData["tgt1Input"];
+  }
+      if (typeof contentData["tgt2Input"] != 'undefined') {
+      imageRow.style.visibility = "";
+      imageDisplay2.src = "../assets/targets/" + contentData["tgt2Input"];
+  }
+      if (typeof contentData["tgt3Input"] != 'undefined') {
+      imageRow.style.visibility = "";
+      imageDisplay3.src = "../assets/targets/" + contentData["tgt3Input"];
+  }
+
+  }
 
     function loadContenteditables() {
       const contentData = JSON.parse(localStorage.getItem('contenteditables') || '{}');
@@ -146,19 +197,9 @@ td {
           el.innerHTML = contentData[key];
         }
       });
-	drawMap("../assets/" + localStorage.getItem('mapFile'));
-	try {
-	    map.setView(contentData["mapCenter"], contentData["mapZoom"]);
-	setBullseye(contentData['bullseyePos']);
-	}
-	catch (error) {
-	    console.error(error);
-	}
-
     }
   
     function reloadFromFiles() {
-        saveContenteditables();
         localStorage.setItem("onrefresh", "restore");
 	window.location.reload();
         return "false";
@@ -167,6 +208,14 @@ td {
     function resetContenteditables() {
     if (confirm("Are you sure? This will overwrite all changes.")){
         localStorage.setItem("onrefresh", "reset");
+	var selected_files = document.getElementsByClassName('imageFileInput');
+	for (i = 0; i < selected_files.length; i++) {
+	    try {
+	    selected_files[i].value = "";
+	    }
+	catch (error) {
+	    console.error(error);
+	}}
 	window.location.reload();
         return "false";
   }
