@@ -4,6 +4,8 @@ __pycache__
 /*.html
 output/*
 assets/*
+assets/maps/*
+assets/targets/*
 !assets/icon.png
 !assets/maps/map.png
 !assets/bullseye.png
