@@ -43,14 +43,17 @@ If you put an image with the filename ```logo.png``` into the ```/assets``` dire
 ### Map
 Starting from the version 0.5 there is an option to add a map to the kneeboards. This uses [Leaflet](https://leafletjs.com/).
 
-To use the map, put 4096x4096 map images into the ```/assets``` directory, and choose an appropriate one with "Browse" dialogue on top of the map. Map can be dragged with mouse and zoomed with the mouse wheel. Double click sets bullseye. 
+To use the map, put 4096x4096 map images into the ```/assets/maps``` directory, and choose an appropriate one with "Browse" dialogue on top of the map. Map can be dragged with mouse and zoomed with the mouse wheel. Double click sets bullseye. 
 
 The map images usually come with the theatre install. For example (all folders are relative to the Falcon BMS install path):
 * KTO has several 4K map images to choose from in ```Docs/05 Maps/``` folder
 * ITO similarly has those in ```Data/Add-On Israel/Docs/02 Maps``` folder,
 * Coastal Front for BMS 4.37 has maps in ```Data/Add-On Coastal Front/Docs/Tacview_and_WDP_files/WDP/Coastal Front``` folder.
 
-The map that is loaded by default is ```assets/map.png```.
+The map that is loaded by default is ```assets/maps/map.png```.
+
+### Reference images
+Targets section of the kneeboard can be used to upload target reference images. Put them into ```assets/targets/``` folder.
 
 ### Launch options
 ``` -m, --monitor```: equivalent to ```monitor = True``` in config.ini (overrides config.ini value)
