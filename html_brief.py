@@ -53,11 +53,11 @@ templates_dir = os.path.join(script_dir, 'templates')
 
 def generate_html_file(name, page_num = 0):
     try:
-        with open(briefing_location, encoding = "latin1") as briefing_file:
+        with open(briefing_location, "r", encoding = "latin1") as briefing_file:
             briefing_contents = briefing_file.readlines()
             brf = Briefing(briefing_contents)
         
-            with open(callsignini_location, encoding = "latin1") as callsignini_file:
+            with open(callsignini_location, "r", encoding = "latin1") as callsignini_file:
                 callsignini_contents = callsignini_file.readlines()
                 ci = Callsign_ini(callsignini_contents)
 
@@ -65,7 +65,7 @@ def generate_html_file(name, page_num = 0):
             index_tmpl = env.get_template("index.html")
 
 #        os.makedirs(os.path.join(script_dir, "output"), exist_ok = True)
-        with open(os.path.join(output_dir, name+".html"), "w") as index_output:
+        with open(os.path.join(output_dir, name+".html"), "w", encoding = "utf-8") as index_output:
             index_output.write(index_tmpl.render(airbases = brf.airbases,
                                                  package_size = len(brf.package),
                                                  overview = brf.overview,
