@@ -1,10 +1,12 @@
 <style>
 </style>
 <table width=100%>
-    <thead>
       <tr>
-	  <th colspan="10" class="header">Flightplan</th>
+	  <th class="header clickable" onclick="toggleVisHeader(this)" id="flightplan_header"><span class="arrow">▼</span>Flightplan</th>
       </tr>
+</table>
+<table width=100% id="flightplan" class="hidable">
+    <thead>
         <tr>
             <th>#</th>
             <th>Description</th>

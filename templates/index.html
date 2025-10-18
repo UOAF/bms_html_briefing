@@ -38,6 +38,14 @@ padding: 0;
 margin: 0;
 width: 100%;
   }
+
+  .arrow {
+      float: left;
+  }
+  .clickable{
+      cursor: pointer;
+  }
+
 </style>
 </head>
 <body>
@@ -109,6 +117,14 @@ width: 100%;
             const key = el.id;
             contentData[key] = el.innerHTML;
 	});
+	const hidableElements = document.querySelectorAll('.hidable');
+	console.log(hidableElements.length);
+	hidableElements.forEach(el => {
+	    const key = el.id + '_display';
+	    console.log(el.style.display);
+	    contentData[key] = el.style.display;
+	});
+
 	if (typeof map != 'undefined') {
 	contentData["mapZoom"] = map.getZoom();
 	contentData["mapCenter"] = map.getCenter();
@@ -201,6 +217,12 @@ width: 100%;
         if (el) {
           el.innerHTML = contentData[key];
         }
+	  const el_display = document.getElementById(key.split("_")[0]);
+        if (el_display) {
+          el_display.style.display = contentData[key];
+          const el_arrow = document.getElementById(key.split("_")[0] + "_header").querySelector(".arrow");
+          el_arrow.innerHTML = (contentData[key] == "none") ? "▸" : "▼";
+        }
       });
     }
   
@@ -225,6 +247,24 @@ width: 100%;
         return "false";
   }
     }
+  function toggleVis(chkbox) {
+      var element_id = chkbox.id.split("_")[0];
+      var element = document.getElementById(element_id).style.display = chkbox.checked ? "" : "none";
+  }
+
+  function toggleVisHeader(header) {
+      var element_id = header.id.split("_")[0];
+      var element = document.getElementById(element_id);
+      var element_arrow = header.querySelector(".arrow");
+  if (element.style.display == "none") {
+  element.style.display = "";
+  element_arrow.innerHTML = "▼";
+  }
+  else {
+  element.style.display = "none";
+  element_arrow.innerHTML = "▸";
+  }
+  }
 
 
 </script>

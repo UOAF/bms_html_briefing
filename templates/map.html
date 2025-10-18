@@ -31,14 +31,13 @@
 		}
 
 </style>
-
 <table width="100%">
-    <thead>
-      <tr>
-	  <th class="header" height="1.7em"><input type="file" accept="image/*" id="mapInput" class="imageFileInput"></th>
-	  <th class="header" width="80%">Map</th>
-      </tr>
-    </thead>
+  <tr>
+<th class="header" height="1.7em"><input type="file" accept="image/*" id="mapInput" class="imageFileInput"></th>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="map_header" width="80%"><span class="arrow">▼</span>Map</th>
+  </tr>
+</table>
+<table width="100%" id="map" class="hidable">
     <tr>
       <td colspan="2">
 <div id="image-map" class="leaflet-container"></div>

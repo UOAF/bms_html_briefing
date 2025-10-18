@@ -2,11 +2,11 @@
 </style>
 {% if wpntgts|length > 0 %}
 <table width=100%>
-    <thead>
       <tr>
-	  <th colspan="100" class="header">Weapon targets</th>
-      </tr>
-    </thead>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="wpntargets_header"><span class="arrow">▼</span>Weapon targets</th>
+  </tr>
+</table>
+<table width=100% id="wpntargets" class="hidable">
     <tbody>
       {% for stpt in wpntgts %}
       <tr>

@@ -4,10 +4,12 @@
   }
 </style>
 <table width=100%>
-    <thead>
       <tr>
-	  <th colspan="7" class="header">Package</th>
-      </tr>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="package_header"><span class="arrow">▼</span>Package</th>
+  </tr>
+</table>
+<table width=100% id="package" class="hidable">
+    <thead>
         <tr>
             <th width="15%">Callsign</th>
             <th width="15%">Flight #</th>
@@ -33,10 +35,12 @@
     </tbody>
 </table>
 <table width=100%>
-    <thead>
       <tr>
-	  <th colspan="7" class="header">Supporting package</th>
-      </tr>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="suppPackage_header"><span class="arrow">▼</span>Supporting package</th>
+  </tr>
+</table>
+<table width=100% id="suppPackage" class="hidable">
+    <thead>
         <tr>
             <th width="15%">Callsign</th>
             <th width="15%">Flight #</th>
@@ -91,5 +95,5 @@
 	<td contenteditable="true" class="editable" id="package_29"></td>
       </tr>
     </tbody>
-
 </table>
+

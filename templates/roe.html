@@ -1,12 +1,14 @@
 <style>
 </style>
 <table width=100%>
-    <thead>
       <tr>
-	  <th colspan="100" class="header">ROE <button class="refreshButton" onclick='restoreDefaultAtId("roe")'>⟳</button></th>
-      </tr>
-    </thead>
-    <tbody>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="roe_header"><span class="arrow">▼</span>ROE</th>
+  </tr>
+</table>
+
+<table width=100% id="roe" class="hidable">
+  <tbody>
+      <td width="3%"> <button class="refreshButton" onclick='restoreDefaultAtId("roe")'>⟳</button></td>
       <td contenteditable="true" class="editable roe" id="roe_1">{{roe}}</td>
     </tbody>
 </table>

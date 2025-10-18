@@ -2,8 +2,10 @@
 </style>
 <table width=100%>
       <tr>
-	  <th colspan="5" class="header">Flight {{ overview.callsign }} ({{overview.mission_type}}) #{{overview.package_id}}</th>
-      </tr>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="roster_header"><span class="arrow">▼</span>Flight {{ overview.callsign }} ({{overview.mission_type}}) #{{overview.package_id}}</th>
+  </tr>
+</table>
+<table width=100% id="roster" class="hidable">
         <tr>
 	    {% if logo_present %}<th rowspan="6" width="15%" style="vertical-align: middle; text-align: center;"> <img src="../assets/logo.png" width="100%"></th>{% endif %}
             <th width="10%"></th>

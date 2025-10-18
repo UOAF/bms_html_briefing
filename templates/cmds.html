@@ -1,19 +1,19 @@
 <style>
-  th {
-      
-  }
 </style>
-<table width=100%>
-    <thead>
-	  <th colspan="100" class="header">CMDS</th>
+<table width="100%">
       <tr>
-	  <td>P 1 = <b>C</b>{{cmds[0]["CBQ"]}}x{{cmds[0]["CSQ"]}}<b>F</b>{{cmds[0]["FBQ"]}}x{{cmds[0]["FSQ"]}}</th>
-	  <td>P 2 = <b>C</b>{{cmds[1]["CBQ"]}}x{{cmds[1]["CSQ"]}}<b>F</b>{{cmds[1]["FBQ"]}}x{{cmds[1]["FSQ"]}}</th>
-	  <td>P 3 = <b>C</b>{{cmds[2]["CBQ"]}}x{{cmds[2]["CSQ"]}}<b>F</b>{{cmds[2]["FBQ"]}}x{{cmds[2]["FSQ"]}}</th>
-	  <td>P 4 = <b>C</b>{{cmds[3]["CBQ"]}}x{{cmds[3]["CSQ"]}}<b>F</b>{{cmds[3]["FBQ"]}}x{{cmds[3]["FSQ"]}}</th>
-	  <td>P 5 = <b>C</b>{{cmds[4]["CBQ"]}}x{{cmds[4]["CSQ"]}}<b>F</b>{{cmds[4]["FBQ"]}}x{{cmds[4]["FSQ"]}}</th>
-	  <td>P 6 = <b>C</b>{{cmds[5]["CBQ"]}}x{{cmds[5]["CSQ"]}}<b>F</b>{{cmds[5]["FBQ"]}}x{{cmds[5]["FSQ"]}}</th>
-</td>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="cmds_header"><span class="arrow">▼</span>CMDS</th>
+  </tr>
+</table>
+<table width=100% id="cmds" class="hidable">
+    <thead>
+      <tr>
+	  <td>P 1 = <b>C</b>{{cmds[0]["CBQ"]}}x{{cmds[0]["CSQ"]}}<b>F</b>{{cmds[0]["FBQ"]}}x{{cmds[0]["FSQ"]}}</td>
+	  <td>P 2 = <b>C</b>{{cmds[1]["CBQ"]}}x{{cmds[1]["CSQ"]}}<b>F</b>{{cmds[1]["FBQ"]}}x{{cmds[1]["FSQ"]}}</td>
+	  <td>P 3 = <b>C</b>{{cmds[2]["CBQ"]}}x{{cmds[2]["CSQ"]}}<b>F</b>{{cmds[2]["FBQ"]}}x{{cmds[2]["FSQ"]}}</td>
+	  <td>P 4 = <b>C</b>{{cmds[3]["CBQ"]}}x{{cmds[3]["CSQ"]}}<b>F</b>{{cmds[3]["FBQ"]}}x{{cmds[3]["FSQ"]}}</td>
+	  <td>P 5 = <b>C</b>{{cmds[4]["CBQ"]}}x{{cmds[4]["CSQ"]}}<b>F</b>{{cmds[4]["FBQ"]}}x{{cmds[4]["FSQ"]}}</td>
+	  <td>P 6 = <b>C</b>{{cmds[5]["CBQ"]}}x{{cmds[5]["CSQ"]}}<b>F</b>{{cmds[5]["FBQ"]}}x{{cmds[5]["FSQ"]}}</td>
       </tr>
     </thead>
 </table>

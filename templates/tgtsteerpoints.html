@@ -2,11 +2,12 @@
 </style>
 {% if tgtsteerpoints|length > 0 %}
 <table width=100%>
-    <thead>
       <tr>
-	  <th colspan="100" class="header">Target steerpoints</th>
-      </tr>
-    </thead>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="tgtsteerpoints_header"><span class="arrow">▼</span>Target steerpoints</th>
+  </tr>
+</table>
+
+<table width=100% id="tgtsteerpoints" class="hidable">
     <tbody>
       {% for stpt in tgtsteerpoints %}
       <tr>

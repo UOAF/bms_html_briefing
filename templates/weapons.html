@@ -1,11 +1,11 @@
 <style>
 </style>
 <table width=100%>
-    <thead>
       <tr>
-	  <th colspan="100" class="header">Weapons</th>
-      </tr>
-    </thead>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="weapons_header"><span class="arrow">▼</span>Weapons</th>
+  </tr>
+</table>
+<table width=100% id="weapons" class="hidable">
     <tbody>
       {% for i in range(4) %}
         <tr>
