@@ -1,4 +1,3 @@
-.gitignore
 test/
 __pycache__
 /*.html

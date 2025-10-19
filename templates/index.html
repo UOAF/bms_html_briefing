@@ -118,10 +118,8 @@ width: 100%;
             contentData[key] = el.innerHTML;
 	});
 	const hidableElements = document.querySelectorAll('.hidable');
-	console.log(hidableElements.length);
 	hidableElements.forEach(el => {
 	    const key = el.id + '_display';
-	    console.log(el.style.display);
 	    contentData[key] = el.style.display;
 	});
 
@@ -217,13 +215,20 @@ width: 100%;
         if (el) {
           el.innerHTML = contentData[key];
         }
+        if (key.split("_")[-1] == "display") {
 	  const el_display = document.getElementById(key.split("_")[0]);
         if (el_display) {
           el_display.style.display = contentData[key];
+         try {
           const el_arrow = document.getElementById(key.split("_")[0] + "_header").querySelector(".arrow");
-          el_arrow.innerHTML = (contentData[key] == "none") ? "▸" : "▼";
+      el_arrow.innerHTML = (contentData[key] == "none") ? "▸" : "▼";
+      }
+      catch (error) {
+      console.error(error);
+      console.log(key);
+      }
         }
-      });
+      }});
     }
   
     function reloadFromFiles() {
