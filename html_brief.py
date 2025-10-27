@@ -77,12 +77,11 @@ if sys.platform == 'linux':
 if sys.platform == 'win32' or sys.platform == 'cygwin':
     import winreg
     baseSubKey = r"SOFTWARE\WOW6432Node\Benchmark Sims\Falcon BMS " + bms_version + r"\\"
-    regHandle = winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE)
-    keyHandle = winreg.OpenKey(regHandle, baseSubKey)
-    callsign_reg = winreg.QueryValueEx(keyHandle, "PilotCallsign")[0]
+    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, baseSubKey) as keyHandle:
+        callsign_reg = winreg.QueryValueEx(keyHandle, "PilotCallsign")[0]
+        base_dir = winreg.QueryValueEx(keyHandle, "baseDir")[0]
     callsign = callsign_reg.decode('utf-8').strip('\x00')
     print(f"Callsign is: {callsign}")
-    base_dir = winreg.QueryValueEx(keyHandle, "baseDir")[0]
     print(f"Base dir is: {base_dir}")
 
 

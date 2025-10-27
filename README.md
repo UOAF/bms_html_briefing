@@ -16,11 +16,14 @@ should work, depending on your operating system.
 Release should contain Windows and Linux archives with packaged executables. These should have no dependencies.
 
 ## Usage
-In the config.ini file (see the example provided!), set the location of your BMS folder and your callsign. E.g.
+In the config.ini file (see the example provided!), set the BMS version.
 ```
-bms_location = D:\Falcon BMS 4.38
-callsign = wsy
+bms_version = 4.38
 ```
+If you are on Linux, set the Wine/Proton prefix location. This is the folder containing ```drive_c/```.
+```wine_prefix = /home/user/games/Falcon BMS 4.38/pfx``` (for example, change accordingly)
+
+Everything else is read from the registry.
 
 Then run
 ```
@@ -28,7 +31,7 @@ python html_brief.py
 ```
 or, if you are using the packaged executable, just run ```html_brief.exe``` (on Windows) or ```html_brief``` (on Linux) inside the folder with the config.ini file and templates directory.
 
-This will generate .html files in the /output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and use with [OpenKneeboard](https://openkneeboard.com/).
+This will generate .html files in the /output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and convert to BMS kneeboards using your favourite conversion tools (I am doing it with [dir2kneeboards](https://codeberg.org/wsywsy/dir2kneeboards) script), or use with [OpenKneeboard](https://openkneeboard.com/).
 
 If you set the option ```joined = True``` (default) it will generate a single .html file with all the pages in it. When you open it in a (modern) browser and print it to PDF, it should automatically separate pages correctly. This saves some time compared to printing each page separately.
 
@@ -60,14 +63,17 @@ Targets section of the kneeboard can be used to upload target reference images. 
 
 ``` -s, --separated```: equivalent to ```joined = False``` in config.ini (overrides config.ini value)
 
+``` -c, --config```: (optional) set custom config file.
+
+
 ## TLDR, suggested workflow
-0. Set BMS location, callsign in config.ini, "joined = True" and "monitor = True" (defaults).
+0. Set BMS version in ```config.ini```, ```joined = True``` and ```monitor = True``` (defaults).
 1. Launch the executable or python script.
 2. "Print" briefing in BMS 2D and save the DTC.
 3. Open the output/index_joined.html in the browser.
 4. Modify it according to the IRL flight brief.
 5. Save changes.
-6. Print to PDF (the pages should be separated automatically), point the Openkneeboard to it if you use it.
+6. Print to PDF (the pages should be separated automatically), convert to BMS kneeboards (e.g. using [dir2kneeboards](https://codeberg.org/wsywsy/dir2kneeboards) tool), or point [OpenKneeboard](https://openkneeboard.com/) to it if you use it.
 7. Has something changed in the briefing or with target steerpoints? Press the ```Reload briefing files``` button. Go to 5.
 
 Modification

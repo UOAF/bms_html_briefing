@@ -209,8 +209,8 @@ width: 100%;
         const el = document.getElementById(key);
         if (el) {
           el.innerHTML = contentData[key];
-        }
-        if (key.split("_")[-1] == "display") {
+      }
+        if (key.split("_").at(-1) == "display") {
 	  const el_display = document.getElementById(key.split("_")[0]);
         if (el_display) {
           el_display.style.display = contentData[key];
