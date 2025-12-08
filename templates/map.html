@@ -1,5 +1,3 @@
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
 		.leaflet-container {
 		    width: 100%;
@@ -7,17 +5,17 @@
 		    max-height: 800px;
 		    max-width: 100%;
 		}
-		.leaflet-tooltip-fp {
-		    position: absolute;
-		    padding: 4px;
-		    background-color: rgba(0, 0, 0, 0.0);
-		    border: 0px solid #000;
-		    color: #000;
-		    white-space: nowrap;
-		    user-select: none;
-		    pointer-events: none;
-		    box-shadow: 0 0px 0px rgba(0,0,0,0.0);
-		}
+			.leaflet-tooltip-fp {
+			    position: absolute;
+			    padding: 4px;
+			    background-color: rgba(0, 0, 0, 0.0);
+			    border: 0px solid #000;
+			    color: #0a0a0a !important;
+			    white-space: nowrap;
+			    user-select: none;
+			    pointer-events: none;
+			    box-shadow: 0 0px 0px rgba(0,0,0,0.0);
+			}
 		.leaflet-tooltip-threat {
 		    position: absolute;
 		    padding: 4px;
@@ -32,7 +30,11 @@
 
 </style>
 <table width="100%">
-  <tr>
+  <colgroup>
+    <col style="width:20%;">
+    <col style="width:80%;">
+  </colgroup>
+      <tr>
 <th class="header" height="1.7em"><input type="file" accept="image/*" id="mapInput" class="imageFileInput"></th>
 <th class="header clickable" onclick="toggleVisHeader(this)" id="map_header" width="80%"><span class="arrow">▼</span>Map</th>
   </tr>
@@ -66,7 +68,8 @@ var bounds = new L.LatLngBounds(southWest, northEast);
 
 map.setMaxBounds([southWest, northEast]);
 
-map_overlay = L.imageOverlay("../assets/maps/map.png", bounds).addTo(map);
+let mapBaseDataUrl = null;
+map_overlay = L.imageOverlay("", bounds, { crossOrigin: true }).addTo(map);
 bullseye_overlay = L.imageOverlay("../assets/bullseye.png", bounds).addTo(map);
 
 function setBullseye(latlng) {
@@ -80,12 +83,21 @@ var fWidth = 3359580,
     fHeight = 3359580;
 
 function convertScalar(iniScalar) {
-    return iniScalar/fHeight*imageHeight;
+    const num = parseFloat(iniScalar);
+    if (!Number.isFinite(num)) return 0;
+    return num/fHeight*imageHeight;
 }
 
 function convertCoord(iniCoord) {
-    return [convertScalar(iniCoord[0]) - imageHeight, convertScalar(iniCoord[1])];
+    if (!iniCoord || iniCoord.length < 2) return [0,0];
+    const x = parseFloat(iniCoord[0]);
+    const y = parseFloat(iniCoord[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return [0,0];
+    return [convertScalar(x) - imageHeight, convertScalar(y)];
 }
+
+window.exportMapLastError = null;
+window.exportMapLog = [];
 
 
   let stptIniCoords = [{% for point in stpt_coords %}
@@ -111,13 +123,14 @@ map.setView([-imageWidth/2, imageHeight/2], -2);
 
 function drawMap(url) {
 // dimensions of the image
+    mapBaseDataUrl = url;
     map_overlay.setUrl(url);
     drawings.clearLayers();
 
     for (i = 0; i < stptIniCoords.length - 1; i ++) {
 	stptMapCoords[i] = convertCoord(stptIniCoords[i]);
 	if (i > 0) {
-	    L.circleMarker(stptMapCoords[i], {color: "white", fillOpacity: 1, radius: 7, zIndexOffset: -i}).addTo(drawings).bindTooltip("<b>"+(i+1).toString()+"</b>", {direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp"}).openTooltip();
+	    L.circleMarker(stptMapCoords[i], {color: "white", fillOpacity: 1, radius: 7, zIndexOffset: -i}).addTo(drawings).bindTooltip("<span style='color:#0a0a0a'>"+(i+1).toString()+"</span>", {direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp"}).openTooltip();
 	}
     }
     if (stptIniCoords.length > 0) {
@@ -129,10 +142,13 @@ function drawMap(url) {
     }	    
     
     for (i = 0; i < tstptIniCoords.length; i ++) {
-	tstptMapCoords[i] = [convertCoord(tstptIniCoords[i][0]), convertScalar(tstptIniCoords[i][1])];
-	L.marker(tstptMapCoords[i][0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+tstptIniCoords[i][2]+"</b>", {direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat"}).openTooltip();
-	if ( tstptIniCoords[i][1] != 0.100000 ) {
-	    L.circle(tstptMapCoords[i][0], {radius: tstptMapCoords[i][1], color: 'red', fillColor: 'red', fillOpacity: 0.1, opacity: 0.5, weight: 2}).addTo(drawings);
+	const radiusVal = parseFloat(tstptIniCoords[i][1]);
+	const rScaled = Number.isFinite(radiusVal) ? convertScalar(radiusVal) : 0;
+	const nameVal = tstptIniCoords[i][2] || "";
+	tstptMapCoords[i] = [convertCoord(tstptIniCoords[i][0]), rScaled, nameVal];
+	L.marker(tstptMapCoords[i][0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+nameVal+"</b>", {direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat"}).openTooltip();
+	if (rScaled > 0) {
+	    L.circle(tstptMapCoords[i][0], {radius: rScaled, color: 'red', fillColor: 'red', fillOpacity: 0.1, opacity: 0.5, weight: 2}).addTo(drawings);
 	}
     }
 
@@ -148,7 +164,7 @@ function drawMap(url) {
 			}
 }
 
-drawMap("../assets/maps/map.png");
+drawMap("../assets/maps/map.png?v=" + Date.now());
 
 map.on("dblclick", function(ev) {
     setBullseye(ev.latlng);
@@ -162,5 +178,215 @@ document.getElementById('mapInput')
 	}
 	fr.readAsDataURL(this.files[0]);
     })
+
+async function toDataUrl(url) {
+    if (!url || url.startsWith("data:")) return url;
+    try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        return null;
+    }
+}
+
+async function exportMapImage() {
+    try {
+        window.exportMapLog = [];
+        const el = document.getElementById("image-map");
+        if (!el) {
+            window.exportMapLastError = "No map element";
+            return null;
+        }
+        const baseData = await toDataUrl(mapBaseDataUrl || "../assets/maps/map.png");
+        if (baseData) {
+            if (mapBaseDataUrl !== baseData) {
+                mapBaseDataUrl = baseData;
+                window.exportMapLog.push("Loaded base map data URL, length " + baseData.length);
+                await new Promise((res) => {
+                    const imgEl = map_overlay.getElement();
+                    const onload = () => { res(); imgEl.removeEventListener("load", onload); };
+                    imgEl.addEventListener("load", onload);
+                    map_overlay.setUrl(baseData);
+                });
+            }
+        } else {
+            window.exportMapLastError = "Base map toDataUrl failed";
+            window.exportMapLog.push(window.exportMapLastError);
+            return null;
+        }
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const size = map.getSize();
+        const canvas = document.createElement("canvas");
+        canvas.width = size.x;
+        canvas.height = size.y;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, size.x, size.y);
+
+        // base map
+        const baseImg = new Image();
+        baseImg.crossOrigin = "anonymous";
+        baseImg.src = mapBaseDataUrl;
+        await new Promise((res, rej) => {
+            baseImg.onload = res;
+            baseImg.onerror = (e) => {
+                window.exportMapLastError = "Base image load failed";
+                window.exportMapLog.push(window.exportMapLastError);
+                rej(e);
+            };
+        });
+        const sw = map_overlay.getBounds().getSouthWest();
+        const ne = map_overlay.getBounds().getNorthEast();
+        const topLeft = map.latLngToContainerPoint(ne);
+        const bottomRight = map.latLngToContainerPoint(sw);
+        const drawWidth = bottomRight.x - topLeft.x;
+        const drawHeight = bottomRight.y - topLeft.y;
+        ctx.drawImage(baseImg, topLeft.x, topLeft.y, drawWidth, drawHeight);
+
+        // bullseye
+        try {
+            const bullImgEl = bullseye_overlay.getElement();
+            const bullSrc = await toDataUrl(bullImgEl?.src || "../assets/bullseye.png") || bullImgEl?.src;
+            const bullImg = new Image();
+            bullImg.crossOrigin = "anonymous";
+            bullImg.src = bullSrc;
+            await new Promise((res, rej) => {
+                if (bullImg.complete) res();
+                else {
+                    bullImg.onload = res;
+                    bullImg.onerror = (e) => {
+                        window.exportMapLastError = "Bullseye load failed";
+                        window.exportMapLog.push(window.exportMapLastError);
+                        rej(e);
+                    };
+                }
+            });
+            const bsw = bullseye_overlay.getBounds().getSouthWest();
+            const bne = bullseye_overlay.getBounds().getNorthEast();
+            const btl = map.latLngToContainerPoint(bne);
+            const bbr = map.latLngToContainerPoint(bsw);
+            ctx.drawImage(bullImg, btl.x, btl.y, bbr.x - btl.x, bbr.y - btl.y);
+        } catch {}
+
+        function validLatLng(latlng) {
+            return Array.isArray(latlng) && latlng.length >= 2 && Number.isFinite(latlng[0]) && Number.isFinite(latlng[1]);
+        }
+
+        // flight plan polyline and markers
+        ctx.lineJoin = "miter";
+        if (Array.isArray(stptMapCoords) && stptMapCoords.length > 0) {
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            stptMapCoords.slice(0, -1).forEach((latlng, idx) => {
+                if (!validLatLng(latlng)) return;
+                const p = map.latLngToContainerPoint(latlng);
+                if (idx === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.stroke();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.strokeStyle = "#000000";
+            stptMapCoords.forEach((latlng, idx) => {
+                if (!validLatLng(latlng)) return;
+                const p = map.latLngToContainerPoint(latlng);
+                const radius = 7;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, radius, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = "#000000";
+                ctx.font = "12px sans-serif";
+                if (idx > 0 && idx < stptMapCoords.length - 1) {
+                    ctx.fillText(String(idx + 1), p.x - 4, p.y + 4);
+                }
+                ctx.fillStyle = "#ffffff";
+            });
+            const altLatLng = stptMapCoords[stptMapCoords.length - 1];
+            const depLatLng = stptMapCoords[0];
+            if (validLatLng(altLatLng)) {
+                const altPt = map.latLngToContainerPoint(altLatLng);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "12px sans-serif";
+                ctx.fillText("ALT", altPt.x + 10, altPt.y - 10);
+            }
+            if (validLatLng(depLatLng)) {
+                const depPt = map.latLngToContainerPoint(depLatLng);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "12px sans-serif";
+                ctx.fillText("DEP", depPt.x + 10, depPt.y - 10);
+            }
+        }
+
+        // threat circles
+        if (Array.isArray(tstptMapCoords)) {
+            tstptMapCoords.forEach(entry => {
+                if (!entry || !validLatLng(entry[0])) return;
+                const centerLatLng = entry[0];
+                const r = Number.isFinite(entry[1]) ? entry[1] : 0;
+                const label = entry.length > 2 ? entry[2] : "";
+                const center = map.latLngToContainerPoint(centerLatLng);
+                if (r > 0) {
+                    ctx.strokeStyle = "red";
+                    ctx.fillStyle = "rgba(255,0,0,0.12)";
+                    ctx.lineWidth = 2;
+                    const edge = map.latLngToContainerPoint([centerLatLng[0] + r, centerLatLng[1]]);
+                    const radiusPx = Math.abs(edge.y - center.y);
+                    ctx.beginPath();
+                    ctx.arc(center.x, center.y, radiusPx, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                if (label) {
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = "#000000";
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "12px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    const labelX = center.x;
+                    const labelY = center.y + 10;
+                    ctx.strokeText(label, labelX, labelY);
+                    ctx.fillText(label, labelX, labelY);
+                }
+            });
+        }
+
+        // steerpoint lines
+        if (Array.isArray(stptLineMapCoords)) {
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 2;
+            stptLineMapCoords.forEach(line => {
+                if (!line || line.length === 0) return;
+                ctx.beginPath();
+                line.forEach((latlng, idx) => {
+                    if (!validLatLng(latlng)) return;
+                    const p = map.latLngToContainerPoint(latlng);
+                    if (idx === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                });
+                ctx.stroke();
+            });
+        }
+
+        const dataUrl = canvas.toDataURL("image/png");
+        window.exportMapLastError = "ok:" + (dataUrl ? dataUrl.length : 0);
+        window.exportMapLog.push(window.exportMapLastError);
+        return dataUrl;
+    } catch (e) {
+        window.exportMapLastError = e?.message || e || "Unknown error";
+        window.exportMapLog.push(window.exportMapLastError);
+        return null;
+    }
+}
+
+window.exportMapImage = exportMapImage;
 
 </script>

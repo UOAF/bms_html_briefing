@@ -1,80 +1,76 @@
 # Falcon BMS HTML Briefings
-This is a collection of Python scripts to generate editable HTML kneeboard files for use with Falcon BMS. Currently it only parses data from briefing.txt and callsign.ini.
+This is a tool to generate editable kneeboard files for use with Falcon BMS.
 
-This is heavily inspired by other wonderful BMS kneeboard tools, such as [bms-kneeboard-server](https://github.com/AviiNL/bms-kneeboard-server) and [EZBoards](https://forum.falcon-bms.com/topic/19901/ezboards-generate-kneeboards-flights-comms-stpts-weather-from-briefings)
+HTML Briefing is inspired by other wonderful BMS kneeboard tools, such as [bms-kneeboard-server](https://github.com/AviiNL/bms-kneeboard-server) and [EZBoards](https://forum.falcon-bms.com/topic/19901/ezboards-generate-kneeboards-flights-comms-stpts-weather-from-briefings)
 
-The main difference is that I wanted a tool that has minimal dependencies, is cross-platform and allows to modify the briefing files after they are filled with the briefing.txt information. The default kneeboard setup is inspired by my practice during multiplayer flights in the style of [UOAF](https://uoaf.net/).
+The main difference is that I wanted an open source tool that has ~~minimal~~ reasonable dependencies, is cross-platform, and allows quick edits to briefing files after they are filled with briefing.txt data. The default kneeboard setup is informed by my practice during multiplayer flights with [UOAF](https://uoaf.net/).
 
-## Requirements: 
-### Running the python script
-To use the Python script you need [Python 3](https://www.python.org/downloads/) and jinja2 module for it. If you already have Python you probably know what to do, something like
-```
-pip install jinja2
-```
-should work, depending on your operating system.
-### Alternative: using the provided executables
-Release should contain Windows and Linux archives with packaged executables. These should have no dependencies.
+## Main features and goals
+- [x] Works both on Linux and Windows.
+- [x] Automatically reads BMS and theater data from the registry.
+- [x] Allows to edit kneeboards after they are populated with callsign.ini and briefing.txt data.
+- [x] Single-click PDF and BMS kneeboards export.
+- [x] Functional map.
+
+#### Possible future features
+- [ ] Support adding airport and approach charts.
+- [ ] (long term) Parse binary save file data.
 
 ## Usage
-In the config.ini file (see the example provided!), set the BMS version.
+### Using the provided executable
+Unpack the archive and launch the html_brief executable. You can then access the application interface in your browser at 127.0.0.1:8000 (the port can be changed via the ```-p PORT``` launch option).
+
+Linux users need to specify the Wine prefix—the folder where the BMS ```drive_c``` lives—either in config.ini or in the interface (and save it from there).
+
+Click "Show settings" on the top dashboard to open the settings toolbar, where you can verify detected folders and choose the BMS version and airframe you are using.
+
+The "Copy to KTO" checkbox copies the .dds kneeboard to the default KTO folder. This may be needed for some theater/aircraft combinations; see this [forum thread](https://forum.falcon-bms.com/topic/31944/f-15-kneeboard-textures-sourced-from-wrong-folder-in-all-standard-add-on-theaters).
+
+### From source
+1. (Optional) Create and activate a Python venv.
+2. ```pip install -r requirements.txt```
+3. ```python html_brief.py```
+
+### Configuration
+- The app reads and writes `config.ini` next to the executable (or this repository root when run from source). If it does not exist, a default one is created on first launch.
+- Settings changed in the UI are persisted back to `config.ini`.
+- Paths can be absolute or relative; relative paths are resolved from the folder where the executable/script lives.
+- Minimal example:
 ```
+[system]
+output_dir = output
+pdf_output_dir = kneeboards
+wine_prefix =
+
+[bms]
 bms_version = 4.38
+bms_available_versions = 4.37, 4.38
+default_airframe = F-16
+
+[pages]
+# Comma-separated sections per page; edit to reorder or remove panels.
+page1 = package, flightplan
+page2 = roster, admin, weapons, weapon_settings, wpn_targets, cmds, custom_checklist
 ```
-If you are on Linux, set the Wine/Proton prefix location. This is the folder containing ```drive_c/```.
-```wine_prefix = /home/user/games/Falcon BMS 4.38/pfx``` (for example, change accordingly)
-
-Everything else is read from the registry.
-
-Then run
-```
-python html_brief.py
-```
-or, if you are using the packaged executable, just run ```html_brief.exe``` (on Windows) or ```html_brief``` (on Linux) inside the folder with the config.ini file and templates directory.
-
-This will generate .html files in the /output directory. You can open them in a browser and edit them to your heart's content. When finished, you can, for example, print them to .pdf and convert to BMS kneeboards using your favourite conversion tools (I am doing it with [dir2kneeboards](https://codeberg.org/wsywsy/dir2kneeboards) script), or use with [OpenKneeboard](https://openkneeboard.com/).
-
-If you set the option ```joined = True``` (default) it will generate a single .html file with all the pages in it. When you open it in a (modern) browser and print it to PDF, it should automatically separate pages correctly. This saves some time compared to printing each page separately.
-
-If you set the option ```monitor = True``` (default) the program will stay active and watch for changes to briefing.txt or callsign.ini, and run automatically when they change. Saves a click.
-
-When an .html kneeboard is opened in a browser, the buttons in the bottom of the page can be clicked. The ```Save changes``` and ```Load changes``` buttons will save/load the contents of the editable fields to/from the browser memory. The button ```Reload briefing files``` will reload the parsed fields while preserving what was edited. The button ```Reset changes``` will set all editable fields to their initial values. 
-
-In the config.ini file you may also modify the page contents: it is a list of lines of the form "page = section1, section2, ...", a single list of keywords producing a page of the kneeboard. Keywords refer to various kneeboard sections and coincide with the names of files in the templates folder. 
-
-If you put an image with the filename ```logo.png``` into the ```/assets``` directory, after the next launch it will appear as a logo in the flight roster section, because why not.
 
 ### Map
-Starting from the version 0.5 there is an option to add a map to the kneeboards. This uses [Leaflet](https://leafletjs.com/).
+Starting with version 0.5 there is an option to add a map to the kneeboards. This uses [Leaflet](https://leafletjs.com/).
 
-To use the map, put 4096x4096 map images into the ```/assets/maps``` directory, and choose an appropriate one with "Browse" dialogue on top of the map. Map can be dragged with mouse and zoomed with the mouse wheel. Double click sets bullseye. 
+The app will try to find the default map for some theaters (official ones and 4.37 Coastal Front). A map can also be loaded by setting ```map_file``` in the corresponding theaters_XXX.ini, or by choosing the file in the widget itself.
 
-The map images usually come with the theatre install. For example (all folders are relative to the Falcon BMS install path):
+The map can be dragged with the mouse and zoomed with the mouse wheel. Double-click sets the bullseye.
+
+The map images usually come with the theater install. For example (all folders are relative to the Falcon BMS install path):
 * KTO has several 4K map images to choose from in ```Docs/05 Maps/``` folder
 * ITO similarly has those in ```Data/Add-On Israel/Docs/02 Maps``` folder,
 * Coastal Front for BMS 4.37 has maps in ```Data/Add-On Coastal Front/Docs/Tacview_and_WDP_files/WDP/Coastal Front``` folder.
-
-The map that is loaded by default is ```assets/maps/map.png```.
 
 ### Reference images
 Targets section of the kneeboard can be used to upload target reference images. Put them into ```assets/targets/``` folder.
 
 ### Launch options
-``` -m, --monitor```: equivalent to ```monitor = True``` in config.ini (overrides config.ini value)
-
-``` -s, --separated```: equivalent to ```joined = False``` in config.ini (overrides config.ini value)
-
-``` -c, --config```: (optional) set custom config file.
-
-
-## TLDR, suggested workflow
-0. Set BMS version in ```config.ini```, ```joined = True``` and ```monitor = True``` (defaults).
-1. Launch the executable or python script.
-2. "Print" briefing in BMS 2D and save the DTC.
-3. Open the output/index_joined.html in the browser.
-4. Modify it according to the IRL flight brief.
-5. Save changes.
-6. Print to PDF (the pages should be separated automatically), convert to BMS kneeboards (e.g. using [dir2kneeboards](https://codeberg.org/wsywsy/dir2kneeboards) tool), or point [OpenKneeboard](https://openkneeboard.com/) to it if you use it.
-7. Has something changed in the briefing or with target steerpoints? Press the ```Reload briefing files``` button. Go to 5.
+- ```-p PORT```: set the port (default: 8000).
+- ```--no-browser```: prevent the app from automatically opening a browser tab on startup.
 
 Modification
 -------------

@@ -1,13 +1,176 @@
-html * {
-    font-size: 18px;
-    font-family: sans-serif;
+@font-face {
+    font-family: "Briefing Sans";
+    src: url("../assets/fonts/Inter-Regular.woff2") format("woff2"),
+         url("../assets/fonts/Inter-Regular.woff") format("woff");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
 }
-body {
-    width: 810px;
+@font-face {
+    font-family: "Briefing Sans";
+    src: url("../assets/fonts/Inter-Bold.woff2") format("woff2"),
+         url("../assets/fonts/Inter-Bold.woff") format("woff");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
 }
 
-table, th, td {
-    border: 2px solid black;
-    border-collapse: collapse;
-    background-color: eeeeee;
+html * {
+    font-size: 16px;
+    font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+    table, th, td {
+        border: 2px solid black;
+        border-collapse: collapse;
+        background-color: #eeeeee;
+        word-break: break-word;
+}
+
+table {
+    width: 100%;
+    table-layout: fixed;
+    font-size: 14px;
+}
+
+th {
+    background-color: #dddddd;
+}
+
+td {
+    background-color: #ffffff;
+}
+
+    th, td {
+        min-width: 18px;
+        padding: 2px 3px;
+        line-height: 1.2;
+        font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+
+/* Cockpit-style preview (screen only); print/PDF keeps classic layout */
+@media screen {
+    html * {
+        font-family: "Consolas", "JetBrains Mono", monospace;
+        color: #c7f9d0;
+    }
+    body {
+        background: #050c08;
+        color: #c7f9d0;
+    }
+    table, th, td {
+        border: 2px solid #1f3c2e;
+        background-color: #0f1c15;
+    }
+    th, .header {
+        background-color: #0a1310 !important;
+        color: #8af2a8;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+    td {
+        background-color: #0f1c15;
+    }
+    .header {
+        color: #9df7b8;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        border-color: #1f3c2e;
+    }
+    .arrow {
+        color: #45ff9c;
+    }
+    .editable,
+    [contenteditable="true"],
+    [contenteditable=""] {
+        background-color: #0c1912 !important;
+        color: #c7f9d0 !important;
+        border: 1px solid #1f3c2e;
+    }
+    .editable:focus {
+        outline: 1px solid #45ff9c;
+        box-shadow: 0 0 0 2px rgba(69,255,156,0.15);
+    }
+    [contenteditable="true"] {
+        caret-color: #45ff9c;
+    }
+    button, .refreshButton {
+        background: #0f2c20;
+        color: #9df7b8;
+        border: 1px solid #45ff9c;
+        padding: 3px 6px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+    }
+    .imageFileInput {
+        background: #0f2c20;
+        color: #9df7b8;
+        border: 1px solid #45ff9c;
+        padding: 4px 6px;
+        border-radius: 6px;
+        font-family: "Consolas", "JetBrains Mono", monospace;
+        font-size: 0.9rem;
+        cursor: pointer;
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-transform: none;
+        letter-spacing: 0.01em;
+        font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        font-size: 0.95rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    /* force the native file button to inherit styling */
+    .imageFileInput::-webkit-file-upload-button {
+        visibility: hidden;
+        width: 100%;
+        margin: 0;
+    }
+    .imageFileInput::file-selector-button {
+        font: inherit;
+        cursor: pointer;
+        padding: 4px 8px;
+        margin: 0;
+        border: 1px solid #45ff9c;
+        border-radius: 6px;
+        background: #0f2c20;
+        color: #9df7b8;
+        text-transform: none;
+        letter-spacing: 0.01em;
+        box-shadow: inset 0 0 0 1px rgba(69,255,156,0.15);
+        width: 100%;
+        text-align: center;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: visible;
+    }
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+    button,
+    input[type="file"],
+    .imageFileInput,
+    .refreshButton,
+    .arrow {
+        display: none !important;
+    }
+    .clickable {
+        cursor: default;
+    }
 }

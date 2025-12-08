@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Falcon BMS Briefing Server</title>
+  <link rel="icon" type="image/png" href="/assets/icon.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Consolas", "SFMono-Regular", "JetBrains Mono", monospace;
+      background: #050c08;
+      color: #b7f5c3;
+    }
+    body { margin: 0; padding: 0 1.25rem 2rem; background: radial-gradient(circle at 20% 20%, rgba(0,255,122,0.05), transparent 35%), radial-gradient(circle at 80% 0%, rgba(0,200,255,0.05), transparent 35%), #050c08; }
+    header { display: flex; justify-content: space-between; align-items: baseline; padding: 1.25rem 0 0.75rem; }
+    h1 { margin: 0; font-weight: 700; letter-spacing: 0.04em; color: #8af2a8; text-transform: uppercase; }
+    small { color: #5fd89d; letter-spacing: 0.08em; }
+    section { background: #0b1510; border: 1px solid #1d3b2c; border-radius: 10px; padding: 1rem 1.25rem; margin-top: 1rem; box-shadow: 0 10px 28px rgba(0,0,0,0.4); }
+    label { display: block; font-size: 0.9rem; color: #8af2a8; margin-bottom: 0.35rem; letter-spacing: 0.05em; }
+    input, select, button { width: 100%; padding: 0.6rem 0.7rem; border-radius: 6px; border: 1px solid #1f3c2e; background: #0f1c15; color: #c7f9d0; box-sizing: border-box; font-weight: 600; }
+    input:focus, select:focus { outline: 1px solid #45ff9c; box-shadow: 0 0 0 2px rgba(69,255,156,0.15); }
+    button { cursor: pointer; font-weight: 700; transition: transform 80ms ease, box-shadow 120ms ease, background 120ms ease; text-transform: uppercase; letter-spacing: 0.08em; }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(69,255,156,0.2); }
+    button.primary { background: linear-gradient(135deg, #0f2c20, #0a2016); border: 1px solid #45ff9c; color: #9df7b8; text-shadow: 0 0 6px rgba(69,255,156,0.6); }
+    button.primary:hover { background: #123225; }
+    button.secondary { background: #0a1310; border: 1px solid #1f3c2e; color: #8af2a8; }
+    button.secondary:hover { border-color: #45ff9c; color: #c7f9d0; }
+    .pill-btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0.25rem 0.8rem; box-shadow: inset 0 0 0 1px rgba(69,255,156,0.15); width: auto; min-width: 0; height: 32px; font-size: 0.85rem; }
+    .grid { display: grid; gap: 0.75rem; }
+    .grid.two { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; background: #0a1310; border-radius: 999px; border: 1px solid #1f3c2e; font-size: 0.9rem; color: #9df7b8; }
+    a { color: #45ff9c; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    #log { background: #0a1310; border-radius: 12px; padding: 0.75rem 1rem; border: 1px solid #1f3c2e; min-height: 120px; font-family: "Consolas", "SFMono-Regular", monospace; white-space: pre-wrap; color: #b7f5c3; box-shadow: inset 0 0 0 1px rgba(69,255,156,0.08); }
+    #brief-frame { width: 850px; max-width: 100%; height: 70vh; border: 1px solid #1f3c2e; border-radius: 12px; background: #0a1310; display: block; margin: 0 auto; box-shadow: 0 0 0 1px rgba(69,255,156,0.05); }
+    .layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: start; }
+    .layout.collapsed { grid-template-columns: 1fr; }
+    .layout.collapsed .side-column { display: none; }
+    .main-column section:first-child { margin-top: 0; }
+    .side-column section:first-child { margin-top: 0; }
+    .button-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem; }
+    .inline-field { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem; align-items: center; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .sortable { list-style: none; padding: 0; margin: 0.5rem 0 0; border: 1px dashed #1f3c2e; border-radius: 8px; min-height: 40px; }
+    .sortable li { padding: 0.5rem 0.75rem; border-bottom: 1px solid #13241a; cursor: grab; display: flex; align-items: center; gap: 0.5rem; color: #c7f9d0; }
+    .sortable li:last-child { border-bottom: none; }
+    .sortable li.dragging { opacity: 0.6; background: rgba(69,255,156,0.06); }
+    .pill-handle { width: 18px; height: 18px; border-radius: 4px; background: #102016; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: #5fd89d; border: 1px solid #1f3c2e; box-shadow: 0 0 4px rgba(69,255,156,0.4); }
+    .pill-handle.page { background: #0f2c20; color: #9df7b8; }
+    .pill-handle.available { background: #0a1310; color: #5fd89d; }
+    .page-shortcuts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 auto 0.5rem; justify-content: center; }
+    .page-shortcuts button { width: auto; padding: 0.35rem 0.75rem; }
+    .chain { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+    .chain button { width: 170px; }
+    .button-row.controls-row { justify-content: center; grid-template-columns: repeat(auto-fit, minmax(170px, 170px)); }
+    .button-row.controls-row button { width: 170px; }
+    .chain .arrow { color: #45ff9c; opacity: 0.7; }
+    .badge-row { display: flex; gap: 0.5rem; align-items: center; }
+    .badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.9rem; background: #0a1310; color: #9df7b8; border: 1px solid #1f3c2e; box-shadow: inset 0 0 0 1px rgba(69,255,156,0.08); }
+    .badge .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #2a3d32; box-shadow: 0 0 6px rgba(69,255,156,0.4); }
+    .badge.ok .dot { background: #22c55e; }
+    .badge.warn .dot { background: #f59e0b; }
+    .badge.error .dot { background: #ef4444; }
+    .badge.muted { opacity: 0.5; }
+    @media (max-width: 1024px) { .layout { grid-template-columns: 1fr; } }
+    @media print {
+      .no-print { display: none !important; }
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Falcon BMS HTML Briefing</h1>
+    </div>
+    <div class="badge-row">
+      <div class="badge" id="file-status" title="Briefing/callsign file changes">
+        <span class="dot"></span><span>Files</span>
+      </div>
+      <div class="badge" id="overflow-status" title="PDF pages vs layout pages">
+        <span class="dot"></span><span>PDF</span>
+      </div>
+      <button id="toggle-toolbar" class="secondary pill-btn" type="button" style="white-space:nowrap;">Hide toolbar</button>
+      <div class="pill">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span>
+        <span id="status-indicator">Idle</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="main-column">
+      <section>
+        <div class="button-row controls-row no-print">
+          <button id="generate-btn-main" class="primary generate-brief-btn">Generate brief</button>
+          <button id="save-edits-btn" class="secondary">Save edits</button>
+          <button id="load-edits-btn" class="secondary">Load edits</button>
+          <button id="reset-edits-btn" class="secondary">Reset edits</button>
+          <button id="open-pdf-btn" class="secondary">Open PDF</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="page-shortcuts" id="page-shortcuts"></div>
+        <iframe id="brief-frame" src="/brief" title="Briefing preview"></iframe>
+      </section>
+
+      <section class="no-print">
+        <div class="chain">
+          <button id="generate-btn-output" class="primary generate-brief-btn">Generate brief</button>
+          <span class="arrow">➜</span>
+          <button id="pdf-btn" class="secondary">Generate PDF</button>
+          <span class="arrow">➜</span>
+          <button id="export-btn" class="secondary">Export kneeboards</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="panel-head">
+          <h3 style="margin:0;">Layout</h3>
+        </div>
+        <div class="grid two" style="align-items:center;">
+          <div>
+            <label for="page-select">Page</label>
+            <select id="page-select"></select>
+          </div>
+          <div style="text-align:right;">
+            <button id="save-layout-btn" class="secondary" type="button">Save layout</button>
+          </div>
+        </div>
+        <div class="grid two">
+          <div>
+            <label>Available sections</label>
+            <ul id="available-list" class="sortable"></ul>
+          </div>
+          <div>
+            <label>Page sections</label>
+            <ul id="section-list" class="sortable"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3 style="margin-top:0;">Messages</h3>
+        <div id="log">Waiting...</div>
+      </section>
+    </div>
+
+    <div class="side-column">
+      <section id="status-card">
+        <h3 style="margin-top:0;">Status</h3>
+        <div class="grid two">
+          <div>
+            <label>Config path</label>
+            <div id="config-path">–</div>
+          </div>
+          <div>
+            <label>BMS base dir</label>
+            <div id="base-dir">–</div>
+          </div>
+          <div>
+            <label>Theater</label>
+            <div id="theater">–</div>
+          </div>
+          <div>
+            <label>Callsign</label>
+            <div id="callsign">–</div>
+          </div>
+          <div>
+            <label>Target folder</label>
+            <div id="target-folder">–</div>
+          </div>
+          <div>
+            <label>PDF output dir</label>
+            <div id="pdf-dir-status">–</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3 style="margin-top:0;">Settings</h3>
+        <form id="config-form" class="grid two">
+          <div>
+            <label for="bms_version">BMS version</label>
+            <select id="bms_version" name="bms_version"></select>
+          </div>
+          <div>
+            <label for="bms_available_versions">Available versions (comma separated)</label>
+            <input id="bms_available_versions" name="bms_available_versions" placeholder="4.37, 4.38">
+          </div>
+          <div>
+            <label for="default_airframe">Default airframe</label>
+            <select id="default_airframe" name="default_airframe">
+              <option value="F-16">F-16</option>
+              <option value="F-15">F-15</option>
+            </select>
+          </div>
+          <div>
+            <label for="wine_prefix">Wine prefix (Linux)</label>
+            <input id="wine_prefix" name="wine_prefix" placeholder="/path/to/wineprefix">
+          </div>
+          <div>
+            <label for="output_dir">Output dir</label>
+            <input id="output_dir" name="output_dir" placeholder="./output" style="pointer-events:auto;">
+          </div>
+          <div>
+            <label for="pdf_output_dir">PDF output dir</label>
+            <input id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards" style="pointer-events:auto;">
+          </div>
+          <div style="grid-column:1/-1;">
+            <div class="button-row" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+              <button type="submit" class="primary">Save settings</button>
+              <button id="reload-btn" class="secondary" type="button">Reload BMS config</button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <h3 style="margin-top:0;">Theater</h3>
+        <div class="grid two">
+          <div>
+            <label>Theater</label>
+            <input id="theater_name" readonly>
+          </div>
+          <div>
+            <label for="target_folder">Target folder</label>
+            <input id="target_folder_field" placeholder="/path/to/theater/target">
+          </div>
+          <div>
+            <label for="map_file">Map file</label>
+            <input id="map_file_field" placeholder="/path/to/map.png">
+          </div>
+          <div>
+            <label for="copy_to_kto_field" style="display:flex;align-items:center;gap:0.5rem;">
+              <input type="checkbox" id="copy_to_kto_field" style="width: 15px;" label="Copy to KTO"> <span>Copy to KTO</span>
+            </label>
+          </div>
+          <div style="grid-column:1/-1;">
+            <button id="save_theater_btn" class="secondary" type="button">Save theater settings</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const statusEl = document.getElementById("status-indicator");
+    const fileBadge = document.getElementById("file-status");
+    const overflowBadge = document.getElementById("overflow-status");
+    const bmsSelect = document.getElementById("bms_version");
+    const availableVersionsInput = document.getElementById("bms_available_versions");
+    const wineInput = document.getElementById("wine_prefix");
+    const layoutEl = document.querySelector(".layout");
+    const toggleToolbarBtn = document.getElementById("toggle-toolbar");
+    const TOOLBAR_STATE_KEY = "toolbarCollapsed";
+    window.layoutDirty = false;
+    let lastLogId = 0;
+    let pages = [];
+    let currentPageIndex = 0;
+    let dndAttached = false;
+    let draggingEl = null;
+    let draggingFrom = null;
+    const sectionLabels = {
+      airbase: "Airbase",
+      package: "Package",
+      flightplan: "Flight plan",
+      roster: "Roster",
+      admin: "Admin",
+      weapon_settings: "Weapon settings",
+      cmds: "CMDs",
+      targets: "Targets",
+      delivery: "Delivery",
+      aa_brevity_notes: "AA - Brevity - Notes",
+      support: "Support",
+      weapons: "Weapons",
+      tgtsteerpoints: "Target steerpoints",
+      wpn_targets: "Weapon targets",
+      roe: "ROE",
+      weather: "Weather",
+      map: "Map",
+      comms: "Comms",
+      custom_checklist: "Custom checklist",
+    };
+    const allSections = Object.keys(sectionLabels);
+    let theater = { theater: "", target_folder: "", map_file: "", copy_to_kto: false };
+
+    function log(message) {
+      const ts = new Date().toLocaleTimeString();
+      logEl.textContent = `[${ts}] ${message}\n` + logEl.textContent;
+    }
+
+    async function fetchJSON(url, options = {}) {
+      const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(detail || `${res.status} ${res.statusText}`);
+      }
+      return res.json();
+    }
+
+    function updateBadges({ briefChanged, callsignChanged, pdfOverflow }) {
+      if (fileBadge) {
+        fileBadge.classList.remove("ok", "error", "warn", "muted");
+        let cls = "ok";
+        if (briefChanged || callsignChanged) cls = "error";
+        if (briefChanged === undefined || briefChanged === null) cls = "muted";
+        fileBadge.classList.add(cls);
+        const dot = fileBadge.querySelector(".dot");
+        if (dot) dot.style.background = cls === "error" ? "#ef4444" : cls === "ok" ? "#22c55e" : "#6b7280";
+        fileBadge.title = "Briefing/callsign unchanged";
+        if (cls === "error") fileBadge.title = "Briefing.txt or callsign.ini changed on disk";
+        if (cls === "muted") fileBadge.title = "File change status unknown (generate/preview once)";
+      }
+      if (overflowBadge) {
+        overflowBadge.classList.remove("ok", "error", "warn", "muted");
+        let cls = "ok";
+        if (pdfOverflow === true) cls = "warn";
+        if (pdfOverflow === undefined || pdfOverflow === null) cls = "muted";
+        overflowBadge.classList.add(cls);
+        const dot = overflowBadge.querySelector(".dot");
+        if (dot) dot.style.background = cls === "warn" ? "#f59e0b" : cls === "ok" ? "#22c55e" : "#6b7280";
+        overflowBadge.title = cls === "warn" ? "PDF has more pages than layout" : (cls === "ok" ? "PDF matches layout page count" : "PDF status unknown (generate PDF once)");
+      }
+    }
+
+    function populateVersionSelect(available, current) {
+      const opts = (available || "").split(",").map(v => v.trim()).filter(Boolean);
+      bmsSelect.innerHTML = "";
+      if (opts.length === 0) {
+        const o = document.createElement("option");
+        o.value = current || "";
+        o.textContent = current || "Set a version";
+        bmsSelect.appendChild(o);
+        return;
+      }
+      opts.forEach(v => {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = v;
+        bmsSelect.appendChild(o);
+      });
+      bmsSelect.value = current || opts[0];
+    }
+
+    async function loadConfig() {
+      try {
+        const data = await fetchJSON("/api/config");
+        const cfg = data.bms || {};
+        const sys = data.system || {};
+        availableVersionsInput.value = cfg.bms_available_versions || "";
+        populateVersionSelect(cfg.bms_available_versions, cfg.bms_version);
+        document.getElementById("default_airframe").value = cfg.default_airframe || "F-16";
+        wineInput.value = sys.wine_prefix || "";
+        document.getElementById("output_dir").value = sys.output_dir || "";
+        document.getElementById("pdf_output_dir").value = sys.pdf_output_dir || "";
+        await loadTheater();
+      } catch (err) {
+        log(`Failed to load config: ${err.message}`);
+      }
+    }
+
+    async function loadStatus(allowRetry = true) {
+      try {
+        const data = await fetchJSON("/api/status");
+        document.getElementById("config-path").textContent = data.config_path || "–";
+        document.getElementById("base-dir").textContent = data.base_dir || "–";
+        document.getElementById("theater").textContent = data.theater || "–";
+        document.getElementById("callsign").textContent = data.callsign || "–";
+        document.getElementById("target-folder").textContent = data.target_folder || "–";
+        document.getElementById("pdf-dir-status").textContent = data.pdf_output_dir || "–";
+        const hasError = data.error || !data.base_dir;
+      statusEl.textContent = hasError ? "BMS config missing" : "Ready";
+      statusEl.style.color = hasError ? "#f87171" : "#22c55e";
+      updateBadges({
+        briefChanged: data.brief_changed,
+        callsignChanged: data.callsign_changed,
+        pdfOverflow: data.pdf_overflow
+      });
+        pages = Array.isArray(data.pages) ? data.pages : [];
+        renderPages();
+        await loadTheater();
+        if (!hasError && pages.length > 0) {
+        await doPreview(currentOverrides());
+      }
+      if (hasError && allowRetry) {
+        await fetchJSON("/api/reload", { method: "POST" });
+        await loadStatus(false);
+      }
+      } catch (err) {
+        log(`Failed to load status: ${err.message}`);
+        if (allowRetry) {
+          try {
+            await fetchJSON("/api/reload", { method: "POST" });
+            await loadStatus(false);
+          } catch (e) {
+            log(`Reload failed: ${e.message}`);
+          }
+        }
+      }
+    }
+
+    async function pollStatusBadges() {
+      try {
+        const data = await fetchJSON("/api/status");
+        const hasError = data.error || !data.base_dir;
+        statusEl.textContent = hasError ? "BMS config missing" : "Ready";
+        statusEl.style.color = hasError ? "#f87171" : "#22c55e";
+        updateBadges({
+          briefChanged: data.brief_changed,
+          callsignChanged: data.callsign_changed,
+          pdfOverflow: data.pdf_overflow
+        });
+      } catch (err) {
+        // silent; will retry on next poll
+      }
+    }
+
+    document.getElementById("config-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const payload = { bms: {}, system: {}, pages: buildPagesObj() };
+      payload.bms.bms_version = bmsSelect.value;
+      payload.bms.bms_available_versions = availableVersionsInput.value;
+      payload.bms.default_airframe = document.getElementById("default_airframe").value;
+      payload.system.wine_prefix = wineInput.value;
+      payload.system.output_dir = document.getElementById("output_dir").value;
+      payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
+      try {
+        await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
+        window.layoutDirty = false;
+        log("Config saved");
+        await loadStatus();
+      } catch (err) {
+        log(`Save failed: ${err.message}`);
+      }
+    });
+
+    document.getElementById("reload-btn").addEventListener("click", async () => {
+      try {
+        await fetchJSON("/api/reload", { method: "POST" });
+        log("Reloaded BMS config");
+        await loadStatus();
+      } catch (err) {
+        log(`Reload failed: ${err.message}`);
+      }
+    });
+
+    availableVersionsInput.addEventListener("blur", () => {
+      populateVersionSelect(availableVersionsInput.value, bmsSelect.value);
+    });
+
+    bmsSelect.addEventListener("change", async () => {
+      const payload = currentOverrides();
+      try {
+        await fetchJSON("/api/config/runtime", { method: "POST", body: JSON.stringify(payload) });
+        await loadStatus();
+      } catch (err) {
+        log(`Version change failed: ${err.message}`);
+      }
+    });
+
+    document.getElementById("default_airframe").addEventListener("change", async (e) => {
+      const payload = currentOverrides();
+      payload.bms.default_airframe = e.target.value;
+      await doPreview(payload);
+    });
+
+    document.querySelectorAll(".generate-brief-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await doGenerate(currentOverrides());
+      });
+    });
+
+    function setToolbarCollapsed(collapsed) {
+      layoutEl.classList.toggle("collapsed", collapsed);
+      toggleToolbarBtn.textContent = collapsed ? "Show settings" : "Hide settings";
+    }
+    toggleToolbarBtn.addEventListener("click", () => {
+      const next = !layoutEl.classList.contains("collapsed");
+      setToolbarCollapsed(next);
+      localStorage.setItem(TOOLBAR_STATE_KEY, next ? "1" : "0");
+    });
+    setToolbarCollapsed(localStorage.getItem(TOOLBAR_STATE_KEY) === "1");
+
+    function currentOverrides() {
+      return {
+        pages: buildPagesObj(),
+        bms: {
+          bms_version: bmsSelect.value,
+          bms_available_versions: availableVersionsInput.value,
+          default_airframe: document.getElementById("default_airframe").value
+        },
+        system: {
+          wine_prefix: wineInput.value,
+          output_dir: document.getElementById("output_dir").value,
+          pdf_output_dir: document.getElementById("pdf_output_dir").value
+        }
+      };
+    }
+
+    async function doGenerate(overrides = null) {
+      try {
+        const res = await fetchJSON("/api/generate", { method: "POST", body: overrides ? JSON.stringify(overrides) : null });
+        log(`HTML generated at ${res.output_file}`);
+        refreshBrief();
+        await pollStatusBadges();
+      } catch (err) {
+        log(`Generate failed: ${err.message}`);
+      }
+    }
+
+    async function doPreview(overrides = null) {
+      try {
+        const payload = overrides || currentOverrides();
+        const res = await fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(payload) });
+        log(`Preview generated at ${res.output_file}`);
+        refreshBrief();
+        await pollStatusBadges();
+      } catch (err) {
+        log(`Preview failed: ${err.message}`);
+      }
+    }
+
+    function getSavedEdits() {
+      try {
+        return JSON.parse(localStorage.getItem("contenteditables") || "{}");
+      } catch {
+        return {};
+      }
+    }
+
+    function buildPagesObj() {
+      const pagesObj = {};
+      pages.forEach((p, idx) => {
+        pagesObj[`page${idx + 1}`] = (p || []).join(", ");
+      });
+      return pagesObj;
+    }
+
+    let domToImagePromise = null;
+    async function ensureDomToImage() {
+      if (window.domtoimage) return window.domtoimage;
+      if (!domToImagePromise) {
+        domToImagePromise = new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/dom-to-image-more@2.9.0/src/dom-to-image-more.min.js";
+          script.onload = () => resolve(window.domtoimage);
+          script.onerror = (err) => reject(err);
+          document.head.appendChild(script);
+        });
+      }
+      return domToImagePromise;
+    }
+
+    async function loadImageFromElement(el) {
+      return new Promise((resolve, reject) => {
+        if (!el) reject(new Error("No image element"));
+        if (el.complete) {
+          resolve(el);
+        } else {
+          el.onload = () => resolve(el);
+          el.onerror = (e) => reject(e);
+        }
+      });
+    }
+
+    async function captureMapImage() {
+      const frame = document.getElementById("brief-frame");
+      const cw = frame?.contentWindow;
+      if (!cw || typeof cw.exportMapImage !== "function") return null;
+      try {
+        const dataUrl = await cw.exportMapImage();
+        if (!dataUrl) {
+          const err = cw.exportMapLastError || "unknown";
+          const logTrail = Array.isArray(cw.exportMapLog) ? cw.exportMapLog.join(" | ") : "";
+          log(`Map capture returned empty. Details: ${err}. Trace: ${logTrail}`);
+        }
+        return dataUrl || null;
+      } catch (err) {
+        log(`Map capture failed: ${err && err.message ? err.message : err}`);
+        return null;
+      }
+    }
+
+    document.getElementById("pdf-btn").addEventListener("click", async () => {
+      try {
+        // ensure latest edits are saved before pulling from localStorage
+        callBriefing("saveChangedData");
+        const payload = { content: getSavedEdits(), ...currentOverrides() };
+        const mapImage = await captureMapImage();
+        if (mapImage) {
+          payload.content.map_image = mapImage;
+        }
+        const res = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
+        log(`PDF generated at ${res.pdf_file}`);
+        await pollStatusBadges();
+      } catch (err) {
+        log(`PDF generation failed: ${err.message}`);
+      }
+    });
+
+    document.getElementById("export-btn").addEventListener("click", async () => {
+      try {
+        callBriefing("saveChangedData");
+        const overrides = currentOverrides();
+        const payload = { content: getSavedEdits(), ...overrides };
+        const mapImage = await captureMapImage();
+        if (mapImage) {
+          payload.content.map_image = mapImage;
+        }
+        // pass theater overrides without persisting to disk
+        payload.theater = {
+          copy_to_kto: document.getElementById("copy_to_kto_field").checked
+        };
+        const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
+        log(`PDF generated at ${pdfRes.pdf_file}`);
+        const expRes = await fetchJSON("/api/export", { method: "POST", body: JSON.stringify({ ...overrides, theater: payload.theater }) });
+        log(`Exported kneeboards to ${expRes.target_folder}`);
+        await pollStatusBadges();
+      } catch (err) {
+        log(`Export failed: ${err.message}`);
+      }
+    });
+
+    const briefFrame = document.getElementById("brief-frame");
+    function callBriefing(fnName) {
+      const cw = briefFrame?.contentWindow;
+      if (!cw) { log("Preview not ready"); return; }
+      if (typeof cw[fnName] !== "function") { log(`Function ${fnName} not found in briefing page`); return; }
+      try {
+        cw[fnName]();
+        log(`${fnName} ran`);
+      } catch (err) {
+        log(`${fnName} failed: ${err.message}`);
+      }
+    }
+
+    function scrollToPage(pageNumber) {
+      try {
+        const cw = briefFrame?.contentWindow;
+        if (!cw) return;
+        const el = cw.document.getElementById(`page_${pageNumber}`);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          const top = rect.top + cw.scrollY - 10;
+          cw.scrollTo({ top, behavior: "smooth" });
+        }
+      } catch (err) {
+        log(`Scroll failed: ${err.message}`);
+      }
+    }
+
+    briefFrame.addEventListener("load", () => {
+      callBriefing("loadChangedData");
+    });
+
+    document.getElementById("save-edits-btn").addEventListener("click", () => callBriefing("saveChangedData"));
+    document.getElementById("load-edits-btn").addEventListener("click", () => callBriefing("loadChangedData"));
+    document.getElementById("reset-edits-btn").addEventListener("click", () => callBriefing("resetContenteditables"));
+    document.getElementById("open-pdf-btn").addEventListener("click", () => {
+      window.open("/kneeboards/kneeboard.pdf", "_blank");
+    });
+
+    function getFrameScroll(frame) {
+      try {
+        const win = frame.contentWindow;
+        if (!win || !win.document) return 0;
+        return win.scrollY || win.document.documentElement.scrollTop || win.document.body.scrollTop || 0;
+      } catch {
+        return 0;
+      }
+    }
+
+    function refreshBrief() {
+      const frame = document.getElementById("brief-frame");
+      if (!frame) return;
+      const prevScroll = getFrameScroll(frame);
+      frame.addEventListener("load", function handleLoad() {
+        frame.removeEventListener("load", handleLoad);
+        requestAnimationFrame(() => {
+          try {
+            frame.contentWindow?.scrollTo(0, prevScroll);
+          } catch {
+            /* ignore */
+          }
+        });
+      });
+      frame.src = "/brief?ts=" + Date.now();
+    }
+
+    async function pollLogs() {
+      try {
+        const entries = await fetchJSON("/api/logs");
+        entries.filter(e => e.id > lastLogId).forEach(e => {
+          lastLogId = Math.max(lastLogId, e.id);
+          log(`[${e.level}] ${e.msg}`);
+        });
+      } catch (err) {
+        // Keep quiet on errors to avoid log spam
+      }
+    }
+
+    async function loadTheater(runPreview = false) {
+      try {
+        const data = await fetchJSON("/api/theater");
+        theater = data;
+        const tName = document.getElementById("theater_name");
+        const tTarget = document.getElementById("target_folder_field");
+        const tMap = document.getElementById("map_file_field");
+        const tCopy = document.getElementById("copy_to_kto_field");
+        if (tName) tName.value = data.theater || "";
+        if (tTarget) tTarget.value = data.target_folder || "";
+        if (tMap) tMap.value = data.map_file || "";
+        if (tCopy) tCopy.checked = !!data.copy_to_kto;
+        if (runPreview) {
+          await doPreview(currentOverrides());
+        }
+      } catch (err) {
+        log(`Failed to load theater: ${err.message}`);
+      }
+    }
+
+    function renderPages() {
+      const pageSelect = document.getElementById("page-select");
+      const list = document.getElementById("section-list");
+      const availableList = document.getElementById("available-list");
+      const shortcutBar = document.getElementById("page-shortcuts");
+      if (!pageSelect || !list || !availableList) return;
+      pageSelect.innerHTML = "";
+      list.innerHTML = "";
+      availableList.innerHTML = "";
+      if (shortcutBar) shortcutBar.innerHTML = "";
+      if (!pages || pages.length === 0) return;
+
+      pages.forEach((p, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = `Page ${idx + 1}`;
+        pageSelect.appendChild(opt);
+        if (shortcutBar) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "secondary";
+          btn.textContent = `Page ${idx + 1}`;
+          btn.addEventListener("click", () => scrollToPage(idx + 1));
+          shortcutBar.appendChild(btn);
+        }
+      });
+      if (currentPageIndex >= pages.length) currentPageIndex = 0;
+      pageSelect.value = currentPageIndex;
+
+      const used = new Set(pages.flat().filter(Boolean));
+      const availableSections = allSections.filter((s) => !used.has(s));
+
+      availableSections.forEach((section) => {
+        const li = document.createElement("li");
+        li.draggable = true;
+        li.dataset.section = section;
+        li.innerHTML = `<span class="pill-handle available">+</span><span>${sectionLabels[section] || section}</span>`;
+        availableList.appendChild(li);
+      });
+
+      const currentSections = pages[currentPageIndex] || [];
+      currentSections.forEach((section) => {
+        const li = document.createElement("li");
+        li.draggable = true;
+        li.dataset.section = section;
+        li.innerHTML = `<span class="pill-handle page">⇅</span><span>${sectionLabels[section] || section}</span>`;
+        list.appendChild(li);
+      });
+      attachDnD();
+    }
+
+    function getAfterElement(list, y) {
+      const elements = [...list.querySelectorAll("li:not(.dragging)")];
+      return elements.find((el) => {
+        const box = el.getBoundingClientRect();
+        return y < box.top + box.height / 2;
+      });
+    }
+    function attachDnD() {
+      if (dndAttached) return;
+      dndAttached = true;
+      const availableList = document.getElementById("available-list");
+      const sectionList = document.getElementById("section-list");
+      [availableList, sectionList].forEach((list) => {
+        list.addEventListener("dragstart", (e) => {
+          const li = e.target.closest("li");
+          if (!li) return;
+          draggingEl = li;
+          draggingFrom = list.id;
+          li.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", li.dataset.section);
+        });
+        list.addEventListener("dragend", () => {
+          if (draggingEl) draggingEl.classList.remove("dragging");
+          draggingEl = null;
+          draggingFrom = null;
+        });
+        list.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          if (!draggingEl) return;
+          const after = getAfterElement(list, e.clientY);
+          if (after == null) {
+            list.appendChild(draggingEl);
+          } else {
+            list.insertBefore(draggingEl, after);
+          }
+        });
+        list.addEventListener("drop", (e) => {
+          e.preventDefault();
+          const section = e.dataTransfer.getData("text/plain");
+          if (!section) return;
+          if (list.id === "section-list") {
+            const exists = Array.from(list.children).some((child) => child !== draggingEl && child.dataset.section === section);
+            if (exists) {
+              document.getElementById("available-list").appendChild(draggingEl);
+              draggingEl = null;
+              return;
+            }
+          }
+          const movedFromPage = draggingFrom === "section-list" && list.id !== "section-list";
+          draggingEl = null;
+          draggingFrom = null;
+          if (list.id === "section-list" || movedFromPage) {
+            persistPages(true).then(() => renderPages());
+          }
+        });
+      });
+    }
+
+    const pageSelectEl = document.getElementById("page-select");
+    if (pageSelectEl) {
+      pageSelectEl.addEventListener("change", (e) => {
+        currentPageIndex = parseInt(e.target.value, 10) || 0;
+        renderPages();
+      });
+    }
+
+    const saveTheaterBtn = document.getElementById("save_theater_btn");
+    if (saveTheaterBtn) {
+      saveTheaterBtn.addEventListener("click", async () => {
+        const payload = {
+          target_folder: document.getElementById("target_folder_field").value,
+          map_file: document.getElementById("map_file_field").value,
+          copy_to_kto: document.getElementById("copy_to_kto_field").checked
+        };
+        try {
+          await fetchJSON("/api/theater", { method: "POST", body: JSON.stringify(payload) });
+          log("Theater settings saved");
+          await loadTheater(true);
+        } catch (err) {
+          log(`Save theater failed: ${err.message}`);
+        }
+      });
+    }
+
+    async function persistPages(autoGenerate = false) {
+      const list = document.getElementById("section-list");
+      if (!list) return;
+      const newOrder = Array.from(list.children).map((li) => li.dataset.section);
+      pages[currentPageIndex] = newOrder;
+      const pagesObj = {};
+      pages.forEach((p, idx) => {
+        pagesObj[`page${idx + 1}`] = (p || []).join(", ");
+      });
+      if (autoGenerate) {
+        const overrides = currentOverrides();
+        overrides.pages = pagesObj;
+        await doPreview(overrides);
+        return;
+      }
+      try {
+        await fetchJSON("/api/config", { method: "POST", body: JSON.stringify({ pages: pagesObj }) });
+        log("Layout saved");
+        await loadStatus();
+      } catch (err) {
+        log(`Save layout failed: ${err.message}`);
+      }
+    }
+
+    const saveLayoutBtn = document.getElementById("save-layout-btn");
+    if (saveLayoutBtn) {
+      saveLayoutBtn.addEventListener("click", async () => {
+        await persistPages(false);
+        window.layoutDirty = false;
+      });
+    }
+
+    loadConfig().then(() => {
+      loadStatus();
+      refreshBrief();
+      pollLogs();
+      pollStatusBadges();
+      setInterval(pollLogs, 2500);
+      setInterval(pollStatusBadges, 5000);
+    });
+  </script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 test/
+venv/
 __pycache__
 /*.html
 output/*

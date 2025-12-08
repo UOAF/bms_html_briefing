@@ -1,156 +1,551 @@
-from jinja2 import Template, Environment, FileSystemLoader
-import os, sys, logging, time
+import argparse
+import configparser
+import logging
+import os
+import sys
+from collections import deque
+from itertools import count
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+import webbrowser
 
-from lib.parse_brief import Briefing
-from lib.parse_callsignini import Callsign_ini
+from bs4 import BeautifulSoup
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+try:
+    from weasyprint import HTML
+except Exception:  # pragma: no cover - optional dependency
+    HTML = None
 
-logger = logging.getLogger('html_brief_log')
-logging.basicConfig(filename='debug.log', filemode='w', encoding='utf-8', level=logging.DEBUG)
+from lib.bms_config import BmsConfig
+from lib.html_gen import generate_html_file, page_contents_ini_to_list
+from lib.kneeboard_export import export_kneeboards
 
-if getattr(sys, 'frozen', False):
-    script_dir = os.path.dirname(sys.executable)
-else:
-    script_dir = os.path.dirname(sys.argv[0])
+logger = logging.getLogger("html_brief_log")
+logger_ui = logging.getLogger("ui_logger")
+logging.basicConfig(
+    filename="debug.log",
+    filemode="w",
+    encoding="utf-8",
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
-monitor = False
-joined = True
-bms_version = "4.38"
+IS_FROZEN = getattr(sys, "frozen", False)
+BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))  # where bundled assets live
+RUN_DIR = Path(sys.executable).resolve().parent if IS_FROZEN else BUNDLE_DIR  # writable location beside the entrypoint
+STATIC_ROOT = BUNDLE_DIR if (BUNDLE_DIR / "assets").exists() else RUN_DIR
 
-output_dir = os.path.join(script_dir, "output")
-os.makedirs(output_dir, exist_ok=True)
+os.environ.setdefault("BMS_BRIEF_HOME", str(STATIC_ROOT))
 
-# get config path
-config_path = os.path.join(script_dir, "config.ini") 
-for i, arg in enumerate(sys.argv):
-   if arg == "-c" or arg == "--config":
-       config_path = sys.argv[i+1]
+DEFAULT_CONFIG_PATH = RUN_DIR / "config.ini"
+WEB_DIR = STATIC_ROOT / "web"
+KNEEBOARDS_DIR = RUN_DIR / "kneeboards"
 
-# parse config
-with open(config_path) as config_file:
-    # mandatory arguments
+class MemoryUIHandler(logging.Handler):
+    """Keeps a small buffer of UI-facing log messages."""
+    def __init__(self, capacity: int = 200):
+        super().__init__()
+        self.buffer: deque = deque(maxlen=capacity)
+        self._ids = count(1)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+        except Exception:
+            msg = record.getMessage()
+        self.buffer.append({"id": next(self._ids), "level": record.levelname, "msg": msg})
+
+
+class ConfigUpdate(BaseModel):
+    system: Optional[Dict[str, str]] = None
+    bms: Optional[Dict[str, str]] = None
+    pages: Optional[Dict[str, str]] = None
+
+
+class PdfRequest(BaseModel):
+    content: Optional[Dict[str, Any]] = None
+    pages: Optional[Dict[str, str]] = None
+    bms: Optional[Dict[str, str]] = None
+    system: Optional[Dict[str, str]] = None
+    theater: Optional[Dict[str, Any]] = None
+
+
+class PreviewRequest(BaseModel):
+    pages: Optional[Dict[str, str]] = None
+    bms: Optional[Dict[str, str]] = None
+    system: Optional[Dict[str, str]] = None
+    theater: Optional[Dict[str, Any]] = None
+
+
+class TheaterUpdate(BaseModel):
+    target_folder: Optional[str] = None
+    map_file: Optional[str] = None
+    copy_to_kto: Optional[bool] = None
+
+
+def build_default_config() -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    cfg["system"] = {
+        "output_dir": str(RUN_DIR / "output"),
+        "pdf_output_dir": str(KNEEBOARDS_DIR),
+        "wine_prefix": "",
+    }
+    cfg["bms"] = {
+        "bms_version": "4.38",
+        "bms_available_versions": "4.37, 4.38",
+        "default_airframe": "F-16",
+    }
+    cfg["pages"] = {}
+    return cfg
+
+
+def resolve_path(path_str: str) -> Path:
+    path = Path(path_str)
+    if not path.is_absolute():
+        path = RUN_DIR / path
+    return path
+
+
+def load_config(config_path: Path) -> configparser.ConfigParser:
+    cfg = build_default_config()
+    cfg.read(config_path)
+    return cfg
+
+
+def save_config(cfg: configparser.ConfigParser, config_path: Path) -> None:
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as fp:
+        cfg.write(fp)
+
+
+def serialize_config(cfg: configparser.ConfigParser) -> Dict[str, Dict[str, str]]:
+    return {section: dict(cfg[section]) for section in cfg.sections()}
+
+
+def ensure_dirs(cfg: configparser.ConfigParser) -> None:
+    resolve_path(cfg["system"]["output_dir"]).mkdir(parents=True, exist_ok=True)
+    resolve_path(cfg["system"]["pdf_output_dir"]).mkdir(parents=True, exist_ok=True)
+    # Static /kneeboards mount requires the directory to exist even if the configured
+    # PDF output path points somewhere else.
+    KNEEBOARDS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def copy_config_with_overrides(cfg: configparser.ConfigParser, pages: Optional[Dict[str, str]] = None,
+                               bms: Optional[Dict[str, str]] = None,
+                               system: Optional[Dict[str, str]] = None) -> configparser.ConfigParser:
+    new_cfg = configparser.ConfigParser()
+    for section in cfg.sections():
+        new_cfg[section] = dict(cfg[section])
+    if pages:
+        new_cfg["pages"] = pages
+    if bms:
+        if "bms" not in new_cfg:
+            new_cfg["bms"] = {}
+        for k, v in bms.items():
+            new_cfg["bms"][k] = v
+    if system:
+        if "system" not in new_cfg:
+            new_cfg["system"] = {}
+        for k, v in system.items():
+            new_cfg["system"][k] = v
+    return new_cfg
+
+
+def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
+    """Apply stored contenteditable values and hide states to generated HTML."""
+    if not content:
+        return html_path
+    soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
+    # Replace map with captured image if provided
+    if content.get("map_image"):
+        map_container = soup.find(id="image-map")
+        if map_container:
+            img_tag = soup.new_tag("img", id="map-image-print")
+            img_tag["src"] = content["map_image"]
+            img_tag["style"] = "width:100%;height:auto;"
+            map_container.clear()
+            map_container.append(img_tag)
+    # Inject target reference images if provided as data URLs
+    for tgt_id in ("tgt1Img", "tgt2Img", "tgt3Img"):
+        data_key = tgt_id + "_src"
+        if content.get(data_key):
+            el = soup.find(id=tgt_id)
+            if el:
+                el["src"] = content[data_key]
+                row = soup.find(id="refImageRow")
+                if row:
+                    # ensure the row is visible for PDF
+                    row["style"] = "visibility: visible;"
+    for key, value in content.items():
+        if key.endswith("_display"):
+            target_id = key.removesuffix("_display")
+            el = soup.find(id=target_id)
+            if el:
+                style = el.get("style", "")
+                rules = [r.strip() for r in style.split(";") if r.strip() and not r.strip().startswith("display")]
+                rules.append(f"display:{value}")
+                el["style"] = ";".join(rules)
+            header = soup.find(id=f"{target_id}_header")
+            if header:
+                arrow = header.find(class_="arrow")
+                if arrow:
+                    arrow.string = "▸" if value == "none" else "▼"
+            continue
+
+        el = soup.find(id=key)
+        if el is None:
+            continue
+        el.clear()
+        # value may contain HTML fragments
+        fragment = BeautifulSoup(str(value), "html.parser")
+        for child in fragment.contents:
+            el.append(child)
+
+    patched = html_path.parent / "index_print.html"
+    patched.write_text(str(soup), encoding="utf-8")
+    return patched
+
+
+def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
+    cfg = load_config(config_path)
+    ensure_dirs(cfg)
     try:
-        config_contents = config_file.readlines()
-        if sys.platform == 'linux':
-            wine_prefix = next(l for l in config_contents if l.startswith("wine_prefix")).split("=")[1].strip("\n ")
-        page_contents = [[p.strip("\n ") for p in l.split("=")[1].split(",")] for l in config_contents if l.startswith("page")]
+        bms_cfg = BmsConfig(cfg)
+    except Exception as exc:  # pragma: no cover - BMS paths may be missing locally
+        logger.error("Failed to initialize BMS config: %s", exc)
+        bms_cfg = None
 
-    except Exception as e:
-        logger.error(f"Couldn't load config: {e}")
+    app = FastAPI(title="BMS Briefing Server")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    logo_present = os.path.isfile(os.path.join(script_dir, "assets", "logo.png"))
+    ui_handler = MemoryUIHandler()
+    ui_formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    ui_handler.setFormatter(ui_formatter)
+    logger_ui.addHandler(ui_handler)
 
-    # optional arguments
-    try:
-        joined = (next(l for l in config_contents if l.startswith("joined")).split("=")[1].strip("\n ")) == "True"
-    except Exception as e:
-        print(f"Joined or not is not specified in config: {e}")
-        logger.warning(f"Joined or not is not specified in config: {e}")
-    try:
-        monitor = (next(l for l in config_contents if l.startswith("monitor")).split("=")[1].strip("\n ")) == "True"
-    except Exception as e:
-        logger.warning(f"Monitor or not is not specified in config: {e}")
-    try:
-        bms_version = next(l for l in config_contents if l.startswith("bms_version")).split("=")[1].strip("\n ")
-    except Exception as e:
-        logger.warning(f"BMS version is not specified in config: {e}")
+    app.state.cfg = cfg
+    app.state.bms_cfg = bms_cfg
+    app.state.config_path = config_path
+    app.state.ui_handler = ui_handler
+    app.state.brief_mtime_ref: Optional[float] = None
+    app.state.callsign_mtime_ref: Optional[float] = None
+    app.state.brief_pages_ref: Optional[int] = None
+    app.state.pdf_page_count: Optional[int] = None
+    app.state.pdf_overflow: Optional[bool] = None
+    app.state.brief_mtime_ref: Optional[float] = None
+    app.state.callsign_mtime_ref: Optional[float] = None
+    app.state.brief_pages_ref: Optional[int] = None
+    app.state.pdf_page_count: Optional[int] = None
+    app.state.pdf_overflow: Optional[bool] = None
+
+    app.mount("/assets", StaticFiles(directory=STATIC_ROOT / "assets"), name="assets")
+    app.mount("/templates", StaticFiles(directory=STATIC_ROOT / "templates"), name="templates")
+    app.mount("/dist", StaticFiles(directory=STATIC_ROOT / "dist"), name="dist")
+    app.mount("/kneeboards", StaticFiles(directory=KNEEBOARDS_DIR), name="kneeboards")
+    if WEB_DIR.exists():
+        app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
+
+    @app.get("/api/theater")
+    def get_theater() -> Dict[str, Any]:
+        bms = app.state.bms_cfg
+        if bms is None:
+            raise HTTPException(status_code=500, detail="BMS config not loaded")
+        if not bms.theater_config.has_section(bms.theater):
+            bms.theater_config[bms.theater] = {"copy_to_kto": "False"}
+        cfg = bms.theater_config[bms.theater]
+        map_file = cfg.get("map_file", "") or cfg.get("default_map_file", "")
+        if map_file and not os.path.isabs(map_file):
+            map_file = os.path.join(bms.base_dir, map_file)
+        if not map_file:
+            map_file = os.path.join(bms.script_dir, "assets", "maps", "map.png")
+        return {
+            "theater": bms.theater,
+            "target_folder": cfg.get("target_folder", ""),
+            "map_file": map_file,
+            "copy_to_kto": cfg.get("copy_to_kto", "False") == "True",
+        }
+
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> HTMLResponse:
+        ui_path = WEB_DIR / "index.html"
+        if not ui_path.exists():
+            raise HTTPException(status_code=500, detail="UI not found. Did you delete web/index.html?")
+        return HTMLResponse(ui_path.read_text(encoding="utf-8"))
+
+    @app.get("/api/config")
+    def get_config() -> Dict[str, Dict[str, str]]:
+        return serialize_config(app.state.cfg)
+
+    @app.get("/api/logs")
+    def get_logs() -> JSONResponse:
+        logs: List[Dict[str, str]] = list(app.state.ui_handler.buffer)
+        return JSONResponse(content=logs)
+
+    @app.post("/api/config")
+    def update_config(payload: ConfigUpdate) -> Dict[str, Dict[str, str]]:
+        payload_dict = payload.model_dump(exclude_none=True)
+        if not payload_dict:
+            raise HTTPException(status_code=400, detail="No config fields provided")
+        for section, values in payload_dict.items():
+            if section not in app.state.cfg:
+                app.state.cfg[section] = {}
+            for key, value in values.items():
+                app.state.cfg[section][key] = str(value)
+        save_config(app.state.cfg, app.state.config_path)
+        ensure_dirs(app.state.cfg)
+        app.state.bms_cfg = BmsConfig(app.state.cfg)
+        return serialize_config(app.state.cfg)
+
+    @app.post("/api/config/runtime")
+    def update_config_runtime(payload: ConfigUpdate) -> Dict[str, Dict[str, str]]:
+        payload_dict = payload.model_dump(exclude_none=True)
+        if not payload_dict:
+            raise HTTPException(status_code=400, detail="No config fields provided")
+        for section, values in payload_dict.items():
+            if section not in app.state.cfg:
+                app.state.cfg[section] = {}
+            for key, value in values.items():
+                app.state.cfg[section][key] = str(value)
+        ensure_dirs(app.state.cfg)
+        try:
+            app.state.bms_cfg = BmsConfig(app.state.cfg)
+        except Exception as exc:
+            logger.error("Failed to reload BMS config (runtime): %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to reload BMS config: {exc}")
+        return serialize_config(app.state.cfg)
+
+    @app.post("/api/theater")
+    def update_theater(payload: TheaterUpdate) -> Dict[str, Any]:
+        bms = app.state.bms_cfg
+        if bms is None:
+            raise HTTPException(status_code=500, detail="BMS config not loaded")
+        if not bms.theater_config.has_section(bms.theater):
+            bms.theater_config[bms.theater] = {}
+        section = bms.theater_config[bms.theater]
+        if payload.target_folder is not None:
+            section["target_folder"] = payload.target_folder
+        if payload.map_file is not None and str(payload.map_file).strip() != "":
+            path_val = payload.map_file
+            if path_val and not os.path.isabs(path_val):
+                path_val = os.path.join(bms.base_dir, path_val)
+            section["map_file"] = path_val
+        if payload.copy_to_kto is not None:
+            section["copy_to_kto"] = "True" if payload.copy_to_kto else "False"
+        try:
+            with open(Path(bms.script_dir) / f"theaters_{bms.version}.ini", "w+", encoding="utf-8") as f:
+                bms.theater_config.write(f)
+        except Exception as exc:
+            logger.error("Failed to write theater config: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to save theater config: {exc}")
+        return {
+            "theater": bms.theater,
+            "target_folder": section.get("target_folder", ""),
+            "map_file": section.get("map_file", section.get("default_map_file", "")),
+            "copy_to_kto": section.get("copy_to_kto", "False") == "True",
+        }
+
+    @app.post("/api/reload")
+    def reload_bms_config() -> Dict[str, Any]:
+        try:
+            app.state.bms_cfg = BmsConfig(app.state.cfg)
+        except Exception as exc:
+            logger.error("Failed to reload BMS config: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to reload BMS config: {exc}")
+        return {"status": "ok", "base_dir": getattr(app.state.bms_cfg, 'base_dir', ""), "theater": getattr(app.state.bms_cfg, 'theater', "")}
+
+    @app.get("/api/status")
+    def status() -> Dict[str, Any]:
+        bms = app.state.bms_cfg
+        cfg = app.state.cfg
+        data: Dict[str, Any] = {
+            "config_path": str(app.state.config_path),
+            "output_dir": cfg["system"]["output_dir"],
+            "pdf_output_dir": cfg["system"]["pdf_output_dir"],
+            "pages": page_contents_ini_to_list(cfg),
+            "pdf_pages": app.state.pdf_page_count,
+            "brief_pages": app.state.brief_pages_ref,
+            "pdf_overflow": app.state.pdf_overflow,
+        }
+        if bms:
+            target_folder = ""
+            if bms.theater_config.has_section(bms.theater):
+                target_folder = bms.theater_config[bms.theater].get("target_folder", "")
+            brief_path = Path(bms.base_dir) / "User" / "Briefings" / "briefing.txt"
+            callsign_path = Path(bms.base_dir) / "User" / "Config" / f"{bms.callsign}.ini"
+            brief_mtime = brief_path.stat().st_mtime if brief_path.exists() else None
+            callsign_mtime = callsign_path.stat().st_mtime if callsign_path.exists() else None
+            data.update(
+                {
+                    "callsign": bms.callsign,
+                    "base_dir": bms.base_dir,
+                    "theater": bms.theater,
+                    "target_folder": target_folder,
+                    "kto_target_folder": bms.kto_target_folder,
+                    "target_folder_failed": bms.target_folder_failed,
+                    "brief_changed": None if (app.state.brief_mtime_ref is None or brief_mtime is None) else brief_mtime > app.state.brief_mtime_ref,
+                    "callsign_changed": None if (app.state.callsign_mtime_ref is None or callsign_mtime is None) else callsign_mtime > app.state.callsign_mtime_ref,
+                }
+            )
+        else:
+            data.update({"error": "BMS config not loaded"})
+        return data
+
+    @app.post("/api/generate")
+    def generate(payload: PreviewRequest = None) -> Dict[str, str]:
+        if app.state.bms_cfg is None:
+            raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
+        overrides = payload.model_dump(exclude_none=True) if payload else {}
+        cfg_generate = copy_config_with_overrides(app.state.cfg, pages=overrides.get("pages"), bms=overrides.get("bms"), system=overrides.get("system"))
+        try:
+            bms_cfg_generate = BmsConfig(cfg_generate)
+        except Exception as exc:
+            logger.error("Failed to build generate BMS config: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Generate config error: {exc}")
+        ensure_dirs(cfg_generate)
+        try:
+            generate_html_file(cfg_generate, bms_cfg_generate, "index")
+            try:
+                app.state.brief_mtime_ref = os.path.getmtime(Path(bms_cfg_generate.base_dir) / "User" / "Briefings" / "briefing.txt")
+                app.state.callsign_mtime_ref = os.path.getmtime(Path(bms_cfg_generate.base_dir) / "User" / "Config" / f"{bms_cfg_generate.callsign}.ini")
+            except Exception:
+                pass
+            app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_generate))
+        except Exception as exc:
+            logger.error("Failed to generate HTML: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to generate HTML: {exc}")
+        output_file = resolve_path(cfg_generate["system"]["output_dir"]) / "index.html"
+        return {"status": "ok", "output_file": str(output_file)}
+
+    @app.post("/api/preview")
+    def preview(payload: PreviewRequest) -> Dict[str, str]:
+        cfg_preview = copy_config_with_overrides(app.state.cfg, pages=payload.pages, bms=payload.bms, system=payload.system)
+        try:
+            bms_cfg_preview = BmsConfig(cfg_preview)
+        except Exception as exc:
+            logger.error("Failed to build preview BMS config: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Preview config error: {exc}")
+        ensure_dirs(cfg_preview)
+        try:
+            generate_html_file(cfg_preview, bms_cfg_preview, "index")
+            try:
+                app.state.brief_mtime_ref = os.path.getmtime(Path(bms_cfg_preview.base_dir) / "User" / "Briefings" / "briefing.txt")
+                app.state.callsign_mtime_ref = os.path.getmtime(Path(bms_cfg_preview.base_dir) / "User" / "Config" / f"{bms_cfg_preview.callsign}.ini")
+            except Exception:
+                pass
+            app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_preview))
+        except Exception as exc:
+            logger.error("Failed to generate preview HTML: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to generate HTML: {exc}")
+        output_file = resolve_path(cfg_preview["system"]["output_dir"]) / "index.html"
+        return {"status": "ok", "output_file": str(output_file)}
+
+    @app.post("/api/pdf")
+    def generate_pdf(payload: PdfRequest) -> Dict[str, str]:
+        if app.state.bms_cfg is None:
+            raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
+        if HTML is None:
+            raise HTTPException(status_code=500, detail="weasyprint is not installed. Install it to enable PDF generation.")
+        cfg_pdf = copy_config_with_overrides(app.state.cfg, pages=payload.pages, bms=payload.bms, system=payload.system)
+        try:
+            bms_cfg_pdf = BmsConfig(cfg_pdf)
+        except Exception as exc:
+            logger.error("Failed to build PDF BMS config: %s", exc)
+            raise HTTPException(status_code=500, detail=f"PDF config error: {exc}")
+        ensure_dirs(cfg_pdf)
+        try:
+            generate_html_file(cfg_pdf, bms_cfg_pdf, "index")
+            output_file = resolve_path(cfg_pdf["system"]["output_dir"]) / "index.html"
+            patched_html = apply_content_edits(output_file, payload.content or {})
+            pdf_output_dir = resolve_path(cfg_pdf["system"]["pdf_output_dir"])
+            pdf_output_dir.mkdir(parents=True, exist_ok=True)
+            pdf_path = pdf_output_dir / "kneeboard.pdf"
+            pdf_doc = HTML(filename=str(patched_html), base_url=str(output_file.parent)).render()
+            app.state.pdf_page_count = len(pdf_doc.pages)
+            app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_pdf))
+            app.state.pdf_overflow = (
+                app.state.brief_pages_ref is not None
+                and app.state.pdf_page_count is not None
+                and app.state.pdf_page_count > app.state.brief_pages_ref
+            )
+            pdf_doc.write_pdf(str(pdf_path))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("Failed to generate PDF: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {exc}")
+        return {"status": "ok", "pdf_file": str(pdf_path)}
+
+    @app.post("/api/export")
+    def export(payload: PreviewRequest = None) -> Dict[str, str]:
+        cfg_export = copy_config_with_overrides(app.state.cfg,
+                                                pages=getattr(payload, "pages", None),
+                                                bms=getattr(payload, "bms", None),
+                                                system=getattr(payload, "system", None))
+        try:
+            bms_cfg_export = BmsConfig(cfg_export)
+        except Exception as exc:
+            logger.error("Failed to build export BMS config: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Export config error: {exc}")
+        # Allow in-memory theater overrides (e.g., copy_to_kto) without persisting them.
+        theater_overrides = getattr(payload, "theater", None) if payload else None
+        if theater_overrides:
+            theater_name = getattr(bms_cfg_export, "theater", None)
+            if theater_name:
+                if not bms_cfg_export.theater_config.has_section(theater_name):
+                    bms_cfg_export.theater_config[theater_name] = {}
+                section = bms_cfg_export.theater_config[theater_name]
+                if "copy_to_kto" in theater_overrides:
+                    section["copy_to_kto"] = "True" if theater_overrides["copy_to_kto"] else "False"
+
+        ensure_dirs(cfg_export)
+        try:
+            export_kneeboards(cfg_export, bms_cfg_export)
+        except Exception as exc:
+            logger.error("Failed to export kneeboards: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to export kneeboards: {exc}")
+        theater_name = getattr(bms_cfg_export, "theater", "")
+        theater_cfg = getattr(bms_cfg_export, "theater_config", {})
+        target_folder = ""
+        if theater_name and theater_cfg and theater_cfg.has_section(theater_name):
+            target_folder = theater_cfg[theater_name].get("target_folder", "")
+        return {"status": "ok", "target_folder": target_folder}
+
+    @app.get("/brief")
+    def serve_brief() -> FileResponse:
+        output_file = resolve_path(app.state.cfg["system"]["output_dir"]) / "index.html"
+        if not output_file.exists():
+            raise HTTPException(status_code=404, detail="No generated briefing found. Run /api/generate first.")
+        return FileResponse(output_file)
+
+    return app
 
 
-for i, arg in enumerate(sys.argv):
-   if arg == "-m" or arg == "--monitor":
-       monitor = True
-   if arg == "-s" or arg == "--separated":
-       joined = False
-
-# get BMS location
-if sys.platform == 'linux':
-    print(f"We are on Linux! Wine prefix is {wine_prefix}.")
-    with open(os.path.join(wine_prefix, "system.reg"), "r") as reg_file:
-        reg_file_contents = reg_file.readlines()
-    entry_start = next(i for i,l in enumerate(reg_file_contents) if l.startswith("[Software\\\\Wow6432Node\\\\Benchmark Sims\\\\Falcon BMS " + bms_version + "]"))
-    base_dir_win = next(l for l in reg_file_contents[entry_start:] if l.strip('\"').startswith("baseDir")).split('=')[1].strip('\"\n')
-    callsign_reg = next(l for l in reg_file_contents[entry_start:] if l.strip('\"').startswith("PilotCallsign")).split('=')[1].strip('\"\n')
-    callsign = ''.join([chr(int(c, 16)) for c in callsign_reg.split(':')[-1].split(',')]).strip('\x00')
-    print(f"Callsign is: {callsign}")
-    base_dir = os.path.join(wine_prefix, "drive_" + base_dir_win.split(":\\")[0].lower(), *base_dir_win.split("\\")[1:])
-    print(f"Base dir is: {base_dir}")
-
-if sys.platform == 'win32' or sys.platform == 'cygwin':
-    import winreg
-    baseSubKey = r"SOFTWARE\WOW6432Node\Benchmark Sims\Falcon BMS " + bms_version + r"\\"
-    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, baseSubKey) as keyHandle:
-        callsign_reg = winreg.QueryValueEx(keyHandle, "PilotCallsign")[0]
-        base_dir = winreg.QueryValueEx(keyHandle, "baseDir")[0]
-    callsign = callsign_reg.decode('utf-8').strip('\x00')
-    print(f"Callsign is: {callsign}")
-    print(f"Base dir is: {base_dir}")
+app = create_app()
 
 
-briefing_location = os.path.join(base_dir, "User", "Briefings", "briefing.txt")
-callsignini_location = os.path.join(base_dir, "User", "Config", callsign + ".ini")
+if __name__ == "__main__":
+    import uvicorn
 
-templates_dir = os.path.join(script_dir, 'templates')
+    parser = argparse.ArgumentParser(description="Run the BMS briefing server")
+    parser.add_argument("-p", "--port", type=int, default=8000, help="Port to bind (default: 8000)")
+    parser.add_argument("--no-browser", action="store_true", help="Do not auto-open the UI in a browser")
+    args = parser.parse_args()
 
-def generate_html_file(name, page_num = 0):
-    try:
-        with open(briefing_location, "r", encoding = "latin1") as briefing_file:
-            briefing_contents = briefing_file.readlines()
-        brf = Briefing(briefing_contents)
-        
-        with open(callsignini_location, "r", encoding = "latin1") as callsignini_file:
-            callsignini_contents = callsignini_file.readlines()
-        ci = Callsign_ini(callsignini_contents)
+    if not args.no_browser:
+        try:
+            webbrowser.open(f"http://127.0.0.1:{args.port}")
+        except Exception as exc:
+            logger.warning("Failed to open browser automatically: %s", exc)
 
-        env = Environment(loader=FileSystemLoader(templates_dir))
-        index_tmpl = env.get_template("index.html")
-
-#        os.makedirs(os.path.join(script_dir, "output"), exist_ok = True)
-        with open(os.path.join(output_dir, name+".html"), "w", encoding = "utf-8") as index_output:
-            index_output.write(index_tmpl.render(airbases = brf.airbases,
-                                                 package_size = len(brf.package),
-                                                 overview = brf.overview,
-                                                 package = brf.package,
-                                                 steerpoints = brf.steerpoints,
-                                                 own_flight = brf.own_flight,
-                                                 support = brf.support,
-                                                 roe = brf.roe,
-                                                 weather = brf.weather,
-                                                 comm = brf.comm,
-                                                 stpt_coords = ci.steerpoints,
-                                                 tstpt_coords = ci.threat_steerpoints,
-                                                 stpt_lines = ci.steerpoint_lines,
-                                                 tgtsteerpoints = ci.tgtsteerpoints,
-                                                 wpntgts = ci.wpntgts,
-                                                 brief_pages = page_contents,
-                                                 cmds = ci.cmds,
-                                                 num = page_num,
-                                                 logo_present = logo_present,
-                                                 brief_is_joined = joined,
-                                                 ))
-    except Exception as e:
-        print(f"Couldn't generate HTML: {e}")
-        logger.error(f"Couldn't generate HTML: {e}")
-
-if joined == True:
-    generate_html_file("index_joined", 0)
-else:
-    for i, c in enumerate(page_contents):
-        generate_html_file("index_"+str(i + 1), i+1)
-
-if monitor:
-    print("Monitoring files for changes...")
-    last_modified = max(os.path.getmtime(callsignini_location), os.path.getmtime(briefing_location))
-    while True:
-        current_modified = max(os.path.getmtime(callsignini_location), os.path.getmtime(briefing_location))
-        if current_modified != last_modified:
-            if joined == True:
-                generate_html_file("index_joined", 0)
-            else:
-                for i, c in enumerate(page_contents):
-                    generate_html_file("index_"+str(i + 1), i+1)
-                    
-            last_modified = current_modified
-            print("Files updated.")
-        time.sleep(2)
-
-
-
+    uvicorn.run(app, host="127.0.0.1", port=args.port, reload=False)
