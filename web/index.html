@@ -7,62 +7,94 @@
   <style>
     :root {
       color-scheme: dark;
-      font-family: "Consolas", "SFMono-Regular", "JetBrains Mono", monospace;
-      background: #050c08;
-      color: #b7f5c3;
+      --bg: #0b1624;
+      --panel: #111f33;
+      --panel-strong: #15273d;
+      --text: #d8e7f5;
+      --muted: #91a2b5;
+      --line: #3aa7ff;
+      --accent: #53f7a6;
+      --warn: #f5b759;
+      --danger: #ef6464;
+      --input: #0c1829;
+      --shadow: 0 8px 24px rgba(0,0,0,0.35);
+      font-family: "Segoe UI", "Verdana", sans-serif;
+      background: var(--bg);
+      color: var(--text);
     }
-    body { margin: 0; padding: 0 1.25rem 2rem; background: radial-gradient(circle at 20% 20%, rgba(0,255,122,0.05), transparent 35%), radial-gradient(circle at 80% 0%, rgba(0,200,255,0.05), transparent 35%), #050c08; }
+    body {
+      margin: 0;
+      padding: 0 1.25rem 2rem;
+      background:
+        linear-gradient(145deg, rgba(18,45,70,0.2), rgba(9,18,32,0.6)),
+        radial-gradient(circle at 20% 20%, rgba(83,247,166,0.06), transparent 32%),
+        radial-gradient(circle at 80% 0%, rgba(58,167,255,0.08), transparent 35%),
+        var(--bg);
+    }
+    .page-wrap { max-width: 1400px; margin: 0 auto; }
     header { display: flex; justify-content: space-between; align-items: baseline; padding: 1.25rem 0 0.75rem; }
-    h1 { margin: 0; font-weight: 700; letter-spacing: 0.04em; color: #8af2a8; text-transform: uppercase; }
-    small { color: #5fd89d; letter-spacing: 0.08em; }
-    section { background: #0b1510; border: 1px solid #1d3b2c; border-radius: 10px; padding: 1rem 1.25rem; margin-top: 1rem; box-shadow: 0 10px 28px rgba(0,0,0,0.4); }
-    label { display: block; font-size: 0.9rem; color: #8af2a8; margin-bottom: 0.35rem; letter-spacing: 0.05em; }
-    input, select, button { width: 100%; padding: 0.6rem 0.7rem; border-radius: 6px; border: 1px solid #1f3c2e; background: #0f1c15; color: #c7f9d0; box-sizing: border-box; font-weight: 600; }
-    input:focus, select:focus { outline: 1px solid #45ff9c; box-shadow: 0 0 0 2px rgba(69,255,156,0.15); }
-    button { cursor: pointer; font-weight: 700; transition: transform 80ms ease, box-shadow 120ms ease, background 120ms ease; text-transform: uppercase; letter-spacing: 0.08em; }
-    button:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(69,255,156,0.2); }
-    button.primary { background: linear-gradient(135deg, #0f2c20, #0a2016); border: 1px solid #45ff9c; color: #9df7b8; text-shadow: 0 0 6px rgba(69,255,156,0.6); }
-    button.primary:hover { background: #123225; }
-    button.secondary { background: #0a1310; border: 1px solid #1f3c2e; color: #8af2a8; }
-    button.secondary:hover { border-color: #45ff9c; color: #c7f9d0; }
-    .pill-btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0.25rem 0.8rem; box-shadow: inset 0 0 0 1px rgba(69,255,156,0.15); width: auto; min-width: 0; height: 32px; font-size: 0.85rem; }
+    h1 { margin: 0; font-weight: 700; letter-spacing: 0.08em; color: var(--line); text-transform: uppercase; }
+    small { color: var(--muted); letter-spacing: 0.08em; }
+    section { background: var(--panel); border: 1px solid rgba(58,167,255,0.35); border-radius: 10px; padding: 1rem 1.25rem; margin-top: 1rem; box-shadow: var(--shadow); }
+    label { display: block; font-size: 0.88rem; color: var(--line); margin-bottom: 0.35rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    input, select { width: 100%; padding: 0.6rem 0.7rem; border-radius: 6px; border: 1px solid rgba(58,167,255,0.25); background: var(--input); color: var(--text); box-sizing: border-box; font-weight: 600; }
+    button { padding: 0.6rem 0.7rem; border-radius: 6px; border: 1px solid rgba(58,167,255,0.35); background: var(--panel-strong); color: var(--text); box-sizing: border-box; font-weight: 700; cursor: pointer; transition: transform 80ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease; text-transform: uppercase; letter-spacing: 0.08em; width: auto; min-width: 140px; }
+    input:focus, select:focus { outline: 1px solid var(--line); box-shadow: 0 0 0 2px rgba(58,167,255,0.18); }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(58,167,255,0.15); border-color: var(--line); }
+    button.primary { background: linear-gradient(135deg, var(--panel-strong), #0e1d31); border-color: var(--line); color: var(--line); }
+    button.primary:hover { background: #12253b; }
+    button.secondary { background: var(--panel-strong); border-color: rgba(58,167,255,0.35); color: var(--text); }
+    button.secondary:hover { border-color: var(--line); color: var(--line); }
+    .pill-btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0.25rem 0.8rem; box-shadow: inset 0 0 0 1px rgba(58,167,255,0.3); width: auto; min-width: 0; height: 32px; font-size: 0.85rem; }
     .grid { display: grid; gap: 0.75rem; }
-    .grid.two { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-    .pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; background: #0a1310; border-radius: 999px; border: 1px solid #1f3c2e; font-size: 0.9rem; color: #9df7b8; }
-    a { color: #45ff9c; text-decoration: none; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pill { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; background: var(--panel-strong); border-radius: 999px; border: 1px solid rgba(58,167,255,0.35); font-size: 0.9rem; color: var(--text); }
+    a { color: var(--line); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    #log { background: #0a1310; border-radius: 12px; padding: 0.75rem 1rem; border: 1px solid #1f3c2e; min-height: 120px; font-family: "Consolas", "SFMono-Regular", monospace; white-space: pre-wrap; color: #b7f5c3; box-shadow: inset 0 0 0 1px rgba(69,255,156,0.08); }
-    #brief-frame { width: 850px; max-width: 100%; height: 70vh; border: 1px solid #1f3c2e; border-radius: 12px; background: #0a1310; display: block; margin: 0 auto; box-shadow: 0 0 0 1px rgba(69,255,156,0.05); }
+    #log { background: rgba(12,24,42,0.7); border-radius: 12px; padding: 0.75rem 1rem; border: 1px solid rgba(58,167,255,0.25); min-height: 120px; font-family: "Consolas", "SFMono-Regular", monospace; white-space: pre-wrap; color: var(--text); box-shadow: inset 0 0 0 1px rgba(58,167,255,0.08); }
+    #brief-frame { width: 850px; max-width: 100%; height: 70vh; border: 1px solid rgba(58,167,255,0.3); border-radius: 12px; background: #0a1310; display: block; margin: 0 auto; box-shadow: 0 0 0 1px rgba(58,167,255,0.1); }
     .layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: start; }
     .layout.collapsed { grid-template-columns: 1fr; }
     .layout.collapsed .side-column { display: none; }
+    .layout.collapsed { justify-content: center; }
+    .layout.collapsed .main-column { max-width: 960px; margin: 0 auto; }
     .main-column section:first-child { margin-top: 0; }
     .side-column section:first-child { margin-top: 0; }
     .button-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem; }
+    .button-row button { width: auto; }
     .inline-field { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem; align-items: center; }
     .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-    .sortable { list-style: none; padding: 0; margin: 0.5rem 0 0; border: 1px dashed #1f3c2e; border-radius: 8px; min-height: 40px; }
-    .sortable li { padding: 0.5rem 0.75rem; border-bottom: 1px solid #13241a; cursor: grab; display: flex; align-items: center; gap: 0.5rem; color: #c7f9d0; }
+    .sortable { list-style: none; padding: 0; margin: 0.5rem 0 0; border: 1px dashed rgba(58,167,255,0.35); border-radius: 8px; min-height: 40px; }
+    .sortable li { padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(58,167,255,0.12); cursor: grab; display: flex; align-items: center; gap: 0.5rem; color: var(--text); }
     .sortable li:last-child { border-bottom: none; }
-    .sortable li.dragging { opacity: 0.6; background: rgba(69,255,156,0.06); }
-    .pill-handle { width: 18px; height: 18px; border-radius: 4px; background: #102016; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: #5fd89d; border: 1px solid #1f3c2e; box-shadow: 0 0 4px rgba(69,255,156,0.4); }
-    .pill-handle.page { background: #0f2c20; color: #9df7b8; }
-    .pill-handle.available { background: #0a1310; color: #5fd89d; }
+    .sortable li.dragging { opacity: 0.6; background: rgba(58,167,255,0.08); }
+    .pill-handle { width: 18px; height: 18px; border-radius: 4px; background: var(--panel-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: #ffffff; border: 1px solid rgba(58,167,255,0.6); box-shadow: 0 0 6px rgba(58,167,255,0.35); }
+    .pill-handle.page { background: #0f2337; color: #ffffff; }
+    .pill-handle.available { background: #0f1e31; color: #ffffff; }
     .page-shortcuts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 auto 0.5rem; justify-content: center; }
     .page-shortcuts button { width: auto; padding: 0.35rem 0.75rem; }
     .chain { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
     .chain button { width: 170px; }
     .button-row.controls-row { justify-content: center; grid-template-columns: repeat(auto-fit, minmax(170px, 170px)); }
     .button-row.controls-row button { width: 170px; }
-    .chain .arrow { color: #45ff9c; opacity: 0.7; }
+    .chain .arrow { color: #ffffff; opacity: 0.85; }
     .badge-row { display: flex; gap: 0.5rem; align-items: center; }
-    .badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.9rem; background: #0a1310; color: #9df7b8; border: 1px solid #1f3c2e; box-shadow: inset 0 0 0 1px rgba(69,255,156,0.08); }
-    .badge .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #2a3d32; box-shadow: 0 0 6px rgba(69,255,156,0.4); }
-    .badge.ok .dot { background: #22c55e; }
-    .badge.warn .dot { background: #f59e0b; }
-    .badge.error .dot { background: #ef4444; }
-    .badge.muted { opacity: 0.5; }
+    .badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.9rem; background: var(--panel-strong); color: var(--text); border: 1px solid rgba(58,167,255,0.3); box-shadow: inset 0 0 0 1px rgba(58,167,255,0.08); }
+    .badge .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: #1e344d; box-shadow: 0 0 6px rgba(58,167,255,0.35); }
+    .badge.ok .dot { background: var(--accent); box-shadow: 0 0 6px rgba(83,247,166,0.35); }
+    .badge.warn .dot { background: var(--warn); box-shadow: 0 0 6px rgba(245,183,89,0.35); }
+    .badge.error .dot { background: var(--danger); box-shadow: 0 0 6px rgba(239,100,100,0.35); }
+    .badge.muted { opacity: 0.6; }
+    .truncate {
+      max-width: 100%;
+      display: inline-block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: help;
+    }
     @media (max-width: 1024px) { .layout { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .grid.two { grid-template-columns: 1fr; } }
     @media print {
       .no-print { display: none !important; }
       body { padding: 0; }
@@ -70,34 +102,34 @@
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Falcon BMS HTML Briefing</h1>
-    </div>
-    <div class="badge-row">
-      <div class="badge" id="file-status" title="Briefing/callsign file changes">
-        <span class="dot"></span><span>Files</span>
+  <div class="page-wrap">
+    <header>
+      <div>
+        <h1>Falcon BMS HTML Briefing</h1>
       </div>
-      <div class="badge" id="overflow-status" title="PDF pages vs layout pages">
-        <span class="dot"></span><span>PDF</span>
+      <div class="badge-row">
+        <div class="badge" id="file-status" title="Briefing/callsign file changes">
+          <span class="dot"></span><span>Files</span>
+        </div>
+        <div class="badge" id="overflow-status" title="PDF pages vs layout pages">
+          <span class="dot"></span><span>PDF</span>
+        </div>
+        <button id="toggle-toolbar" class="secondary pill-btn" type="button" style="white-space:nowrap;">Hide toolbar</button>
+        <div class="pill">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span>
+          <span id="status-indicator">Idle</span>
+        </div>
       </div>
-      <button id="toggle-toolbar" class="secondary pill-btn" type="button" style="white-space:nowrap;">Hide toolbar</button>
-      <div class="pill">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span>
-        <span id="status-indicator">Idle</span>
-      </div>
-    </div>
-  </header>
+    </header>
 
-  <div class="layout">
+    <div class="layout">
     <div class="main-column">
       <section>
         <div class="button-row controls-row no-print">
-          <button id="generate-btn-main" class="primary generate-brief-btn">Generate brief</button>
+          <button id="generate-btn-main" class="secondary generate-brief-btn">Generate brief</button>
           <button id="save-edits-btn" class="secondary">Save edits</button>
           <button id="load-edits-btn" class="secondary">Load edits</button>
           <button id="reset-edits-btn" class="secondary">Reset edits</button>
-          <button id="open-pdf-btn" class="secondary">Open PDF</button>
         </div>
       </section>
 
@@ -108,9 +140,12 @@
 
       <section class="no-print">
         <div class="chain">
-          <button id="generate-btn-output" class="primary generate-brief-btn">Generate brief</button>
+          <button id="generate-btn-output" class="secondary generate-brief-btn">Generate brief</button>
           <span class="arrow">➜</span>
-          <button id="pdf-btn" class="secondary">Generate PDF</button>
+          <div style="display:flex; flex-direction:column; gap:0.4rem; align-items:center;">
+            <button id="pdf-btn" class="secondary">Generate PDF</button>
+            <button id="open-pdf-btn" class="secondary" style="width:170px;">Open PDF</button>
+          </div>
           <span class="arrow">➜</span>
           <button id="export-btn" class="secondary">Export kneeboards</button>
         </div>
@@ -119,24 +154,20 @@
       <section>
         <div class="panel-head">
           <h3 style="margin:0;">Layout</h3>
+          <button id="save-layout-btn" class="secondary" type="button">Save layout</button>
         </div>
-        <div class="grid two" style="align-items:center;">
-          <div>
-            <label for="page-select">Page</label>
-            <select id="page-select"></select>
-          </div>
-          <div style="text-align:right;">
-            <button id="save-layout-btn" class="secondary" type="button">Save layout</button>
-          </div>
+        <div style="margin-bottom:0.75rem;">
+          <label for="page-select">Page</label>
+          <select id="page-select" style="max-width: 240px;"></select>
         </div>
-        <div class="grid two">
-          <div>
-            <label>Available sections</label>
-            <ul id="available-list" class="sortable"></ul>
-          </div>
+        <div class="grid two" style="align-items:start;">
           <div>
             <label>Page sections</label>
             <ul id="section-list" class="sortable"></ul>
+          </div>
+          <div>
+            <label>Available sections</label>
+            <ul id="available-list" class="sortable"></ul>
           </div>
         </div>
       </section>
@@ -153,11 +184,11 @@
         <div class="grid two">
           <div>
             <label>Config path</label>
-            <div id="config-path">–</div>
+            <div id="config-path" class="truncate" title="–">–</div>
           </div>
           <div>
             <label>BMS base dir</label>
-            <div id="base-dir">–</div>
+            <div id="base-dir" class="truncate" title="–">–</div>
           </div>
           <div>
             <label>Theater</label>
@@ -169,28 +200,31 @@
           </div>
           <div>
             <label>Target folder</label>
-            <div id="target-folder">–</div>
+            <div id="target-folder" class="truncate" title="–">–</div>
           </div>
           <div>
             <label>PDF output dir</label>
-            <div id="pdf-dir-status">–</div>
+            <div id="pdf-dir-status" class="truncate" title="–">–</div>
           </div>
         </div>
       </section>
 
       <section>
-        <h3 style="margin-top:0;">Settings</h3>
+        <div class="panel-head">
+          <h3 style="margin:0;">Settings</h3>
+          <button type="submit" form="config-form" class="secondary">Save settings</button>
+        </div>
         <form id="config-form" class="grid two">
           <div>
             <label for="bms_version">BMS version</label>
             <select id="bms_version" name="bms_version"></select>
           </div>
           <div>
-            <label for="bms_available_versions">Available versions (comma separated)</label>
+            <label for="bms_available_versions">Available versions</label>
             <input id="bms_available_versions" name="bms_available_versions" placeholder="4.37, 4.38">
           </div>
           <div>
-            <label for="default_airframe">Default airframe</label>
+            <label for="default_airframe">Airframe</label>
             <select id="default_airframe" name="default_airframe">
               <option value="F-16">F-16</option>
               <option value="F-15">F-15</option>
@@ -208,17 +242,17 @@
             <label for="pdf_output_dir">PDF output dir</label>
             <input id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards" style="pointer-events:auto;">
           </div>
-          <div style="grid-column:1/-1;">
-            <div class="button-row" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
-              <button type="submit" class="primary">Save settings</button>
-              <button id="reload-btn" class="secondary" type="button">Reload BMS config</button>
-            </div>
+          <div style="grid-column:1/-1; display:flex; justify-content:flex-end; gap:0.5rem;">
+            <button id="reload-btn" class="secondary" type="button">Reload BMS config</button>
           </div>
         </form>
       </section>
 
       <section>
-        <h3 style="margin-top:0;">Theater</h3>
+        <div class="panel-head">
+          <h3 style="margin:0;">Theater</h3>
+          <button id="save_theater_btn" class="secondary" type="button">Save theater settings</button>
+        </div>
         <div class="grid two">
           <div>
             <label>Theater</label>
@@ -236,9 +270,6 @@
             <label for="copy_to_kto_field" style="display:flex;align-items:center;gap:0.5rem;">
               <input type="checkbox" id="copy_to_kto_field" style="width: 15px;" label="Copy to KTO"> <span>Copy to KTO</span>
             </label>
-          </div>
-          <div style="grid-column:1/-1;">
-            <button id="save_theater_btn" class="secondary" type="button">Save theater settings</button>
           </div>
         </div>
       </section>
@@ -366,11 +397,15 @@
       try {
         const data = await fetchJSON("/api/status");
         document.getElementById("config-path").textContent = data.config_path || "–";
+        document.getElementById("config-path").title = data.config_path || "–";
         document.getElementById("base-dir").textContent = data.base_dir || "–";
+        document.getElementById("base-dir").title = data.base_dir || "–";
         document.getElementById("theater").textContent = data.theater || "–";
         document.getElementById("callsign").textContent = data.callsign || "–";
         document.getElementById("target-folder").textContent = data.target_folder || "–";
+        document.getElementById("target-folder").title = data.target_folder || "–";
         document.getElementById("pdf-dir-status").textContent = data.pdf_output_dir || "–";
+        document.getElementById("pdf-dir-status").title = data.pdf_output_dir || "–";
         const hasError = data.error || !data.base_dir;
       statusEl.textContent = hasError ? "BMS config missing" : "Ready";
       statusEl.style.color = hasError ? "#f87171" : "#22c55e";
@@ -472,6 +507,12 @@
         await doGenerate(currentOverrides());
       });
     });
+
+    // Hide Linux-specific wine prefix field for Windows users to reduce confusion.
+    if (wineInput && navigator.userAgent.toLowerCase().includes("windows")) {
+      const wrapper = wineInput.closest("div");
+      if (wrapper) wrapper.style.display = "none";
+    }
 
     function setToolbarCollapsed(collapsed) {
       layoutEl.classList.toggle("collapsed", collapsed);
@@ -631,7 +672,6 @@
       if (typeof cw[fnName] !== "function") { log(`Function ${fnName} not found in briefing page`); return; }
       try {
         cw[fnName]();
-        log(`${fnName} ran`);
       } catch (err) {
         log(`${fnName} failed: ${err.message}`);
       }

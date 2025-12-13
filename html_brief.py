@@ -5,6 +5,7 @@ import os
 import sys
 from collections import deque
 from itertools import count
+from threading import Thread
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import webbrowser
@@ -243,6 +244,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
     app.state.brief_pages_ref: Optional[int] = None
     app.state.pdf_page_count: Optional[int] = None
     app.state.pdf_overflow: Optional[bool] = None
+    app.state.auto_open_url: Optional[str] = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
     app.state.brief_pages_ref: Optional[int] = None
@@ -255,6 +257,16 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
     app.mount("/kneeboards", StaticFiles(directory=KNEEBOARDS_DIR), name="kneeboards")
     if WEB_DIR.exists():
         app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
+
+    @app.on_event("startup")
+    async def open_browser_on_startup() -> None:
+        url = getattr(app.state, "auto_open_url", None)
+        if not url:
+            return
+        try:
+            Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+        except Exception as exc:
+            logger.warning("Failed to open browser automatically: %s", exc)
 
     @app.get("/api/theater")
     def get_theater() -> Dict[str, Any]:
@@ -330,9 +342,16 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         bms = app.state.bms_cfg
         if bms is None:
             raise HTTPException(status_code=500, detail="BMS config not loaded")
-        if not bms.theater_config.has_section(bms.theater):
-            bms.theater_config[bms.theater] = {}
-        section = bms.theater_config[bms.theater]
+        theater_cfg = configparser.ConfigParser()
+        theater_ini_path = Path(bms.script_dir) / f"theaters_{bms.version}.ini"
+        try:
+            theater_cfg.read(theater_ini_path, encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Failed to read theater config before update: %s", exc)
+
+        if not theater_cfg.has_section(bms.theater):
+            theater_cfg[bms.theater] = {}
+        section = theater_cfg[bms.theater]
         if payload.target_folder is not None:
             section["target_folder"] = payload.target_folder
         if payload.map_file is not None and str(payload.map_file).strip() != "":
@@ -343,8 +362,9 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         if payload.copy_to_kto is not None:
             section["copy_to_kto"] = "True" if payload.copy_to_kto else "False"
         try:
-            with open(Path(bms.script_dir) / f"theaters_{bms.version}.ini", "w+", encoding="utf-8") as f:
-                bms.theater_config.write(f)
+            with open(theater_ini_path, "w+", encoding="utf-8") as f:
+                theater_cfg.write(f)
+            bms.theater_config = theater_cfg  # keep in-memory state in sync
         except Exception as exc:
             logger.error("Failed to write theater config: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to save theater config: {exc}")
@@ -543,9 +563,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.no_browser:
-        try:
-            webbrowser.open(f"http://127.0.0.1:{args.port}")
-        except Exception as exc:
-            logger.warning("Failed to open browser automatically: %s", exc)
+        app.state.auto_open_url = f"http://127.0.0.1:{args.port}"
 
-    uvicorn.run(app, host="127.0.0.1", port=args.port, reload=False)
+    uvicorn.run(app, host="127.0.0.1", port=args.port, reload=False, access_log=False)

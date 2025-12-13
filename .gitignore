@@ -16,7 +16,8 @@ assets/maps/*
 assets/targets/*
 !assets/targets/SA-2.jpg
 
-dist/
+dist/*
+!dist/leaflet
 build/
 *.spec
 debug.log
