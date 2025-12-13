@@ -10,6 +10,8 @@ assets/*
 !assets/maps
 !assets/targets
 
+backup/
+
 assets/maps/*
 !assets/maps/map.png
 

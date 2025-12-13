@@ -28,6 +28,10 @@ The "Copy to KTO" checkbox copies the .dds kneeboard to the default KTO folder. 
 
 #### Note on kneeboard export: 
 All the ```.pdf, .png, .jpg``` files in the ```kneeboards``` folder will be exported to BMS kneeboards, in alphabetical order; so you can add your own kneeboard pages.
+
+#### Logo
+Replace ```logo.png``` with your own logo (appears in the flight roster section), because why not.
+
 ### From source
 1. (Optional) Create and activate a Python venv.
 2. ```pip install -r requirements.txt```
