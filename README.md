@@ -26,6 +26,8 @@ Click "Show settings" on the top dashboard to open the settings toolbar, where y
 
 The "Copy to KTO" checkbox copies the .dds kneeboard to the default KTO folder. This may be needed for some theater/aircraft combinations; see this [forum thread](https://forum.falcon-bms.com/topic/31944/f-15-kneeboard-textures-sourced-from-wrong-folder-in-all-standard-add-on-theaters).
 
+#### Note on kneeboard export: 
+All the ```.pdf, .png, .jpg``` files in the ```kneeboards``` folder will be exported to BMS kneeboards, in alphabetical order; so you can add your own kneeboard pages.
 ### From source
 1. (Optional) Create and activate a Python venv.
 2. ```pip install -r requirements.txt```
@@ -80,6 +82,5 @@ Example output
 -------------
 <p float="left">
 <img src="examples/1.png" alt="left" width="33%"/>
-<img src="examples/2.png" alt="right" width="33%"/>
-<img src="examples/3.png" alt="right" width="33%"/>
+<img src="examples/2.png" alt="right" width="66%"/>
 </p>
