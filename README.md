@@ -18,6 +18,8 @@ The main difference is that I wanted an open source tool that has ~~minimal~~ re
 
 ## Usage
 ### Using the provided executable
+Make sure that "Briefing output to file" option is ```ON``` in BMS config, and "HTML Briefings" is ```OFF```.
+
 Unpack the archive and launch the html_brief executable. You can then access the application interface in your browser at 127.0.0.1:8000 (the port can be changed via the ```-p PORT``` launch option).
 
 Linux users need to specify the Wine prefix—the folder where the BMS ```drive_c``` lives—either in config.ini or in the interface (and save it from there).
@@ -26,6 +28,7 @@ Click "Show settings" on the top dashboard to open the settings toolbar, where y
 
 The "Copy to KTO" checkbox copies the .dds kneeboard to the default KTO folder. This may be needed for some theater/aircraft combinations; see this [forum thread](https://forum.falcon-bms.com/topic/31944/f-15-kneeboard-textures-sourced-from-wrong-folder-in-all-standard-add-on-theaters).
 
+To update the briefing and steerpoints information, you need to do these things in BMS 2D map screen: 0) Click your flight and seat; 1) press "Briefing" -> "Print"; 2) save DTC. 
 #### Note on kneeboard export: 
 All the ```.pdf, .png, .jpg``` files in the ```kneeboards``` folder will be exported to BMS kneeboards, in alphabetical order; so you can add your own kneeboard pages.
 
@@ -39,7 +42,7 @@ Replace ```logo.png``` with your own logo (appears in the flight roster section)
 
 ### Configuration
 - The app reads and writes `config.ini` next to the executable (or this repository root when run from source). If it does not exist, a default one is created on first launch.
-- Settings changed in the UI are persisted back to `config.ini`.
+- Settings changed in the UI are saved back to `config.ini` and theatersXXX.ini on "Save config" click.
 - Paths can be absolute or relative; relative paths are resolved from the folder where the executable/script lives.
 - Minimal example:
 ```
