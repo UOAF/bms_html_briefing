@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import webbrowser
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -162,6 +162,10 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
     if not content:
         return html_path
     soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
+
+    def normalize_text(val: Any) -> str:
+        text = BeautifulSoup(str(val), "html.parser").get_text("\n")
+        return text.replace("\r\n", "\n").replace("\r", "\n")
     # Replace map with captured image if provided
     if content.get("map_image"):
         map_container = soup.find(id="image-map")
@@ -202,10 +206,12 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
         if el is None:
             continue
         el.clear()
-        # value may contain HTML fragments
-        fragment = BeautifulSoup(str(value), "html.parser")
-        for child in fragment.contents:
-            el.append(child)
+        text = normalize_text(value)
+        lines = text.split("\n")
+        for idx, line in enumerate(lines):
+            el.append(NavigableString(line))
+            if idx != len(lines) - 1:
+                el.append(soup.new_tag("br"))
 
     patched = html_path.parent / "index_print.html"
     patched.write_text(str(soup), encoding="utf-8")
