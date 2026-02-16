@@ -1,0 +1,7 @@
+jinja2
+pillow
+pymupdf
+fastapi
+uvicorn
+weasyprint
+beautifulsoup4
