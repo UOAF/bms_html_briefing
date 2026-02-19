@@ -40,6 +40,16 @@ class BmsConfig:
                 self.callsign = callsign_reg.decode('utf-8').strip('\x00 \n')
             except Exception as e:
                 logger.error(e)
+        
+        if cfg.has_option('override', 'callsign'):
+            self.callsign = cfg['override']['callsign']
+
+        if cfg.has_option('override', 'base_dir'):
+            self.base_dir = cfg['override']['base_dir']
+
+        if cfg.has_option('override', 'theater'):
+            self.theater = cfg['override']['theater']
+
         self.kto_target_folder = os.path.join(self.base_dir, 'Data', 'TerrData', 'Objects', 'KoreaObj')
 
         if getattr(sys, 'frozen', False):
@@ -89,12 +99,6 @@ class BmsConfig:
                     self.theater_config[self.theater]['target_folder'] = os.path.join(self.base_dir, 'Data', *datadir, "KoreaObj")
                 if not os.path.exists(self.theater_config[self.theater]['target_folder']):
                     self.target_folder_failed = True
-# Commenting this out to prevent unprompted config save to disk
-#                try:
-#                    with open(os.path.join(self.script_dir, 'theaters_'+version+'.ini'), 'w+') as f:
-#                        self.theater_config.write(f)
-#                except Exception as e:
-#                    logger.error(e)
 
             except Exception as e:
                 logger.error(e)

@@ -61,7 +61,14 @@ default_airframe = F-16
 page1 = package, flightplan
 page2 = roster, admin, weapons, weapon_settings, wpn_targets, cmds, custom_checklist
 ```
-
+#### Configuration override
+In case you want to override the auto-detected BMS parameters (for example, if your callsign was read from the registry with some weird characters and the app fails to detect the .ini file), you can add an 'override' section to the config.ini as follows:
+```
+[override]
+callsign = <SET CALLSIGN>
+base_dir = <BMS base dir>
+thater = <BMS theater>
+```
 ### Map
 Starting with version 0.5 there is an option to add a map to the kneeboards. This uses [Leaflet](https://leafletjs.com/).
 

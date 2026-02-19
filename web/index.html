@@ -164,9 +164,15 @@
           <span class="arrow">➜</span>
           <div style="display:flex; flex-direction:column; gap:0.35rem; align-items:center;">
             <button id="export-btn" class="secondary">Export kneeboards</button>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:0.35rem; align-items:flex-start;">
             <label for="auto-export-on-change" style="display:flex; align-items:center; gap:0.35rem; font-size:0.8rem; color:var(--muted); text-transform:none; letter-spacing:0.02em;">
               <input id="auto-export-on-change" type="checkbox" style="width:14px; height:14px; margin:0;">
-              Auto export on file change
+              Auto-export on file change
+            </label>
+            <label title="Only export PDF. Auto-export should be enabled for this option to have any effect." for="auto-export-pdf-only" style="display:flex; align-items:center; gap:0.35rem; font-size:0.8rem; color:var(--muted); text-transform:none; letter-spacing:0.02em; margin-left:1.2rem">
+              <input id="auto-export-pdf-only" type="checkbox" style="width:14px; height:14px; margin:0;">
+              PDF only
             </label>
           </div>
         </div>
@@ -308,6 +314,7 @@
     const layoutEl = document.querySelector(".layout");
     const toggleToolbarBtn = document.getElementById("toggle-toolbar");
     const autoExportCheckbox = document.getElementById("auto-export-on-change");
+    const autoExportPdfOnlyCheckbox = document.getElementById("auto-export-pdf-only");
     const exportBtn = document.getElementById("export-btn");
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
     window.layoutDirty = false;
@@ -417,6 +424,9 @@
         if (autoExportCheckbox) {
           autoExportCheckbox.checked = String(sys.auto_export_on_change || "False").toLowerCase() === "true";
         }
+        if (autoExportPdfOnlyCheckbox) {
+          autoExportPdfOnlyCheckbox.checked = String(sys.auto_export_pdf_only || "False").toLowerCase() === "true";
+        }
         await loadTheater();
       } catch (err) {
         log(`Failed to load config: ${err.message}`);
@@ -495,6 +505,7 @@
       payload.system.output_dir = document.getElementById("output_dir").value;
       payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
       payload.system.auto_export_on_change = (autoExportCheckbox && autoExportCheckbox.checked) ? "True" : "False";
+      payload.system.auto_export_pdf_only = (autoExportPdfOnlyCheckbox && autoExportPdfOnlyCheckbox.checked) ? "True" : "False";
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
         window.layoutDirty = false;
@@ -697,7 +708,18 @@
       setExportBusy(true);
       try {
         const overrides = currentOverrides();
-        const payload = { content: getLatestEdits(), ...overrides };
+        const pdfOnlyAuto = source === "auto" && !!(autoExportPdfOnlyCheckbox && autoExportPdfOnlyCheckbox.checked);
+        const latestEdits = getLatestEdits();
+        if (source === "auto") {
+          try {
+            const prevRes = await fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(overrides) });
+            log(`Auto-export preview refreshed at ${prevRes.output_file}`);
+            await refreshBrief(true);
+          } catch (err) {
+            log(`Auto-export preview refresh failed: ${err.message}`);
+          }
+        }
+        const payload = { content: latestEdits, ...overrides };
         const mapImage = await captureMapImage();
         if (mapImage) {
           payload.content.map_image = mapImage;
@@ -708,17 +730,21 @@
         };
         const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
         log(`PDF generated at ${pdfRes.pdf_file}`);
-        const expRes = await fetchJSON("/api/export", { method: "POST", body: JSON.stringify({ ...overrides, theater: payload.theater }) });
-        log(`Exported kneeboards to ${expRes.target_folder}`);
+        if (!pdfOnlyAuto) {
+          const expRes = await fetchJSON("/api/export", { method: "POST", body: JSON.stringify({ ...overrides, theater: payload.theater }) });
+          log(`Exported kneeboards to ${expRes.target_folder}`);
+        } else {
+          log("Auto-export PDF-only mode: skipped DDS kneeboard export");
+        }
         if (source === "auto") {
-          log("Auto export completed");
+          log("Auto-export completed");
         }
         if (source === "manual") {
           skipNextAutoExportEdge = true;
         }
         await pollStatusBadges();
       } catch (err) {
-        const prefix = source === "auto" ? "Auto export failed" : "Export failed";
+        const prefix = source === "auto" ? "Auto-export failed" : "Export failed";
         log(`${prefix}: ${err.message}`);
       } finally {
         setExportBusy(false);
@@ -737,7 +763,8 @@
       }
       if (!autoExportCheckbox || !autoExportCheckbox.checked) return;
       if (pdfBusy) return;
-      log("File change detected. Running auto export.");
+      const pdfOnlyAuto = !!(autoExportPdfOnlyCheckbox && autoExportPdfOnlyCheckbox.checked);
+      log(`File change detected. Running auto-export${pdfOnlyAuto ? " (PDF only)" : ""}.`);
       await runExportFlow("auto");
     }
 
@@ -812,21 +839,35 @@
       }
     }
 
-    function refreshBrief() {
+    function refreshBrief(waitForLoad = false) {
       const frame = document.getElementById("brief-frame");
-      if (!frame) return;
+      if (!frame) return waitForLoad ? Promise.resolve(false) : undefined;
       const prevScroll = getFrameScroll(frame);
+      let resolveLoad = null;
+      let timeoutId = null;
+      const loadPromise = waitForLoad ? new Promise((resolve) => { resolveLoad = resolve; }) : null;
       frame.addEventListener("load", function handleLoad() {
         frame.removeEventListener("load", handleLoad);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         requestAnimationFrame(() => {
           try {
             frame.contentWindow?.scrollTo(0, prevScroll);
           } catch {
             /* ignore */
           }
+          if (resolveLoad) {
+            // Give inner scripts a frame to settle (map rendering/readbacks).
+            requestAnimationFrame(() => resolveLoad(true));
+          }
         });
       });
+      if (resolveLoad) {
+        timeoutId = setTimeout(() => resolveLoad(false), 6000);
+      }
       frame.src = "/brief?ts=" + Date.now();
+      return loadPromise;
     }
 
     async function pollLogs() {
@@ -1037,10 +1078,26 @@
             method: "POST",
             body: JSON.stringify({ system: { auto_export_on_change: next ? "True" : "False" } })
           });
-          log(`Auto export on file change ${next ? "enabled" : "disabled"}`);
+          log(`Auto-export on file change ${next ? "enabled" : "disabled"}`);
         } catch (err) {
           autoExportCheckbox.checked = !next;
-          log(`Failed to save auto export setting: ${err.message}`);
+          log(`Failed to save auto-export setting: ${err.message}`);
+        }
+      });
+    }
+
+    if (autoExportPdfOnlyCheckbox) {
+      autoExportPdfOnlyCheckbox.addEventListener("change", async () => {
+        const next = autoExportPdfOnlyCheckbox.checked;
+        try {
+          await fetchJSON("/api/config/runtime", {
+            method: "POST",
+            body: JSON.stringify({ system: { auto_export_pdf_only: next ? "True" : "False" } })
+          });
+          log(`Auto-export PDF-only mode ${next ? "enabled" : "disabled"}`);
+        } catch (err) {
+          autoExportPdfOnlyCheckbox.checked = !next;
+          log(`Failed to save auto-export PDF-only setting: ${err.message}`);
         }
       });
     }
