@@ -1,0 +1,88 @@
+@font-face {
+    font-family: "Briefing Sans";
+    src: url("../assets/fonts/Inter-Regular.woff2") format("woff2"),
+         url("../assets/fonts/Inter-Regular.woff") format("woff");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Briefing Sans";
+    src: url("../assets/fonts/Inter-Bold.woff2") format("woff2"),
+         url("../assets/fonts/Inter-Bold.woff") format("woff");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+html * {
+    font-size: 16px;
+    font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    color: #111827;
+}
+
+    table, th, td {
+        border: 2px solid #8f9aae;
+        border-collapse: collapse;
+        background-color: #f1f3f6;
+        word-break: break-word;
+}
+
+table {
+    width: 100%;
+    table-layout: fixed;
+    font-size: 14px;
+}
+
+th {
+    background-color: #d7dde8;
+}
+
+td {
+    background-color: #f7f9fc;
+    color: #111827;
+}
+
+th,
+.header {
+    background-color: #d7dde8 !important;
+    color: #0f1726 !important;
+}
+
+tbody tr:nth-child(odd) td {
+    background-color: #f7f9fc;
+}
+
+tbody tr:nth-child(even) td {
+    background-color: #edf1f7;
+}
+
+    th, td {
+        min-width: 18px;
+        padding: 2px 3px;
+        line-height: 1.2;
+        font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+    button,
+    input[type="file"],
+    .imageFileInput,
+    .refreshButton,
+    .arrow {
+        display: none !important;
+    }
+    .clickable {
+        cursor: default;
+    }
+}

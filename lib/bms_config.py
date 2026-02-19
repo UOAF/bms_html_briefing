@@ -32,11 +32,14 @@ class BmsConfig:
         if sys.platform == 'win32' or sys.platform == 'cygwin':
             import winreg
             baseSubKey = r"SOFTWARE\WOW6432Node\Benchmark Sims\Falcon BMS " + version + r"\\"
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, baseSubKey) as keyHandle:
-                callsign_reg = winreg.QueryValueEx(keyHandle, "PilotCallsign")[0]
-                self.base_dir = winreg.QueryValueEx(keyHandle, "baseDir")[0]
-                self.theater = winreg.QueryValueEx(keyHandle, "curTheater")[0]
-            self.callsign = callsign_reg.decode('utf-8').strip('\x00')
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, baseSubKey) as keyHandle:
+                    callsign_reg = winreg.QueryValueEx(keyHandle, "PilotCallsign")[0]
+                    self.base_dir = winreg.QueryValueEx(keyHandle, "baseDir")[0]
+                    self.theater = winreg.QueryValueEx(keyHandle, "curTheater")[0]
+                self.callsign = callsign_reg.decode('utf-8').strip('\x00 \n')
+            except Exception as e:
+                logger.error(e)
         self.kto_target_folder = os.path.join(self.base_dir, 'Data', 'TerrData', 'Objects', 'KoreaObj')
 
         if getattr(sys, 'frozen', False):
@@ -60,7 +63,6 @@ class BmsConfig:
             logger.warning(f"Couldn't read theater info for {self.theater} from the config file: {e}")
 
         if tgt_folder_ini == '':
-
             if not self.theater_config.has_section(self.theater):
                 self.theater_config[self.theater] = {}
                 self.theater_config[self.theater]['copy_to_kto'] = 'False'

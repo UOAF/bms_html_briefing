@@ -63,9 +63,12 @@ def generate_html_file(conf, bms_conf, name, page_num = 0):
             briefing_contents = briefing_file.readlines()
         brf = Briefing(briefing_contents)
 
-        with open(callsignini_location, "r", encoding = "latin1") as callsignini_file:
-            callsignini_contents = callsignini_file.readlines()
-        ci = Callsign_ini(callsignini_contents)
+        try:
+            with open(callsignini_location, "r", encoding = "latin1") as callsignini_file:
+                callsignini_contents = callsignini_file.readlines()
+            ci = Callsign_ini(callsignini_contents)
+        except Exception as e:
+            logger.error(f"Couldn't load callsign.ini: {e}")
 
         env = Environment(loader=FileSystemLoader(templates_dir))
         index_tmpl = env.get_template("index.html")

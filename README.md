@@ -22,7 +22,7 @@ Make sure that "Briefing output to file" option is ```ON``` in BMS config, and "
 
 Unpack the archive and launch the html_brief executable. You can then access the application interface in your browser at 127.0.0.1:8000 (the port can be changed via the ```-p PORT``` launch option).
 
-Linux users need to specify the Wine prefix—the folder where the BMS ```drive_c``` lives—either in config.ini or in the interface (and save it from there).
+Linux users need to specify the **absolute** Wine prefix—the folder where the BMS ```drive_c``` lives—either in config.ini or in the interface (and save it from there).
 
 Click "Show settings" on the top dashboard to open the settings toolbar, where you can verify detected folders and choose the BMS version and airframe you are using.
 

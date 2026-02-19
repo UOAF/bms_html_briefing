@@ -70,7 +70,7 @@ map.setMaxBounds([southWest, northEast]);
 
 let mapBaseDataUrl = null;
 map_overlay = L.imageOverlay("", bounds, { crossOrigin: true }).addTo(map);
-bullseye_overlay = L.imageOverlay("../assets/bullseye.png", bounds).addTo(map);
+bullseye_overlay = L.imageOverlay("assets/bullseye.png", bounds).addTo(map);
 
 function setBullseye(latlng) {
     bullseye_overlay.setBounds([[southWest.lat + latlng.lat + imageWidth/2, southWest.lng + latlng.lng - imageHeight/2], [northEast.lat + latlng.lat + imageWidth/2, northEast.lng + latlng.lng - imageHeight/2]]);
@@ -164,7 +164,7 @@ function drawMap(url) {
 			}
 }
 
-drawMap("../assets/maps/map.png?v=" + Date.now());
+drawMap("assets/maps/map.png?v=" + Date.now());
 
 map.on("dblclick", function(ev) {
     setBullseye(ev.latlng);
@@ -203,7 +203,7 @@ async function exportMapImage() {
             window.exportMapLastError = "No map element";
             return null;
         }
-        const baseData = await toDataUrl(mapBaseDataUrl || "../assets/maps/map.png");
+        const baseData = await toDataUrl(mapBaseDataUrl || "assets/maps/map.png");
         if (baseData) {
             if (mapBaseDataUrl !== baseData) {
                 mapBaseDataUrl = baseData;
@@ -252,7 +252,7 @@ async function exportMapImage() {
         // bullseye
         try {
             const bullImgEl = bullseye_overlay.getElement();
-            const bullSrc = await toDataUrl(bullImgEl?.src || "../assets/bullseye.png") || bullImgEl?.src;
+            const bullSrc = await toDataUrl(bullImgEl?.src || "assets/bullseye.png") || bullImgEl?.src;
             const bullImg = new Image();
             bullImg.crossOrigin = "anonymous";
             bullImg.src = bullSrc;

@@ -45,6 +45,21 @@
     button.primary:hover { background: #12253b; }
     button.secondary { background: var(--panel-strong); border-color: rgba(58,167,255,0.35); color: var(--text); }
     button.secondary:hover { border-color: var(--line); color: var(--line); }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      color: #8b9aab;
+      border-color: rgba(139,154,171,0.35);
+      box-shadow: none;
+      transform: none;
+      filter: saturate(0.2);
+    }
+    button:disabled:hover {
+      color: #8b9aab;
+      border-color: rgba(139,154,171,0.35);
+      box-shadow: none;
+      transform: none;
+    }
     .pill-btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0.25rem 0.8rem; box-shadow: inset 0 0 0 1px rgba(58,167,255,0.3); width: auto; min-width: 0; height: 32px; font-size: 0.85rem; }
     .grid { display: grid; gap: 0.75rem; }
     .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -147,7 +162,13 @@
             <button id="open-pdf-btn" class="secondary" style="width:170px;">Open PDF</button>
           </div>
           <span class="arrow">➜</span>
-          <button id="export-btn" class="secondary">Export kneeboards</button>
+          <div style="display:flex; flex-direction:column; gap:0.35rem; align-items:center;">
+            <button id="export-btn" class="secondary">Export kneeboards</button>
+            <label for="auto-export-on-change" style="display:flex; align-items:center; gap:0.35rem; font-size:0.8rem; color:var(--muted); text-transform:none; letter-spacing:0.02em;">
+              <input id="auto-export-on-change" type="checkbox" style="width:14px; height:14px; margin:0;">
+              Auto export on file change
+            </label>
+          </div>
         </div>
       </section>
 
@@ -286,6 +307,8 @@
     const wineInput = document.getElementById("wine_prefix");
     const layoutEl = document.querySelector(".layout");
     const toggleToolbarBtn = document.getElementById("toggle-toolbar");
+    const autoExportCheckbox = document.getElementById("auto-export-on-change");
+    const exportBtn = document.getElementById("export-btn");
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
     window.layoutDirty = false;
     let lastLogId = 0;
@@ -294,6 +317,10 @@
     let dndAttached = false;
     let draggingEl = null;
     let draggingFrom = null;
+    let pdfBusy = false;
+    let exportBusy = false;
+    let filesChangedState = false;
+    let skipNextAutoExportEdge = false;
     const sectionLabels = {
       airbase: "Airbase",
       package: "Package",
@@ -387,6 +414,9 @@
         wineInput.value = sys.wine_prefix || "";
         document.getElementById("output_dir").value = sys.output_dir || "";
         document.getElementById("pdf_output_dir").value = sys.pdf_output_dir || "";
+        if (autoExportCheckbox) {
+          autoExportCheckbox.checked = String(sys.auto_export_on_change || "False").toLowerCase() === "true";
+        }
         await loadTheater();
       } catch (err) {
         log(`Failed to load config: ${err.message}`);
@@ -414,6 +444,7 @@
         callsignChanged: data.callsign_changed,
         pdfOverflow: data.pdf_overflow
       });
+        await maybeAutoExportOnFileChange(data);
         pages = Array.isArray(data.pages) ? data.pages : [];
         renderPages();
         await loadTheater();
@@ -448,6 +479,7 @@
           callsignChanged: data.callsign_changed,
           pdfOverflow: data.pdf_overflow
         });
+        await maybeAutoExportOnFileChange(data);
       } catch (err) {
         // silent; will retry on next poll
       }
@@ -462,6 +494,7 @@
       payload.system.wine_prefix = wineInput.value;
       payload.system.output_dir = document.getElementById("output_dir").value;
       payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
+      payload.system.auto_export_on_change = (autoExportCheckbox && autoExportCheckbox.checked) ? "True" : "False";
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
         window.layoutDirty = false;
@@ -572,6 +605,21 @@
       }
     }
 
+    function getLatestEdits() {
+      const cw = briefFrame?.contentWindow;
+      if (cw && typeof cw.saveChangedData === "function") {
+        try {
+          const data = cw.saveChangedData();
+          if (data && typeof data === "object" && !Array.isArray(data)) {
+            return data;
+          }
+        } catch (err) {
+          log(`saveChangedData failed: ${err.message}`);
+        }
+      }
+      return getSavedEdits();
+    }
+
     function buildPagesObj() {
       const pagesObj = {};
       pages.forEach((p, idx) => {
@@ -625,28 +673,31 @@
       }
     }
 
-    document.getElementById("pdf-btn").addEventListener("click", async () => {
-      try {
-        // ensure latest edits are saved before pulling from localStorage
-        callBriefing("saveChangedData");
-        const payload = { content: getSavedEdits(), ...currentOverrides() };
-        const mapImage = await captureMapImage();
-        if (mapImage) {
-          payload.content.map_image = mapImage;
-        }
-        const res = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
-        log(`PDF generated at ${res.pdf_file}`);
-        await pollStatusBadges();
-      } catch (err) {
-        log(`PDF generation failed: ${err.message}`);
+    function setPdfBusy(busy) {
+      pdfBusy = !!busy;
+      const openPdfBtn = document.getElementById("open-pdf-btn");
+      if (openPdfBtn) {
+        openPdfBtn.disabled = pdfBusy;
+        openPdfBtn.title = pdfBusy ? "PDF generation in progress" : "";
       }
-    });
+    }
 
-    document.getElementById("export-btn").addEventListener("click", async () => {
+    function setExportBusy(busy) {
+      exportBusy = !!busy;
+      if (exportBtn) {
+        exportBtn.disabled = exportBusy;
+        exportBtn.textContent = exportBusy ? "Exporting..." : "Export kneeboards";
+        exportBtn.title = exportBusy ? "Kneeboard export in progress" : "";
+      }
+    }
+
+    async function runExportFlow(source = "manual") {
+      if (pdfBusy || exportBusy) return;
+      setPdfBusy(true);
+      setExportBusy(true);
       try {
-        callBriefing("saveChangedData");
         const overrides = currentOverrides();
-        const payload = { content: getSavedEdits(), ...overrides };
+        const payload = { content: getLatestEdits(), ...overrides };
         const mapImage = await captureMapImage();
         if (mapImage) {
           payload.content.map_image = mapImage;
@@ -659,10 +710,58 @@
         log(`PDF generated at ${pdfRes.pdf_file}`);
         const expRes = await fetchJSON("/api/export", { method: "POST", body: JSON.stringify({ ...overrides, theater: payload.theater }) });
         log(`Exported kneeboards to ${expRes.target_folder}`);
+        if (source === "auto") {
+          log("Auto export completed");
+        }
+        if (source === "manual") {
+          skipNextAutoExportEdge = true;
+        }
         await pollStatusBadges();
       } catch (err) {
-        log(`Export failed: ${err.message}`);
+        const prefix = source === "auto" ? "Auto export failed" : "Export failed";
+        log(`${prefix}: ${err.message}`);
+      } finally {
+        setExportBusy(false);
+        setPdfBusy(false);
       }
+    }
+
+    async function maybeAutoExportOnFileChange(data) {
+      const filesChangedNow = !!(data.brief_changed || data.callsign_changed);
+      const changeEdge = filesChangedNow && !filesChangedState;
+      filesChangedState = filesChangedNow;
+      if (!changeEdge) return;
+      if (skipNextAutoExportEdge) {
+        skipNextAutoExportEdge = false;
+        return;
+      }
+      if (!autoExportCheckbox || !autoExportCheckbox.checked) return;
+      if (pdfBusy) return;
+      log("File change detected. Running auto export.");
+      await runExportFlow("auto");
+    }
+
+    document.getElementById("pdf-btn").addEventListener("click", async () => {
+      if (pdfBusy) return;
+      setPdfBusy(true);
+      try {
+        const payload = { content: getLatestEdits(), ...currentOverrides() };
+        const mapImage = await captureMapImage();
+        if (mapImage) {
+          payload.content.map_image = mapImage;
+        }
+        const res = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
+        log(`PDF generated at ${res.pdf_file}`);
+        await pollStatusBadges();
+      } catch (err) {
+        log(`PDF generation failed: ${err.message}`);
+      } finally {
+        setPdfBusy(false);
+      }
+    });
+
+    document.getElementById("export-btn").addEventListener("click", async () => {
+      await runExportFlow("manual");
     });
 
     const briefFrame = document.getElementById("brief-frame");
@@ -671,7 +770,7 @@
       if (!cw) { log("Preview not ready"); return; }
       if (typeof cw[fnName] !== "function") { log(`Function ${fnName} not found in briefing page`); return; }
       try {
-        cw[fnName]();
+        return cw[fnName]();
       } catch (err) {
         log(`${fnName} failed: ${err.message}`);
       }
@@ -700,7 +799,7 @@
     document.getElementById("load-edits-btn").addEventListener("click", () => callBriefing("loadChangedData"));
     document.getElementById("reset-edits-btn").addEventListener("click", () => callBriefing("resetContenteditables"));
     document.getElementById("open-pdf-btn").addEventListener("click", () => {
-      window.open("/kneeboards/kneeboard.pdf", "_blank");
+      window.open("/pdf", "_blank");
     });
 
     function getFrameScroll(frame) {
@@ -927,6 +1026,22 @@
       saveLayoutBtn.addEventListener("click", async () => {
         await persistPages(false);
         window.layoutDirty = false;
+      });
+    }
+
+    if (autoExportCheckbox) {
+      autoExportCheckbox.addEventListener("change", async () => {
+        const next = autoExportCheckbox.checked;
+        try {
+          await fetchJSON("/api/config/runtime", {
+            method: "POST",
+            body: JSON.stringify({ system: { auto_export_on_change: next ? "True" : "False" } })
+          });
+          log(`Auto export on file change ${next ? "enabled" : "disabled"}`);
+        } catch (err) {
+          autoExportCheckbox.checked = !next;
+          log(`Failed to save auto export setting: ${err.message}`);
+        }
       });
     }
 

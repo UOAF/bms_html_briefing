@@ -3,6 +3,7 @@ import configparser
 import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 from collections import deque
 from itertools import count
 from threading import Thread
@@ -95,6 +96,7 @@ def build_default_config() -> configparser.ConfigParser:
         "output_dir": str(RUN_DIR / "output"),
         "pdf_output_dir": str(KNEEBOARDS_DIR),
         "wine_prefix": "",
+        "auto_export_on_change": "False",
     }
     cfg["bms"] = {
         "bms_version": "4.38",
@@ -154,6 +156,10 @@ def copy_config_with_overrides(cfg: configparser.ConfigParser, pages: Optional[D
             new_cfg["system"] = {}
         for k, v in system.items():
             new_cfg["system"][k] = v
+    if "system" in new_cfg:
+        for key in ("output_dir", "pdf_output_dir"):
+            if key in new_cfg["system"] and new_cfg["system"][key]:
+                new_cfg["system"][key] = str(resolve_path(new_cfg["system"][key]))
     return new_cfg
 
 
@@ -227,7 +233,17 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         logger.error("Failed to initialize BMS config: %s", exc)
         bms_cfg = None
 
-    app = FastAPI(title="BMS Briefing Server")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        url = getattr(app.state, "auto_open_url", None)
+        if url:
+            try:
+                Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+            except Exception as exc:
+                logger.warning("Failed to open browser automatically: %s", exc)
+        yield
+
+    app = FastAPI(title="BMS Briefing Server", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -251,6 +267,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
     app.state.pdf_page_count: Optional[int] = None
     app.state.pdf_overflow: Optional[bool] = None
     app.state.auto_open_url: Optional[str] = None
+    app.state.last_pdf_path: Optional[str] = None
+    app.state.last_brief_path: Optional[str] = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
     app.state.brief_pages_ref: Optional[int] = None
@@ -263,16 +281,6 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
     app.mount("/kneeboards", StaticFiles(directory=KNEEBOARDS_DIR), name="kneeboards")
     if WEB_DIR.exists():
         app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
-
-    @app.on_event("startup")
-    async def open_browser_on_startup() -> None:
-        url = getattr(app.state, "auto_open_url", None)
-        if not url:
-            return
-        try:
-            Thread(target=webbrowser.open, args=(url,), daemon=True).start()
-        except Exception as exc:
-            logger.warning("Failed to open browser automatically: %s", exc)
 
     @app.get("/api/theater")
     def get_theater() -> Dict[str, Any]:
@@ -315,12 +323,22 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         payload_dict = payload.model_dump(exclude_none=True)
         if not payload_dict:
             raise HTTPException(status_code=400, detail="No config fields provided")
+        # Keep in-memory config in sync for immediate UI/runtime behavior.
         for section, values in payload_dict.items():
             if section not in app.state.cfg:
                 app.state.cfg[section] = {}
             for key, value in values.items():
                 app.state.cfg[section][key] = str(value)
-        save_config(app.state.cfg, app.state.config_path)
+
+        # Persist only explicitly provided fields so runtime-only overrides
+        # (set via /api/config/runtime) are not accidentally written to disk.
+        cfg_to_persist = load_config(app.state.config_path)
+        for section, values in payload_dict.items():
+            if section not in cfg_to_persist:
+                cfg_to_persist[section] = {}
+            for key, value in values.items():
+                cfg_to_persist[section][key] = str(value)
+        save_config(cfg_to_persist, app.state.config_path)
         ensure_dirs(app.state.cfg)
         app.state.bms_cfg = BmsConfig(app.state.cfg)
         return serialize_config(app.state.cfg)
@@ -441,6 +459,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         ensure_dirs(cfg_generate)
         try:
             generate_html_file(cfg_generate, bms_cfg_generate, "index")
+            output_file = resolve_path(cfg_generate["system"]["output_dir"]) / "index.html"
+            app.state.last_brief_path = str(output_file)
             try:
                 app.state.brief_mtime_ref = os.path.getmtime(Path(bms_cfg_generate.base_dir) / "User" / "Briefings" / "briefing.txt")
                 app.state.callsign_mtime_ref = os.path.getmtime(Path(bms_cfg_generate.base_dir) / "User" / "Config" / f"{bms_cfg_generate.callsign}.ini")
@@ -450,7 +470,6 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         except Exception as exc:
             logger.error("Failed to generate HTML: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to generate HTML: {exc}")
-        output_file = resolve_path(cfg_generate["system"]["output_dir"]) / "index.html"
         return {"status": "ok", "output_file": str(output_file)}
 
     @app.post("/api/preview")
@@ -464,6 +483,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         ensure_dirs(cfg_preview)
         try:
             generate_html_file(cfg_preview, bms_cfg_preview, "index")
+            output_file = resolve_path(cfg_preview["system"]["output_dir"]) / "index.html"
+            app.state.last_brief_path = str(output_file)
             try:
                 app.state.brief_mtime_ref = os.path.getmtime(Path(bms_cfg_preview.base_dir) / "User" / "Briefings" / "briefing.txt")
                 app.state.callsign_mtime_ref = os.path.getmtime(Path(bms_cfg_preview.base_dir) / "User" / "Config" / f"{bms_cfg_preview.callsign}.ini")
@@ -473,7 +494,6 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         except Exception as exc:
             logger.error("Failed to generate preview HTML: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to generate HTML: {exc}")
-        output_file = resolve_path(cfg_preview["system"]["output_dir"]) / "index.html"
         return {"status": "ok", "output_file": str(output_file)}
 
     @app.post("/api/pdf")
@@ -492,11 +512,17 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         try:
             generate_html_file(cfg_pdf, bms_cfg_pdf, "index")
             output_file = resolve_path(cfg_pdf["system"]["output_dir"]) / "index.html"
+            app.state.last_brief_path = str(output_file)
+            try:
+                app.state.brief_mtime_ref = os.path.getmtime(Path(bms_cfg_pdf.base_dir) / "User" / "Briefings" / "briefing.txt")
+                app.state.callsign_mtime_ref = os.path.getmtime(Path(bms_cfg_pdf.base_dir) / "User" / "Config" / f"{bms_cfg_pdf.callsign}.ini")
+            except Exception:
+                pass
             patched_html = apply_content_edits(output_file, payload.content or {})
             pdf_output_dir = resolve_path(cfg_pdf["system"]["pdf_output_dir"])
             pdf_output_dir.mkdir(parents=True, exist_ok=True)
             pdf_path = pdf_output_dir / "kneeboard.pdf"
-            pdf_doc = HTML(filename=str(patched_html), base_url=str(output_file.parent)).render()
+            pdf_doc = HTML(filename=str(patched_html), base_url=str(STATIC_ROOT)).render()
             app.state.pdf_page_count = len(pdf_doc.pages)
             app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_pdf))
             app.state.pdf_overflow = (
@@ -505,6 +531,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
                 and app.state.pdf_page_count > app.state.brief_pages_ref
             )
             pdf_doc.write_pdf(str(pdf_path))
+            app.state.last_pdf_path = str(pdf_path)
         except HTTPException:
             raise
         except Exception as exc:
@@ -549,10 +576,19 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
 
     @app.get("/brief")
     def serve_brief() -> FileResponse:
-        output_file = resolve_path(app.state.cfg["system"]["output_dir"]) / "index.html"
+        last_brief = getattr(app.state, "last_brief_path", None)
+        output_file = Path(last_brief) if last_brief else resolve_path(app.state.cfg["system"]["output_dir"]) / "index.html"
         if not output_file.exists():
             raise HTTPException(status_code=404, detail="No generated briefing found. Run /api/generate first.")
         return FileResponse(output_file)
+
+    @app.get("/pdf")
+    def serve_pdf() -> FileResponse:
+        last_pdf = getattr(app.state, "last_pdf_path", None)
+        pdf_file = Path(last_pdf) if last_pdf else resolve_path(app.state.cfg["system"]["pdf_output_dir"]) / "kneeboard.pdf"
+        if not pdf_file.exists():
+            raise HTTPException(status_code=404, detail="No generated PDF found. Run /api/pdf first.")
+        return FileResponse(pdf_file)
 
     return app
 
@@ -571,4 +607,4 @@ if __name__ == "__main__":
     if not args.no_browser:
         app.state.auto_open_url = f"http://127.0.0.1:{args.port}"
 
-    uvicorn.run(app, host="127.0.0.1", port=args.port, reload=False, access_log=False)
+    uvicorn.run(app, host="127.0.0.1", port=args.port, reload=False, access_log=False, log_config = None)

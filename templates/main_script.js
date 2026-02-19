@@ -62,6 +62,7 @@ function saveChangedData() {
         }
     });
     localStorage.setItem('contenteditables', JSON.stringify(contentData));
+    return contentData;
 }
 
 function saveContenteditablesDefaults() {
@@ -100,7 +101,7 @@ function loadImages() {
     const contentData = JSON.parse(localStorage.getItem('contenteditables') || '{}');
 
     if (contentData["mapInput"] !== "" && typeof contentData["mapInput"] !== 'undefined') {
-	drawMap("../assets/maps/" + contentData["mapInput"]);
+	drawMap("assets/maps/" + contentData["mapInput"]);
     }
     try {
 	map.setView(contentData["mapCenter"], contentData["mapZoom"]);
@@ -121,21 +122,21 @@ function loadImages() {
         imageDisplay1.src = contentData["tgt1Img_src"];
     } else if (typeof contentData["tgt1Input"] != 'undefined') {
 	imageRow.style.visibility = "";
-	imageDisplay1.src = "../assets/targets/" + contentData["tgt1Input"];
+	imageDisplay1.src = "assets/targets/" + contentData["tgt1Input"];
     }
     if (contentData["tgt2Img_src"]) {
         imageRow.style.visibility = "";
         imageDisplay2.src = contentData["tgt2Img_src"];
     } else if (typeof contentData["tgt2Input"] != 'undefined') {
 	imageRow.style.visibility = "";
-	imageDisplay2.src = "../assets/targets/" + contentData["tgt2Input"];
+	imageDisplay2.src = "assets/targets/" + contentData["tgt2Input"];
     }
     if (contentData["tgt3Img_src"]) {
         imageRow.style.visibility = "";
         imageDisplay3.src = contentData["tgt3Img_src"];
     } else if (typeof contentData["tgt3Input"] != 'undefined') {
 	imageRow.style.visibility = "";
-	imageDisplay3.src = "../assets/targets/" + contentData["tgt3Input"];
+	imageDisplay3.src = "assets/targets/" + contentData["tgt3Input"];
     }
 
 }
