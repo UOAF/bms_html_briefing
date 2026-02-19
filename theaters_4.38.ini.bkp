@@ -1,6 +1,0 @@
-[Korea KTO]
-copy_to_kto = False
-target_folder = /home/tolmak/games/heroic_gentoo/prefixes/default/Falcon BMS 4.37/pfx/drive_c/Falcon BMS 4.38/Data/TerrData/Objects/KoreaObj
-default_map_file = Docs/05 Maps/0_KTO_4k_Blank.png
-map_file = /home/tolmak/games/heroic_gentoo/prefixes/default/Falcon BMS 4.37/pfx/drive_c/Falcon BMS 4.38/Docs/05 Maps/0_KTO_4k_Blank.png
-
