@@ -1,5 +1,6 @@
 window.onload = function()
 {
+    bindClipboardImagePasteHandlers();
     saveContenteditablesDefaults();
 
     var restore = localStorage.getItem("onrefresh");
@@ -10,7 +11,93 @@ window.onload = function()
     if (restore == "reset") {
 	saveChangedData();
 	localStorage.setItem("onrefresh", "");
+	}
+}
+
+function insertNodeAtCursor(node, fallbackContainer) {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !fallbackContainer.contains(selection.anchorNode)) {
+        fallbackContainer.appendChild(node);
+        return;
     }
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.setEndAfter(node);
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
+
+function bindClipboardImagePasteHandlers() {
+    const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
+    contenteditableElements.forEach((el) => {
+        if (el.dataset.imagePasteBound === "1") {
+            return;
+        }
+        el.dataset.imagePasteBound = "1";
+        el.addEventListener("paste", (event) => {
+            const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
+            const imageItems = items.filter((item) => item.kind === "file" && item.type.startsWith("image/"));
+            if (!imageItems.length) {
+                return;
+            }
+            event.preventDefault();
+            imageItems.forEach((item) => {
+                const file = item.getAsFile();
+                if (!file) {
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function () {
+                    const img = document.createElement("img");
+                    img.src = reader.result;
+                    img.style.maxWidth = "100%";
+                    img.style.height = "auto";
+                    insertNodeAtCursor(img, el);
+                    saveChangedData();
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    });
+}
+
+function serializeEditableContent(el) {
+    if (!el) {
+        return "";
+    }
+    const clone = el.cloneNode(true);
+    const sourceImages = el.querySelectorAll("img");
+    const clonedImages = clone.querySelectorAll("img");
+    for (let i = 0; i < clonedImages.length; i++) {
+        const cloneImg = clonedImages[i];
+        const src = cloneImg.getAttribute("src") || "";
+        if (!src || src.startsWith("data:")) {
+            continue;
+        }
+        const sourceImg = sourceImages[i];
+        if (!sourceImg) {
+            continue;
+        }
+        try {
+            const width = sourceImg.naturalWidth || sourceImg.width || 0;
+            const height = sourceImg.naturalHeight || sourceImg.height || 0;
+            if (!width || !height) {
+                continue;
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(sourceImg, 0, 0, width, height);
+            cloneImg.setAttribute("src", canvas.toDataURL("image/png"));
+        }
+        catch (error) {
+            console.error("Failed to serialize pasted image", error);
+        }
+    }
+    return clone.innerHTML;
 }
 
 function saveChangedData() {
@@ -18,7 +105,7 @@ function saveChangedData() {
     const contentData = {};
     contenteditableElements.forEach(el => {
         const key = el.id;
-        contentData[key] = el.innerHTML;
+        contentData[key] = serializeEditableContent(el);
     });
     const hidableElements = document.querySelectorAll('.hidable');
     hidableElements.forEach(el => {

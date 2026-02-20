@@ -171,8 +171,23 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
     soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
     def normalize_text(val: Any) -> str:
-        text = BeautifulSoup(str(val), "html.parser").get_text("\n")
+        text = BeautifulSoup("" if val is None else str(val), "html.parser").get_text("\n")
         return text.replace("\r\n", "\n").replace("\r", "\n")
+
+    def append_editable_content(el: Any, val: Any) -> None:
+        raw = "" if val is None else str(val)
+        fragment = BeautifulSoup(raw, "html.parser")
+        if fragment.find() is not None:
+            for node in list(fragment.contents):
+                if getattr(node, "name", None) in {"script", "style"}:
+                    continue
+                el.append(node)
+            return
+        lines = normalize_text(raw).split("\n")
+        for idx, line in enumerate(lines):
+            el.append(NavigableString(line))
+            if idx != len(lines) - 1:
+                el.append(soup.new_tag("br"))
     # Replace map with captured image if provided
     if content.get("map_image"):
         map_container = soup.find(id="image-map")
@@ -213,12 +228,7 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
         if el is None:
             continue
         el.clear()
-        text = normalize_text(value)
-        lines = text.split("\n")
-        for idx, line in enumerate(lines):
-            el.append(NavigableString(line))
-            if idx != len(lines) - 1:
-                el.append(soup.new_tag("br"))
+        append_editable_content(el, value)
 
     patched = html_path.parent / "index_print.html"
     patched.write_text(str(soup), encoding="utf-8")
