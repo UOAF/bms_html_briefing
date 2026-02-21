@@ -46,15 +46,10 @@
 
     :root {
       color-scheme: dark;
-      --bg: #0b1624;
-      --panel: #111f33;
+      --bg: #000000;
       --panel-strong: #15273d;
       --text: #d8e7f5;
-      --muted: #91a2b5;
       --line: #3aa7ff;
-      --accent: #53f7a6;
-      --warn: #f5b759;
-      --danger: #ef6464;
       --input: #0c1829;
       --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
       font-family: "Viper";
@@ -66,9 +61,6 @@
       margin: 0;
       padding: 0 1.25rem 2rem;
       background:
-        linear-gradient(145deg, rgba(18, 45, 70, 0.2), rgba(9, 18, 32, 0.6)),
-        radial-gradient(circle at 20% 20%, rgba(83, 247, 166, 0.06), transparent 32%),
-        radial-gradient(circle at 80% 0, rgba(58, 167, 255, 0.08), transparent 35%),
         var(--bg);
     }
 
@@ -97,16 +89,15 @@
     }
 
     small {
-      color: var(--muted);
       letter-spacing: 0.08em;
     }
 
     section {
       margin-top: 1rem;
       padding: 1rem 1.25rem;
-      border: 7px double rgba(58, 167, 255, 0.35);
+      border: 1px solid rgb(255, 255, 255);
       border-radius: 0;
-      background: var(--panel);
+      background: var(--bg);
       box-shadow: var(--shadow);
     }
 
@@ -114,37 +105,68 @@
       display: block;
       margin-bottom: 0.35rem;
       color: var(--line);
+      font-weight: 700;
       font-size: 0.88rem;
       letter-spacing: 0.06em;
       text-transform: uppercase;
     }
 
-    input,
+    input:not([type="checkbox"]),
     select {
       box-sizing: border-box;
       width: 100%;
-      padding: 0.6rem 0.7rem;
-      border: 1px solid rgba(58, 167, 255, 0.25);
-      border-radius: 6px;
-      background: var(--input);
-      color: var(--text);
-      font-weight: 600;
+      padding: 0.52rem 0.65rem;
+      border: 1px solid #ffffff;
+      border-radius: 0;
+      background: var(--bg);
+      color: #ffffff;
+      font-family: "IBMPlexMono";
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      transition: border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
     }
 
-    input:focus,
+    input:not([type="checkbox"])::placeholder {
+      color: rgba(255, 255, 255, 0.56);
+    }
+
+    input:not([type="checkbox"]):focus,
     select:focus {
-      outline: 1px solid var(--line);
-      box-shadow: 0 0 0 2px rgba(58, 167, 255, 0.18);
+      outline: none;
+      border-color: var(--line);
+      box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.45);
+    }
+
+    input:not([type="checkbox"])[readonly] {
+      color: rgba(255, 255, 255, 0.82);
+      border-color: rgba(255, 255, 255, 0.72);
+    }
+
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      padding-right: 1.9rem;
+      background-image:
+        linear-gradient(45deg, transparent 50%, #ffffff 50%),
+        linear-gradient(135deg, #ffffff 50%, transparent 50%);
+      background-position:
+        calc(100% - 0.95rem) calc(50% - 0.1rem),
+        calc(100% - 0.62rem) calc(50% - 0.1rem);
+      background-size: 0.33rem 0.33rem, 0.33rem 0.33rem;
+      background-repeat: no-repeat;
+    }
+
+    select option {
+      background: #000000;
+      color: #ffffff;
     }
 
     button {
       box-sizing: border-box;
-      width: auto;
-      padding: 0.3rem 0.3rem;
-      border: 0px solid rgba(58, 167, 255, 0.35);
+      border: none;
       border-radius: 0;
-      background: var(--panel-strong);
-      color: var(--text);
       font-family: "Viper";
       font-weight: 700;
       font-size: medium;
@@ -155,64 +177,11 @@
         transform 80ms ease,
         box-shadow 120ms ease,
         background 120ms ease,
-        border-color 120ms ease;
-    }
-
-    button:hover {
-      transform: translateY(-1px);
-      border-color: var(--line);
-      box-shadow: 0 6px 14px rgba(58, 167, 255, 0.15);
-    }
-
-    button.primary {
-      border-color: var(--line);
-      background: linear-gradient(135deg, var(--panel-strong), #0e1d31);
-      color: var(--line);
-    }
-
-    button.primary:hover {
-      background: #12253b;
-    }
-
-    button.secondary {
-      border-color: rgba(58, 167, 255, 0.35);
-      background: var(--panel-strong);
-      color: var(--text);
-    }
-
-    button.secondary:hover {
-      border-color: var(--line);
-      color: var(--line);
+        color 120ms ease;
     }
 
     button:disabled {
-      opacity: 0.45;
       cursor: not-allowed;
-      color: #8b9aab;
-      border-color: rgba(139, 154, 171, 0.35);
-      box-shadow: none;
-      transform: none;
-      filter: saturate(0.2);
-    }
-
-    button:disabled:hover {
-      color: #8b9aab;
-      border-color: rgba(139, 154, 171, 0.35);
-      box-shadow: none;
-      transform: none;
-    }
-
-    .pill-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 0;
-      width: auto;
-      height: 32px;
-      padding: 0.25rem 0.8rem;
-      border-radius: 0px;
-      font-size: 0.85rem;
-      box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.3);
     }
 
     .grid {
@@ -222,18 +191,6 @@
 
     .grid.two {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.35rem 0.6rem;
-      border: 1px solid rgba(58, 167, 255, 0.35);
-      border-radius: 0px;
-      background: var(--panel-strong);
-      color: var(--text);
-      font-size: 0.9rem;
     }
 
     a {
@@ -248,11 +205,11 @@
     #log {
       min-height: 120px;
       padding: 0.75rem 1rem;
-      border: 1px solid rgba(58, 167, 255, 0.25);
-      border-radius: 12px;
-      background: rgba(12, 24, 42, 0.7);
+      border: 1px solid rgb(255, 255, 255);
+      border-radius: 0px;
+      background: rgb(0, 0, 0);
       color: var(--text);
-      font-family: "Consolas", "SFMono-Regular", monospace;
+      font-family: "IBMPlexMono";
       white-space: pre-wrap;
       box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.08);
     }
@@ -263,8 +220,8 @@
       max-width: 100%;
       height: 70vh;
       margin: 0 auto;
-      border: 1px solid rgba(58, 167, 255, 0.3);
-      border-radius: 12px;
+      border: 1px solid rgb(255, 255, 255);
+      border-radius: 0px;
       background: #0a1310;
       box-shadow: 0 0 0 1px rgba(58, 167, 255, 0.1);
     }
@@ -310,16 +267,150 @@
       grid-template-columns: repeat(auto-fit, minmax(170px, 170px));
     }
 
+    section.mfd-box {
+      --mfd-gap: 0.5rem;
+      --mfd-btn-py: 0.18rem;
+      --mfd-btn-px: 0.4rem;
+      --mfd-cutout-x: 0.45rem;
+      --mfd-cutout-top: 0.6rem;
+      --mfd-cutout-bottom: 0.38rem;
+      --mfd-anchor-offset: -1.15rem;
+      --mfd-bottom-offset: -0.5rem;
+      --mfd-bottom-reserve: 0.55rem;
+      position: relative;
+      margin-top: 1.3rem;
+      padding-top: 0.7rem;
+      overflow: visible;
+    }
+
+    section.mfd-box .mfd-anchor {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: var(--mfd-gap);
+      margin-top: var(--mfd-anchor-offset);
+      padding: 0 0.6rem;
+      position: relative;
+    }
+
+    section.mfd-box .mfd-anchor.mfd-anchor-right {
+      justify-content: flex-end;
+    }
+
+    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn) {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      width: auto;
+      border: none;
+      background: var(--bg);
+      color: #ffffff;
+      box-shadow: none;
+      padding: var(--mfd-btn-py) var(--mfd-btn-px);
+      white-space: nowrap;
+      font-size: 1.05rem;
+    }
+
+    section.mfd-box .mfd-anchor button::before {
+      content: "";
+      position: absolute;
+      left: calc(-1 * var(--mfd-cutout-x));
+      right: calc(-1 * var(--mfd-cutout-x));
+      top: calc(-1 * var(--mfd-cutout-top) + 0.02rem);
+      height: var(--mfd-cutout-top);
+      background: var(--bg);
+      pointer-events: none;
+    }
+
+    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):hover {
+      transform: none;
+      color: var(--line);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+      box-shadow: none;
+    }
+
+    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):active:not(:disabled) {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+      box-shadow: none;
+    }
+
+    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):focus-visible {
+      outline: 1px solid var(--line);
+      outline-offset: 2px;
+    }
+
+    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):disabled,
+    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):disabled:hover {
+      opacity: 1;
+      cursor: not-allowed;
+      color: #000000;
+      background: #ffffff;
+      text-shadow: none;
+      box-shadow: none;
+      transform: none;
+      filter: none;
+    }
+
+    section.mfd-box .auto-export-mode-btn.is-active,
+    section.mfd-box .auto-export-mode-btn.is-active:hover {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+    }
+
+    section.mfd-box .auto-export-mode-btn.is-active:active:not(:disabled) {
+      background: var(--bg);
+      color: var(--line);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+    }
+
+    section.mfd-box.mfd-with-bottom-btn {
+      padding-bottom: var(--mfd-bottom-reserve);
+    }
+
+    section.mfd-box .mfd-bottom-btn {
+      position: absolute;
+      left: 50%;
+      bottom: var(--mfd-bottom-offset);
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+
+    section.mfd-box .mfd-bottom-btn::after {
+      content: "";
+      position: absolute;
+      left: calc(-1 * var(--mfd-cutout-x));
+      right: calc(-1 * var(--mfd-cutout-x));
+      bottom: calc(-1 * var(--mfd-cutout-bottom) + 0.04rem);
+      height: var(--mfd-cutout-bottom);
+      background: var(--bg);
+      pointer-events: none;
+    }
+
+    section.mfd-box .mfd-bottom-btn:not(.mfd-bottom-btn-right):is(:hover, :active:not(:disabled), :disabled) {
+      transform: translateX(-50%);
+    }
+
+    section.mfd-box .mfd-bottom-btn.mfd-bottom-btn-right {
+      left: auto;
+      right: 0.85rem;
+      transform: none;
+    }
+
+    section.mfd-box .mfd-bottom-btn.mfd-bottom-btn-right:is(:hover, :active:not(:disabled), :disabled) {
+      transform: none;
+    }
+
+    section.mfd-toolbar {
+      --mfd-gap: 5rem;
+    }
+
     .button-row.controls-row button,
     .chain button {
       width: 170px;
-    }
-
-    .inline-field {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-      gap: 0.4rem;
     }
 
     .panel-head {
@@ -329,6 +420,30 @@
       margin-bottom: 0.5rem;
     }
 
+    .heading-zero {
+      margin: 0;
+    }
+
+    .heading-top-zero {
+      margin-top: 0;
+    }
+
+    .spacer-sm {
+      margin-bottom: 0.75rem;
+    }
+
+    .page-select {
+      max-width: 240px;
+    }
+
+    .grid-start {
+      align-items: start;
+    }
+
+    .status-value {
+      font-family: "IBMPlexMono";
+    }
+
     .sortable {
       min-height: 40px;
       margin: 0.5rem 0 0;
@@ -336,6 +451,7 @@
       border: 1px dashed rgba(58, 167, 255, 0.35);
       border-radius: 8px;
       list-style: none;
+      font-weight: 700;
     }
 
     .sortable li {
@@ -394,6 +510,14 @@
       padding: 0.35rem 0.75rem;
     }
 
+    section.mfd-page-nav {
+      --mfd-gap: 1rem;
+    }
+
+    section.mfd-page-nav .mfd-anchor {
+      margin-bottom: 0.65rem;
+    }
+
     .chain {
       display: flex;
       flex-wrap: wrap;
@@ -402,9 +526,50 @@
       gap: 0.5rem;
     }
 
-    .chain .arrow {
-      color: #ffffff;
-      opacity: 0.85;
+    section.mfd-flow {
+      --mfd-gap: 1.65rem;
+      --mfd-cutout-bottom: 0.0rem;
+      --mfd-bottom-offset: -1.5rem;
+      --mfd-bottom-reserve: 0.9rem;
+    }
+
+    section.mfd-flow .mfd-anchor {
+      align-items: flex-start;
+    }
+
+    section.mfd-settings,
+    section.mfd-theater {
+      --mfd-cutout-bottom: 0.6rem;
+      --mfd-bottom-reserve: 0.9rem;
+      --mfd-bottom-offset: 0.6rem;
+    }
+
+    section.mfd-theater #copy_to_kto_btn {
+      position: absolute;
+      left: auto !important;
+      right: 0.85rem !important;
+      bottom: var(--mfd-bottom-offset);
+      transform: none !important;
+      z-index: 2;
+    }
+
+    section.mfd-theater #copy_to_kto_btn::after {
+      content: "";
+      position: absolute;
+      left: calc(-1 * var(--mfd-cutout-x));
+      right: calc(-1 * var(--mfd-cutout-x));
+      bottom: calc(-1 * var(--mfd-cutout-bottom) + 0.04rem);
+      height: var(--mfd-cutout-bottom);
+      background: var(--bg);
+      pointer-events: none;
+    }
+
+    section.mfd-theater #copy_to_kto_btn:is(:hover, :active:not(:disabled), :disabled) {
+      transform: none !important;
+    }
+
+    section.mfd-status {
+      --mfd-cutout-top: 0.2rem;
     }
 
     .badge-row {
@@ -418,40 +583,60 @@
       align-items: center;
       gap: 0.35rem;
       padding: 0.3rem 0.6rem;
-      border: 1px solid rgba(58, 167, 255, 0.3);
+      border: 1px solid #ffffff;
       border-radius: 0px;
-      background: var(--panel-strong);
-      color: var(--text);
-      font-size: 0.9rem;
-      box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.08);
+      background: var(--bg);
+      color: #ffffff;
+      font-size: 1.05rem;
+      box-shadow: none;
+      font-weight: 700;
     }
 
-    .badge .dot {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #1e344d;
-      box-shadow: 0 0 6px rgba(58, 167, 255, 0.35);
-    }
-
-    .badge.ok .dot {
-      background: var(--accent);
-      box-shadow: 0 0 6px rgba(83, 247, 166, 0.35);
-    }
-
-    .badge.warn .dot {
-      background: var(--warn);
-      box-shadow: 0 0 6px rgba(245, 183, 89, 0.35);
-    }
-
-    .badge.error .dot {
-      background: var(--danger);
-      box-shadow: 0 0 6px rgba(239, 100, 100, 0.35);
-    }
-
+    .badge.ok,
     .badge.muted {
-      opacity: 0.6;
+      background: var(--bg);
+      color: #ffffff;
+      border-color: #ffffff;
+      opacity: 1;
+    }
+
+    .badge.warn,
+    .badge.error {
+      background: #9f1010;
+      color: #ffffff;
+      border-color: #ffffff;
+      opacity: 1;
+    }
+
+    .badge-row #toggle-toolbar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      width: auto;
+      height: 32px;
+      padding: 0.25rem 0.8rem;
+      border: none;
+      background: var(--bg);
+      color: #ffffff;
+      font-size: 1.05rem;
+      white-space: nowrap;
+      box-shadow: none;
+    }
+
+    .badge-row #toggle-toolbar:hover {
+      color: var(--line);
+      text-shadow: none;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .badge-row #toggle-toolbar:active:not(:disabled) {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+      box-shadow: none;
+      transform: none;
     }
 
     .truncate {
@@ -493,15 +678,14 @@
         <h1>Falcon BMS HTML Briefing</h1>
       </div>
       <div class="badge-row">
+        <button id="toggle-toolbar" type="button">Hide toolbar</button>
         <div class="badge" id="file-status" title="Briefing/callsign file changes">
-          <span class="dot"></span><span>FILES</span>
+          <span>FILES</span>
         </div>
         <div class="badge" id="overflow-status" title="PDF pages vs layout pages">
-          <span class="dot"></span><span>PDF</span>
+          <span>PDF</span>
         </div>
-        <button id="toggle-toolbar" class="secondary pill-btn" type="button" style="white-space:nowrap;">Hide toolbar</button>
-        <div class="pill">
-          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span>
+        <div class="badge muted" id="global-status-badge" title="Global config status">
           <span id="status-indicator">Idle</span>
         </div>
       </div>
@@ -509,55 +693,42 @@
 
     <div class="layout">
     <div class="main-column">
-      <section>
-        <div class="button-row controls-row no-print">
-          <button id="generate-btn-main" class="secondary generate-brief-btn">Generate brief</button>
-          <button id="save-edits-btn" class="secondary">Save edits</button>
-          <button id="load-edits-btn" class="secondary">Load edits</button>
-          <button id="reset-edits-btn" class="secondary">Reset edits</button>
+      <section class="mfd-box mfd-toolbar no-print">
+        <div class="button-row controls-row mfd-anchor">
+          <button id="generate-btn-main" class="generate-brief-btn">Gen brf</button>
+          <button id="save-edits-btn">Save</button>
+          <button id="load-edits-btn">Load</button>
+          <button id="reset-edits-btn">Reset</button>
         </div>
       </section>
 
-      <section>
-        <div class="page-shortcuts" id="page-shortcuts"></div>
+      <section class="mfd-box mfd-page-nav">
+        <div class="page-shortcuts mfd-anchor" id="page-shortcuts"></div>
         <iframe id="brief-frame" src="/brief" title="Briefing preview"></iframe>
       </section>
 
-      <section class="no-print">
-        <div class="chain">
-          <button id="generate-btn-output" class="secondary generate-brief-btn">Generate brief</button>
-          <span class="arrow">➜</span>
-          <div style="display:flex; flex-direction:column; gap:0.4rem; align-items:center;">
-            <button id="pdf-btn" class="secondary">Generate PDF</button>
-            <button id="open-pdf-btn" class="secondary" style="width:170px;">Open PDF</button>
-          </div>
-          <span class="arrow">➜</span>
-          <div style="display:flex; flex-direction:column; gap:0.35rem; align-items:center;">
-            <button id="export-btn" class="secondary">Export kneeboards</button>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:0.35rem; align-items:flex-start;">
-            <label for="auto-export-on-change" style="display:flex; align-items:center; gap:0.35rem; font-size:0.8rem; color:var(--muted); text-transform:none; letter-spacing:0.02em;">
-              <input id="auto-export-on-change" type="checkbox" style="width:14px; height:14px; margin:0;">
-              Auto-export on file change
-            </label>
-            <label title="Only export PDF. Auto-export should be enabled for this option to have any effect." for="auto-export-pdf-only" style="display:flex; align-items:center; gap:0.35rem; font-size:0.8rem; color:var(--muted); text-transform:none; letter-spacing:0.02em; margin-left:1.2rem">
-              <input id="auto-export-pdf-only" type="checkbox" style="width:14px; height:14px; margin:0;">
-              PDF only
-            </label>
-          </div>
+      <section class="mfd-box mfd-flow mfd-with-bottom-btn no-print">
+        <div class="chain mfd-anchor">
+          <button id="generate-btn-output" class="generate-brief-btn">Gen brf</button>
+          <button id="pdf-btn">Gen PDF</button>
+          <button id="export-btn">Export</button>
+          <button id="auto-export-mode-btn" class="auto-export-mode-btn" type="button">AUTO-EXPORT<br>OFF</button>
         </div>
+        <button id="open-pdf-btn" class="mfd-bottom-btn">Open PDF</button>
       </section>
 
-      <section>
+      <section class="mfd-box mfd-layout">
+        <div class="mfd-anchor mfd-anchor-right no-print">
+          <button id="save-layout-btn" type="button">Save layout</button>
+        </div>
         <div class="panel-head">
-          <h3 style="margin:0;">Layout</h3>
-          <button id="save-layout-btn" class="secondary" type="button">Save layout</button>
+          <h3 class="heading-zero">Layout</h3>
         </div>
-        <div style="margin-bottom:0.75rem;">
+        <div class="spacer-sm">
           <label for="page-select">Page</label>
-          <select id="page-select" style="max-width: 240px;"></select>
+          <select id="page-select" class="page-select"></select>
         </div>
-        <div class="grid two" style="align-items:start;">
+        <div class="grid two grid-start">
           <div>
             <label>Page sections</label>
             <ul id="section-list" class="sortable"></ul>
@@ -570,46 +741,51 @@
       </section>
 
       <section>
-        <h3 style="margin-top:0;">Messages</h3>
+        <h3 class="heading-top-zero">Messages</h3>
         <div id="log">Waiting...</div>
       </section>
     </div>
 
     <div class="side-column">
-      <section id="status-card">
-        <h3 style="margin-top:0;">STATUS</h3>
+      <section id="status-card" class="mfd-box mfd-status">
+        <div class="mfd-anchor mfd-anchor-right no-print">
+          <button id="reload-btn" type="button" title="Reload BMS config">Reload</button>
+        </div>
+        <h3 class="heading-top-zero">STATUS</h3>
         <div class="grid two">
           <div>
             <label>Config path</label>
-            <div id="config-path" class="truncate" title="–">–</div>
+            <div id="config-path" class="truncate status-value" title="–">–</div>
           </div>
           <div>
             <label>BMS base dir</label>
-            <div id="base-dir" class="truncate" title="–">–</div>
+            <div id="base-dir" class="truncate status-value" title="–">–</div>
           </div>
           <div>
             <label>Theater</label>
-            <div id="theater">–</div>
+            <div id="theater" class="status-value">–</div>
           </div>
           <div>
             <label>Callsign</label>
-            <div id="callsign">–</div>
+            <div id="callsign" class="status-value">–</div>
           </div>
           <div>
             <label>Target folder</label>
-            <div id="target-folder" class="truncate" title="–">–</div>
+            <div id="target-folder" class="truncate status-value" title="–">–</div>
           </div>
           <div>
             <label>PDF output dir</label>
-            <div id="pdf-dir-status" class="truncate" title="–">–</div>
+            <div id="pdf-dir-status" class="truncate status-value" title="–">–</div>
           </div>
         </div>
       </section>
 
-      <section>
+      <section class="mfd-box mfd-settings">
+        <div class="mfd-anchor mfd-anchor-right no-print">
+          <button type="submit" form="config-form" title="Save application settings">Save</button>
+        </div>
         <div class="panel-head">
-          <h3 style="margin:0;">Settings</h3>
-          <button type="submit" form="config-form" class="secondary">Save settings</button>
+          <h3 class="heading-zero">Settings</h3>
         </div>
         <form id="config-form" class="grid two">
           <div>
@@ -633,22 +809,21 @@
           </div>
           <div>
             <label for="output_dir">Output dir</label>
-            <input id="output_dir" name="output_dir" placeholder="./output" style="pointer-events:auto;">
+            <input id="output_dir" name="output_dir" placeholder="./output">
           </div>
           <div>
             <label for="pdf_output_dir">PDF output dir</label>
-            <input id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards" style="pointer-events:auto;">
-          </div>
-          <div style="grid-column:1/-1; display:flex; justify-content:flex-end; gap:0.5rem;">
-            <button id="reload-btn" class="secondary" type="button">Reload BMS config</button>
+            <input id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards">
           </div>
         </form>
       </section>
 
-      <section>
+      <section class="mfd-box mfd-theater mfd-with-bottom-btn">
+        <div class="mfd-anchor mfd-anchor-right no-print">
+          <button id="save_theater_btn" type="button" title="Save theater settings">Save</button>
+        </div>
         <div class="panel-head">
-          <h3 style="margin:0;">Theater</h3>
-          <button id="save_theater_btn" class="secondary" type="button">Save theater settings</button>
+          <h3 class="heading-zero">Theater</h3>
         </div>
         <div class="grid two">
           <div>
@@ -663,12 +838,8 @@
             <label for="map_file">Map file</label>
             <input id="map_file_field" placeholder="/path/to/map.png">
           </div>
-          <div>
-            <label for="copy_to_kto_field" style="display:flex;align-items:center;gap:0.5rem;">
-              <input type="checkbox" id="copy_to_kto_field" style="width: 15px;" label="Copy to KTO"> <span>Copy to KTO</span>
-            </label>
-          </div>
         </div>
+        <button id="copy_to_kto_btn" class="auto-export-mode-btn mfd-bottom-btn" type="button">COPY TO KTO<br>OFF</button>
       </section>
     </div>
   </div>
@@ -678,13 +849,14 @@
     const statusEl = document.getElementById("status-indicator");
     const fileBadge = document.getElementById("file-status");
     const overflowBadge = document.getElementById("overflow-status");
+    const globalStatusBadge = document.getElementById("global-status-badge");
     const bmsSelect = document.getElementById("bms_version");
     const availableVersionsInput = document.getElementById("bms_available_versions");
     const wineInput = document.getElementById("wine_prefix");
     const layoutEl = document.querySelector(".layout");
     const toggleToolbarBtn = document.getElementById("toggle-toolbar");
-    const autoExportCheckbox = document.getElementById("auto-export-on-change");
-    const autoExportPdfOnlyCheckbox = document.getElementById("auto-export-pdf-only");
+    const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
+    const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
     const exportBtn = document.getElementById("export-btn");
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
     window.layoutDirty = false;
@@ -698,6 +870,9 @@
     let exportBusy = false;
     let filesChangedState = false;
     let skipNextAutoExportEdge = false;
+    let autoExportOnChange = false;
+    let autoExportPdfOnly = false;
+    let copyToKtoEnabled = false;
     const sectionLabels = {
       airbase: "Airbase",
       package: "Package",
@@ -727,6 +902,37 @@
       logEl.textContent = `[${ts}] ${message}\n` + logEl.textContent;
     }
 
+    function applyAutoExportMode(onChange, pdfOnly) {
+      autoExportOnChange = !!onChange;
+      autoExportPdfOnly = !!(onChange && pdfOnly);
+      if (!autoExportModeBtn) return;
+      autoExportModeBtn.classList.toggle("is-active", autoExportOnChange);
+      let stateLabel = "OFF";
+      if (!autoExportOnChange) {
+        autoExportModeBtn.title = "Auto-export disabled";
+      } else if (autoExportPdfOnly) {
+        stateLabel = "PDF ONLY";
+        autoExportModeBtn.title = "Auto-export enabled: PDF only";
+      } else {
+        stateLabel = "ON";
+        autoExportModeBtn.title = "Auto-export enabled";
+      }
+      autoExportModeBtn.innerHTML = `AUTO-EXPORT<br>${stateLabel}`;
+    }
+
+    function getAutoExportModeIndex() {
+      if (!autoExportOnChange) return 0;
+      return autoExportPdfOnly ? 2 : 1;
+    }
+
+    function applyCopyToKtoMode(enabled) {
+      copyToKtoEnabled = !!enabled;
+      if (!copyToKtoBtn) return;
+      copyToKtoBtn.classList.toggle("is-active", copyToKtoEnabled);
+      copyToKtoBtn.innerHTML = `COPY TO KTO<br>${copyToKtoEnabled ? "ON" : "OFF"}`;
+      copyToKtoBtn.title = copyToKtoEnabled ? "Copy to KTO enabled" : "Copy to KTO disabled";
+    }
+
     async function fetchJSON(url, options = {}) {
       const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
       if (!res.ok) {
@@ -743,8 +949,6 @@
         if (briefChanged || callsignChanged) cls = "error";
         if (briefChanged === undefined || briefChanged === null) cls = "muted";
         fileBadge.classList.add(cls);
-        const dot = fileBadge.querySelector(".dot");
-        if (dot) dot.style.background = cls === "error" ? "#ef4444" : cls === "ok" ? "#22c55e" : "#6b7280";
         fileBadge.title = "Briefing/callsign unchanged";
         if (cls === "error") fileBadge.title = "Briefing.txt or callsign.ini changed on disk";
         if (cls === "muted") fileBadge.title = "File change status unknown (generate/preview once)";
@@ -755,8 +959,6 @@
         if (pdfOverflow === true) cls = "warn";
         if (pdfOverflow === undefined || pdfOverflow === null) cls = "muted";
         overflowBadge.classList.add(cls);
-        const dot = overflowBadge.querySelector(".dot");
-        if (dot) dot.style.background = cls === "warn" ? "#f59e0b" : cls === "ok" ? "#22c55e" : "#6b7280";
         overflowBadge.title = cls === "warn" ? "PDF has more pages than layout" : (cls === "ok" ? "PDF matches layout page count" : "PDF status unknown (generate PDF once)");
       }
     }
@@ -791,12 +993,10 @@
         wineInput.value = sys.wine_prefix || "";
         document.getElementById("output_dir").value = sys.output_dir || "";
         document.getElementById("pdf_output_dir").value = sys.pdf_output_dir || "";
-        if (autoExportCheckbox) {
-          autoExportCheckbox.checked = String(sys.auto_export_on_change || "False").toLowerCase() === "true";
-        }
-        if (autoExportPdfOnlyCheckbox) {
-          autoExportPdfOnlyCheckbox.checked = String(sys.auto_export_pdf_only || "False").toLowerCase() === "true";
-        }
+        applyAutoExportMode(
+          String(sys.auto_export_on_change || "False").toLowerCase() === "true",
+          String(sys.auto_export_pdf_only || "False").toLowerCase() === "true"
+        );
         await loadTheater();
       } catch (err) {
         log(`Failed to load config: ${err.message}`);
@@ -818,7 +1018,10 @@
         document.getElementById("pdf-dir-status").title = data.pdf_output_dir || "–";
         const hasError = data.error || !data.base_dir;
       statusEl.textContent = hasError ? "BMS CONFIG MISSING" : "READY";
-      statusEl.style.color = hasError ? "#f87171" : "#22c55e";
+      if (globalStatusBadge) {
+        globalStatusBadge.classList.remove("ok", "error", "warn", "muted");
+        globalStatusBadge.classList.add(hasError ? "error" : "ok");
+      }
       updateBadges({
         briefChanged: data.brief_changed,
         callsignChanged: data.callsign_changed,
@@ -853,7 +1056,10 @@
         const data = await fetchJSON("/api/status");
         const hasError = data.error || !data.base_dir;
         statusEl.textContent = hasError ? "BMS CONFIG MISSING" : "READY";
-        statusEl.style.color = hasError ? "#f87171" : "#22c55e";
+        if (globalStatusBadge) {
+          globalStatusBadge.classList.remove("ok", "error", "warn", "muted");
+          globalStatusBadge.classList.add(hasError ? "error" : "ok");
+        }
         updateBadges({
           briefChanged: data.brief_changed,
           callsignChanged: data.callsign_changed,
@@ -874,8 +1080,8 @@
       payload.system.wine_prefix = wineInput.value;
       payload.system.output_dir = document.getElementById("output_dir").value;
       payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
-      payload.system.auto_export_on_change = (autoExportCheckbox && autoExportCheckbox.checked) ? "True" : "False";
-      payload.system.auto_export_pdf_only = (autoExportPdfOnlyCheckbox && autoExportPdfOnlyCheckbox.checked) ? "True" : "False";
+      payload.system.auto_export_on_change = autoExportOnChange ? "True" : "False";
+      payload.system.auto_export_pdf_only = autoExportPdfOnly ? "True" : "False";
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
         window.layoutDirty = false;
@@ -1067,7 +1273,7 @@
       exportBusy = !!busy;
       if (exportBtn) {
         exportBtn.disabled = exportBusy;
-        exportBtn.textContent = exportBusy ? "Exporting..." : "Export kneeboards";
+        exportBtn.textContent = exportBusy ? "Export" : "Export";
         exportBtn.title = exportBusy ? "Kneeboard export in progress" : "";
       }
     }
@@ -1078,7 +1284,7 @@
       setExportBusy(true);
       try {
         const overrides = currentOverrides();
-        const pdfOnlyAuto = source === "auto" && !!(autoExportPdfOnlyCheckbox && autoExportPdfOnlyCheckbox.checked);
+        const pdfOnlyAuto = source === "auto" && autoExportPdfOnly;
         const latestEdits = getLatestEdits();
         if (source === "auto") {
           try {
@@ -1096,7 +1302,7 @@
         }
         // pass theater overrides without persisting to disk
         payload.theater = {
-          copy_to_kto: document.getElementById("copy_to_kto_field").checked
+          copy_to_kto: copyToKtoEnabled
         };
         const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
         log(`PDF generated at ${pdfRes.pdf_file}`);
@@ -1131,9 +1337,9 @@
         skipNextAutoExportEdge = false;
         return;
       }
-      if (!autoExportCheckbox || !autoExportCheckbox.checked) return;
+      if (!autoExportOnChange) return;
       if (pdfBusy) return;
-      const pdfOnlyAuto = !!(autoExportPdfOnlyCheckbox && autoExportPdfOnlyCheckbox.checked);
+      const pdfOnlyAuto = autoExportPdfOnly;
       log(`File change detected. Running auto-export${pdfOnlyAuto ? " (PDF only)" : ""}.`);
       await runExportFlow("auto");
     }
@@ -1259,11 +1465,10 @@
         const tName = document.getElementById("theater_name");
         const tTarget = document.getElementById("target_folder_field");
         const tMap = document.getElementById("map_file_field");
-        const tCopy = document.getElementById("copy_to_kto_field");
         if (tName) tName.value = data.theater || "";
         if (tTarget) tTarget.value = data.target_folder || "";
         if (tMap) tMap.value = data.map_file || "";
-        if (tCopy) tCopy.checked = !!data.copy_to_kto;
+        applyCopyToKtoMode(!!data.copy_to_kto);
         if (runPreview) {
           await doPreview(currentOverrides());
         }
@@ -1292,7 +1497,6 @@
         if (shortcutBar) {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.className = "secondary";
           btn.textContent = `Page ${idx + 1}`;
           btn.addEventListener("click", () => scrollToPage(idx + 1));
           shortcutBar.appendChild(btn);
@@ -1391,12 +1595,17 @@
     }
 
     const saveTheaterBtn = document.getElementById("save_theater_btn");
+    if (copyToKtoBtn) {
+      copyToKtoBtn.addEventListener("click", () => {
+        applyCopyToKtoMode(!copyToKtoEnabled);
+      });
+    }
     if (saveTheaterBtn) {
       saveTheaterBtn.addEventListener("click", async () => {
         const payload = {
           target_folder: document.getElementById("target_folder_field").value,
           map_file: document.getElementById("map_file_field").value,
-          copy_to_kto: document.getElementById("copy_to_kto_field").checked
+          copy_to_kto: copyToKtoEnabled
         };
         try {
           await fetchJSON("/api/theater", { method: "POST", body: JSON.stringify(payload) });
@@ -1440,34 +1649,34 @@
       });
     }
 
-    if (autoExportCheckbox) {
-      autoExportCheckbox.addEventListener("change", async () => {
-        const next = autoExportCheckbox.checked;
+    if (autoExportModeBtn) {
+      autoExportModeBtn.addEventListener("click", async () => {
+        const prevOn = autoExportOnChange;
+        const prevPdfOnly = autoExportPdfOnly;
+        const nextMode = (getAutoExportModeIndex() + 1) % 3;
+        const nextOn = nextMode !== 0;
+        const nextPdfOnly = nextMode === 2;
+        applyAutoExportMode(nextOn, nextPdfOnly);
         try {
           await fetchJSON("/api/config/runtime", {
             method: "POST",
-            body: JSON.stringify({ system: { auto_export_on_change: next ? "True" : "False" } })
+            body: JSON.stringify({
+              system: {
+                auto_export_on_change: nextOn ? "True" : "False",
+                auto_export_pdf_only: nextPdfOnly ? "True" : "False"
+              }
+            })
           });
-          log(`Auto-export on file change ${next ? "enabled" : "disabled"}`);
+          if (!nextOn) {
+            log("Auto-export disabled");
+          } else if (nextPdfOnly) {
+            log("Auto-export enabled (PDF only)");
+          } else {
+            log("Auto-export enabled");
+          }
         } catch (err) {
-          autoExportCheckbox.checked = !next;
+          applyAutoExportMode(prevOn, prevPdfOnly);
           log(`Failed to save auto-export setting: ${err.message}`);
-        }
-      });
-    }
-
-    if (autoExportPdfOnlyCheckbox) {
-      autoExportPdfOnlyCheckbox.addEventListener("change", async () => {
-        const next = autoExportPdfOnlyCheckbox.checked;
-        try {
-          await fetchJSON("/api/config/runtime", {
-            method: "POST",
-            body: JSON.stringify({ system: { auto_export_pdf_only: next ? "True" : "False" } })
-          });
-          log(`Auto-export PDF-only mode ${next ? "enabled" : "disabled"}`);
-        } catch (err) {
-          autoExportPdfOnlyCheckbox.checked = !next;
-          log(`Failed to save auto-export PDF-only setting: ${err.message}`);
         }
       });
     }

@@ -1,3 +1,13 @@
+:root {
+    --print-text: #111827;
+    --print-header-text: #0f1726;
+    --print-border: #8f9aae;
+    --print-table-base: #f1f3f6;
+    --print-header-bg: #d7dde8;
+    --print-row-odd-bg: #f7f9fc;
+    --print-row-even-bg: #edf1f7;
+}
+
 @font-face {
     font-family: "Briefing Sans";
     src: url("../assets/fonts/Inter-Regular.woff2") format("woff2"),
@@ -24,13 +34,13 @@ body {
     margin: 0;
     padding: 0;
     width: 100%;
-    color: #111827;
+    color: var(--print-text);
 }
 
     table, th, td {
-        border: 2px solid #8f9aae;
+        border: 2px solid var(--print-border);
         border-collapse: collapse;
-        background-color: #f1f3f6;
+        background-color: var(--print-table-base);
         word-break: break-word;
 }
 
@@ -41,26 +51,26 @@ table {
 }
 
 th {
-    background-color: #d7dde8;
+    background-color: var(--print-header-bg);
 }
 
 td {
-    background-color: #f7f9fc;
-    color: #111827;
+    background-color: var(--print-row-odd-bg);
+    color: var(--print-text);
 }
 
 th,
 .header {
-    background-color: #d7dde8 !important;
-    color: #0f1726 !important;
+    background-color: var(--print-header-bg) !important;
+    color: var(--print-header-text) !important;
 }
 
 tbody tr:nth-child(odd) td {
-    background-color: #f7f9fc;
+    background-color: var(--print-row-odd-bg);
 }
 
 tbody tr:nth-child(even) td {
-    background-color: #edf1f7;
+    background-color: var(--print-row-even-bg);
 }
 
     th, td {
