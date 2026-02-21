@@ -9,6 +9,7 @@ assets/*
 !assets/bullseye.png
 !assets/maps
 !assets/targets
+!assets/fonts
 
 backup/
 
