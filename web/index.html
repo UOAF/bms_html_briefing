@@ -204,6 +204,7 @@
 
     #log {
       min-height: 120px;
+      max-height: 260px;
       padding: 0.75rem 1rem;
       border: 1px solid rgb(255, 255, 255);
       border-radius: 0px;
@@ -211,6 +212,7 @@
       color: var(--text);
       font-family: "IBMPlexMono";
       white-space: pre-wrap;
+      overflow-y: auto;
       box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.08);
     }
 
@@ -861,6 +863,8 @@
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
     window.layoutDirty = false;
     let lastLogId = 0;
+    const LOG_MAX_LINES = 300;
+    const logLines = [];
     let pages = [];
     let currentPageIndex = 0;
     let dndAttached = false;
@@ -869,6 +873,7 @@
     let pdfBusy = false;
     let exportBusy = false;
     let filesChangedState = false;
+    let pendingAutoExport = false;
     let skipNextAutoExportEdge = false;
     let autoExportOnChange = false;
     let autoExportPdfOnly = false;
@@ -899,7 +904,12 @@
 
     function log(message) {
       const ts = new Date().toLocaleTimeString();
-      logEl.textContent = `[${ts}] ${message}\n` + logEl.textContent;
+      if (!logEl) return;
+      logLines.unshift(`[${ts}] ${message}`);
+      if (logLines.length > LOG_MAX_LINES) {
+        logLines.length = LOG_MAX_LINES;
+      }
+      logEl.textContent = logLines.join("\n");
     }
 
     function applyAutoExportMode(onChange, pdfOnly) {
@@ -1330,15 +1340,29 @@
 
     async function maybeAutoExportOnFileChange(data) {
       const filesChangedNow = !!(data.brief_changed || data.callsign_changed);
+      if (skipNextAutoExportEdge && !filesChangedNow) {
+        skipNextAutoExportEdge = false;
+      }
       const changeEdge = filesChangedNow && !filesChangedState;
+      if (changeEdge && (pdfBusy || exportBusy)) {
+        pendingAutoExport = true;
+      }
       filesChangedState = filesChangedNow;
-      if (!changeEdge) return;
+      if (!changeEdge && !pendingAutoExport) return;
+      if (pendingAutoExport && !filesChangedNow) {
+        pendingAutoExport = false;
+        return;
+      }
       if (skipNextAutoExportEdge) {
         skipNextAutoExportEdge = false;
         return;
       }
-      if (!autoExportOnChange) return;
-      if (pdfBusy) return;
+      if (!autoExportOnChange) {
+        pendingAutoExport = false;
+        return;
+      }
+      if (pdfBusy || exportBusy) return;
+      pendingAutoExport = false;
       const pdfOnlyAuto = autoExportPdfOnly;
       log(`File change detected. Running auto-export${pdfOnlyAuto ? " (PDF only)" : ""}.`);
       await runExportFlow("auto");
