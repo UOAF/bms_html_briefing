@@ -11,7 +11,7 @@ class BmsConfig:
     target_folder_failed = False
     kto_target_folder = ""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, theater_ini_pattern = None):
         version = cfg['bms']['bms_version']
         self.version = version
         if sys.platform == 'linux':
@@ -59,10 +59,23 @@ class BmsConfig:
         script_dir = os.path.abspath(script_dir)
         self.script_dir = script_dir
 
+        # Resolve theater config path:
+        # - default: theaters_<version>.ini
+        # - override: user-provided pattern, optionally containing {version}
+        if theater_ini_pattern:
+            try:
+                theater_ini_path = theater_ini_pattern.format(version=version)
+            except Exception:
+                theater_ini_path = theater_ini_pattern
+            self.theater_ini_path = os.path.abspath(theater_ini_path)
+        else:
+            self.theater_ini_path = os.path.join(self.script_dir, f"theaters_{version}.ini")
+
         # try to get the target folder from theater file first
         self.theater_config = configparser.ConfigParser()
         try:
-            self.theater_config.read(os.path.join(self.script_dir, 'theaters_'+version+'.ini'))
+            if os.path.exists(self.theater_ini_path):
+                self.theater_config.read(self.theater_ini_path, encoding="utf-8")
         except Exception as e:
             logger.warning(f"Couldn't read theater config file: {e}")
 

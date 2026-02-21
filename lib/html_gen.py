@@ -20,6 +20,11 @@ def generate_html_file(conf, bms_conf, name, page_num = 0):
 
     briefing_location = os.path.join(bms_conf.base_dir, "User", "Briefings", "briefing.txt")
     callsignini_location = os.path.join(bms_conf.base_dir, "User", "Config", bms_conf.callsign + ".ini")
+    #create map folder if it doesn't exist
+    try:
+        os.mkdir(os.path.join(script_dir, 'assets', 'maps'))
+    except Exception as e:
+        logger.info(e)
 
     # load map location
     map_file = ''
@@ -39,8 +44,13 @@ def generate_html_file(conf, bms_conf, name, page_num = 0):
 
 
     if os.path.isfile(map_file):
+        map_exists = False
+        try: 
+            map_exists = filecmp.cmp(map_file, os.path.join(script_dir, 'assets', 'maps', 'map.png'), shallow = False)
+        except Exception as e:
+            logger.error(e)
         try:
-            if (not filecmp.cmp(map_file, os.path.join(script_dir, 'assets', 'maps', 'map.png'), shallow = False)):
+            if (not map_exists):
                 logger_ui.info(f'Copying the map file {map_file}.')
                 with Image.open(map_file) as im:
                     if im.size != (4096, 4096):

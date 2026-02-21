@@ -235,11 +235,11 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
     return patched
 
 
-def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
+def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Optional[str] = None) -> FastAPI:
     cfg = load_config(config_path)
     ensure_dirs(cfg)
     try:
-        bms_cfg = BmsConfig(cfg)
+        bms_cfg = BmsConfig(cfg, theater_ini_pattern=theater_ini_pattern)
     except Exception as exc:  # pragma: no cover - BMS paths may be missing locally
         logger.error("Failed to initialize BMS config: %s", exc)
         bms_cfg = None
@@ -271,6 +271,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
     app.state.cfg = cfg
     app.state.bms_cfg = bms_cfg
     app.state.config_path = config_path
+    app.state.theater_ini_pattern = theater_ini_pattern
     app.state.ui_handler = ui_handler
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
@@ -351,7 +352,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
                 cfg_to_persist[section][key] = str(value)
         save_config(cfg_to_persist, app.state.config_path)
         ensure_dirs(app.state.cfg)
-        app.state.bms_cfg = BmsConfig(app.state.cfg)
+        app.state.bms_cfg = BmsConfig(app.state.cfg, theater_ini_pattern=app.state.theater_ini_pattern)
         return serialize_config(app.state.cfg)
 
     @app.post("/api/config/runtime")
@@ -366,7 +367,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
                 app.state.cfg[section][key] = str(value)
         ensure_dirs(app.state.cfg)
         try:
-            app.state.bms_cfg = BmsConfig(app.state.cfg)
+            app.state.bms_cfg = BmsConfig(app.state.cfg, theater_ini_pattern=app.state.theater_ini_pattern)
         except Exception as exc:
             logger.error("Failed to reload BMS config (runtime): %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to reload BMS config: {exc}")
@@ -378,9 +379,10 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         if bms is None:
             raise HTTPException(status_code=500, detail="BMS config not loaded")
         theater_cfg = configparser.ConfigParser()
-        theater_ini_path = Path(bms.script_dir) / f"theaters_{bms.version}.ini"
+        theater_ini_path = Path(getattr(bms, "theater_ini_path", Path(bms.script_dir) / f"theaters_{bms.version}.ini"))
         try:
-            theater_cfg.read(theater_ini_path, encoding="utf-8")
+            if theater_ini_path.exists():
+                theater_cfg.read(str(theater_ini_path), encoding="utf-8")
         except Exception as exc:
             logger.warning("Failed to read theater config before update: %s", exc)
 
@@ -397,6 +399,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         if payload.copy_to_kto is not None:
             section["copy_to_kto"] = "True" if payload.copy_to_kto else "False"
         try:
+            theater_ini_path.parent.mkdir(parents=True, exist_ok=True)
             with open(theater_ini_path, "w+", encoding="utf-8") as f:
                 theater_cfg.write(f)
             bms.theater_config = theater_cfg  # keep in-memory state in sync
@@ -413,7 +416,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
     @app.post("/api/reload")
     def reload_bms_config() -> Dict[str, Any]:
         try:
-            app.state.bms_cfg = BmsConfig(app.state.cfg)
+            app.state.bms_cfg = BmsConfig(app.state.cfg, theater_ini_pattern=app.state.theater_ini_pattern)
         except Exception as exc:
             logger.error("Failed to reload BMS config: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to reload BMS config: {exc}")
@@ -463,7 +466,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
         overrides = payload.model_dump(exclude_none=True) if payload else {}
         cfg_generate = copy_config_with_overrides(app.state.cfg, pages=overrides.get("pages"), bms=overrides.get("bms"), system=overrides.get("system"))
         try:
-            bms_cfg_generate = BmsConfig(cfg_generate)
+            bms_cfg_generate = BmsConfig(cfg_generate, theater_ini_pattern=app.state.theater_ini_pattern)
         except Exception as exc:
             logger.error("Failed to build generate BMS config: %s", exc)
             raise HTTPException(status_code=500, detail=f"Generate config error: {exc}")
@@ -487,7 +490,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
     def preview(payload: PreviewRequest) -> Dict[str, str]:
         cfg_preview = copy_config_with_overrides(app.state.cfg, pages=payload.pages, bms=payload.bms, system=payload.system)
         try:
-            bms_cfg_preview = BmsConfig(cfg_preview)
+            bms_cfg_preview = BmsConfig(cfg_preview, theater_ini_pattern=app.state.theater_ini_pattern)
         except Exception as exc:
             logger.error("Failed to build preview BMS config: %s", exc)
             raise HTTPException(status_code=500, detail=f"Preview config error: {exc}")
@@ -515,7 +518,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
             raise HTTPException(status_code=500, detail="weasyprint is not installed. Install it to enable PDF generation.")
         cfg_pdf = copy_config_with_overrides(app.state.cfg, pages=payload.pages, bms=payload.bms, system=payload.system)
         try:
-            bms_cfg_pdf = BmsConfig(cfg_pdf)
+            bms_cfg_pdf = BmsConfig(cfg_pdf, theater_ini_pattern=app.state.theater_ini_pattern)
         except Exception as exc:
             logger.error("Failed to build PDF BMS config: %s", exc)
             raise HTTPException(status_code=500, detail=f"PDF config error: {exc}")
@@ -557,7 +560,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH) -> FastAPI:
                                                 bms=getattr(payload, "bms", None),
                                                 system=getattr(payload, "system", None))
         try:
-            bms_cfg_export = BmsConfig(cfg_export)
+            bms_cfg_export = BmsConfig(cfg_export, theater_ini_pattern=app.state.theater_ini_pattern)
         except Exception as exc:
             logger.error("Failed to build export BMS config: %s", exc)
             raise HTTPException(status_code=500, detail=f"Export config error: {exc}")
@@ -611,9 +614,26 @@ if __name__ == "__main__":
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Run the BMS briefing server")
+    parser.add_argument(
+        "-c",
+        "--config",
+        default=str(DEFAULT_CONFIG_PATH),
+        help="Path to config ini (default: ./config.ini beside executable)",
+    )
+    parser.add_argument(
+        "-t",
+        "--theaters",
+        default=None,
+        help="Theater ini path or pattern. Supports {version}, e.g. /path/theaters_{version}.ini",
+    )
     parser.add_argument("-p", "--port", type=int, default=8000, help="Port to bind (default: 8000)")
     parser.add_argument("--no-browser", action="store_true", help="Do not auto-open the UI in a browser")
     args = parser.parse_args()
+
+    config_path = Path(args.config).expanduser()
+    if not config_path.is_absolute():
+        config_path = (Path.cwd() / config_path).resolve()
+    app = create_app(config_path=config_path, theater_ini_pattern=args.theaters)
 
     if not args.no_browser:
         app.state.auto_open_url = f"http://127.0.0.1:{args.port}"

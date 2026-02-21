@@ -7,7 +7,6 @@ output/*
 assets/*
 !assets/icon.png
 !assets/bullseye.png
-!assets/maps
 !assets/targets
 !assets/fonts
 
@@ -25,3 +24,7 @@ build/
 *.spec
 debug.log
 build/*
+
+config.local.ini
+theaters_4.37.local.ini
+theaters_4.38.local.ini
