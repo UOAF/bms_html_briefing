@@ -650,6 +650,23 @@
       cursor: help;
     }
 
+    .settings-meta {
+      margin-top: 0.65rem;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.45rem;
+      font-family: "IBMPlexMono";
+      font-size: 0.78rem;
+      letter-spacing: 0.03em;
+      opacity: 0.84;
+    }
+
+    .settings-meta a {
+      text-transform: none;
+      letter-spacing: inherit;
+    }
+
     @media (max-width: 1024px) {
       .layout {
         grid-template-columns: 1fr;
@@ -843,6 +860,11 @@
         </div>
         <button id="copy_to_kto_btn" class="auto-export-mode-btn mfd-bottom-btn" type="button">COPY TO KTO<br>OFF</button>
       </section>
+      <div class="settings-meta">
+        <span>v0.8</span>
+        <span aria-hidden="true">|</span>
+        <a href="https://codeberg.org/wsywsy/bms_html_briefing" target="_blank" rel="noopener noreferrer">source</a>
+      </div>
     </div>
   </div>
 
