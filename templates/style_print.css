@@ -1,11 +1,11 @@
 :root {
-    --print-text: #111827;
-    --print-header-text: #0f1726;
-    --print-border: #8f9aae;
-    --print-table-base: #f1f3f6;
-    --print-header-bg: #d7dde8;
-    --print-row-odd-bg: #f7f9fc;
-    --print-row-even-bg: #edf1f7;
+    --print-text: #1b1e22;
+    --print-header-text: #0f1216;
+    --print-border: #6f7782;
+    --print-table-base: #e6e9ed;
+    --print-header-bg: #b9c0c9;
+    --print-row-odd-bg: #f7f9fb;
+    --print-row-even-bg: #e4e8ec;
 }
 
 @font-face {

@@ -50,6 +50,8 @@ Replace ```logo.png``` with your own logo (appears in the flight roster section)
 output_dir = output
 pdf_output_dir = kneeboards
 wine_prefix =
+auto_export_on_change = False
+auto_export_pdf_only = False
 
 [bms]
 bms_version = 4.38
