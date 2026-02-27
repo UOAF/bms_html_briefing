@@ -1,3 +1,5 @@
+<img src="examples/1.png" alt="left" width="50%"/>
+
 # Falcon BMS HTML Briefings
 This is a tool to generate editable kneeboard files for use with Falcon BMS.
 
@@ -97,6 +99,5 @@ The templates to generate kneeboards are in the "templates" folder. These are ji
 Example output
 -------------
 <p float="left">
-<img src="examples/1.png" alt="left" width="33%"/>
 <img src="examples/2.png" alt="right" width="66%"/>
 </p>
