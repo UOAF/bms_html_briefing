@@ -11,7 +11,9 @@ def export_kneeboards(conf, bms_conf):
     airframe = conf['bms']['default_airframe']
     src = conf['system']['pdf_output_dir']
     output = bms_conf.theater_config[bms_conf.theater]['target_folder']
-    file_list = [f for f in os.listdir(src) if os.path.isfile(os.path.join(src, f))]
+    file_list = sorted(
+        f for f in os.listdir(src) if os.path.isfile(os.path.join(src, f))
+    )
     tmp_dir = tempfile.mkdtemp()
 
     for i,f in enumerate(file_list):
