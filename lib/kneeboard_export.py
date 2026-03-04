@@ -23,19 +23,19 @@ def export_kneeboards(conf, bms_conf):
             doc = pymupdf.open(os.path.join(src, f))
             for j, page in enumerate(doc):
                 pix = page.get_pixmap(dpi = 150)  # render page to an image
-                pix.save(os.path.join(tmp_dir, "page_" + str(i) + f"_conv_{j}.png"))
+                pix.save(os.path.join(tmp_dir, "page_" + f"{i:02d}_conv_{j}.png"))
             doc.close()
 
         if fext.lower().strip('.') in ['png', 'jpg']:
             logger_ui.info(f"Processing a {fext.lower()} file: {f}")
             img = Image.open(os.path.join(src, f)).resize((1024,2048))
-            img.save(os.path.join(tmp_dir, "page_" + str(i) + f"_conv_{i}.png"))
+            img.save(os.path.join(tmp_dir, "page_" + f"{i:02d}_conv.png"))
             img.close()
 
 
     pages_conv = []
 
-    pages_conv += [f for f in os.listdir(tmp_dir)]
+    pages_conv += sorted([f for f in os.listdir(tmp_dir)])
     if airframe == "F-16":
         for i in range((len(pages_conv)+1)//2):
             if (i < 16):
