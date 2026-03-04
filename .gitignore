@@ -18,12 +18,15 @@ assets/maps/*
 assets/targets/*
 !assets/targets/SA-2.jpg
 
+kneeboards/
+
 dist/*
 !dist/leaflet
 build/
 *.spec
 debug.log
 build/*
+.vscode/
 
 config.local.ini
 theaters_4.37.local.ini
