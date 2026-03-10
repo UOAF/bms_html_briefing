@@ -144,60 +144,15 @@ def _merge_flight_timing(
     return merged
 
 
-def parse_cam_summary(
-    input_path: str | Path,
+def _build_summary_from_parsed(
     *,
-    bms_base_dir: str | Path | None = None,
+    source_path: Path,
+    container_version: int | None,
+    cmp_parsed: dict[str, Any],
+    uni_parsed: dict[str, Any],
+    support_base_dir: Path | None,
     package_numbers: list[int] | None = None,
-    best_effort: bool = False,
 ) -> dict[str, Any]:
-    """High-level API: parse CAM and return package/time/bullseye summary."""
-
-    register_default_parsers()
-
-    source_path = Path(input_path).resolve()
-    support_base_dir = Path(bms_base_dir).resolve() if bms_base_dir is not None else None
-
-    blob = source_path.read_bytes()
-    entries = parse_container(blob)
-
-    decoded_entries: list[DecodedEntry] = []
-    for entry in entries:
-        raw = blob[entry.offset : entry.offset + entry.length]
-        try:
-            decoded = _decode_compressed_entry(entry.name, raw)
-        except (CamFormatError, LzssError):
-            if not best_effort:
-                raise
-            decoded = DecodeResult(data=raw, compressed=False, metadata={})
-        decoded_entries.append(DecodedEntry(entry=entry, raw=raw, decoded=decoded))
-
-    container_version = _detect_container_version(decoded_entries)
-
-    parsed_by_ext: dict[str, dict[str, Any]] = {}
-    for item in decoded_entries:
-        name = item.entry.name
-        parsed = _parse_entry_data(
-            name,
-            item.decoded.data,
-            container_version=container_version,
-            decode_metadata=item.decoded.metadata if item.decoded.metadata else None,
-            support_base_dir=support_base_dir,
-        )
-        if parsed is None:
-            continue
-        ext = Path(name).suffix.lower()
-        if ext and ext not in parsed_by_ext:
-            parsed_by_ext[ext] = parsed
-
-    cmp_parsed = parsed_by_ext.get(".cmp")
-    if not isinstance(cmp_parsed, dict):
-        raise ParseError("CAM file does not contain a parseable .cmp entry")
-
-    uni_parsed = parsed_by_ext.get(".uni")
-    if not isinstance(uni_parsed, dict):
-        raise ParseError("CAM file does not contain a parseable .uni entry")
-
     selected_numbers = package_numbers or _collect_package_numbers(uni_parsed)
     generated = list_package_generated_flights(uni_parsed, selected_numbers)
 
@@ -379,6 +334,85 @@ def parse_cam_summary(
     }
 
 
+def parse_cam_summary(
+    input_path: str | Path | None = None,
+    *,
+    bms_base_dir: str | Path | None = None,
+    package_numbers: list[int] | None = None,
+    best_effort: bool = False,
+    cmp_parsed: dict[str, Any] | None = None,
+    uni_parsed: dict[str, Any] | None = None,
+    container_version: int | None = None,
+) -> dict[str, Any]:
+    """High-level API: parse CAM and return package/time/bullseye summary."""
+
+    register_default_parsers()
+
+    support_base_dir = Path(bms_base_dir).resolve() if bms_base_dir is not None else None
+
+    has_preparsed = cmp_parsed is not None or uni_parsed is not None
+    if has_preparsed:
+        if input_path is None:
+            raise ValueError("input_path is required when passing pre-parsed cmp/uni dictionaries")
+        source_path = Path(input_path).resolve()
+        if not isinstance(cmp_parsed, dict):
+            raise ParseError("CAM file does not contain a parseable .cmp entry")
+        if not isinstance(uni_parsed, dict):
+            raise ParseError("CAM file does not contain a parseable .uni entry")
+    else:
+        if input_path is None:
+            raise ValueError("input_path is required when cmp_parsed/uni_parsed are not provided")
+        source_path = Path(input_path).resolve()
+        blob = source_path.read_bytes()
+        entries = parse_container(blob)
+
+        decoded_entries: list[DecodedEntry] = []
+        for entry in entries:
+            raw = blob[entry.offset : entry.offset + entry.length]
+            try:
+                decoded = _decode_compressed_entry(entry.name, raw)
+            except (CamFormatError, LzssError):
+                if not best_effort:
+                    raise
+                decoded = DecodeResult(data=raw, compressed=False, metadata={})
+            decoded_entries.append(DecodedEntry(entry=entry, raw=raw, decoded=decoded))
+
+        container_version = _detect_container_version(decoded_entries)
+
+        parsed_by_ext: dict[str, dict[str, Any]] = {}
+        for item in decoded_entries:
+            name = item.entry.name
+            parsed = _parse_entry_data(
+                name,
+                item.decoded.data,
+                container_version=container_version,
+                decode_metadata=item.decoded.metadata if item.decoded.metadata else None,
+                support_base_dir=support_base_dir,
+            )
+            if parsed is None:
+                continue
+            ext = Path(name).suffix.lower()
+            if ext and ext not in parsed_by_ext:
+                parsed_by_ext[ext] = parsed
+
+        cmp_parsed = parsed_by_ext.get(".cmp")
+        if not isinstance(cmp_parsed, dict):
+            raise ParseError("CAM file does not contain a parseable .cmp entry")
+
+        uni_parsed = parsed_by_ext.get(".uni")
+        if not isinstance(uni_parsed, dict):
+            raise ParseError("CAM file does not contain a parseable .uni entry")
+
+    return _build_summary_from_parsed(
+        source_path=source_path,
+        container_version=container_version,
+        cmp_parsed=cmp_parsed,
+        uni_parsed=uni_parsed,
+        support_base_dir=support_base_dir,
+        package_numbers=package_numbers,
+    )
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build CLI argument parser for quick summary/extraction workflows."""
 
@@ -448,4 +482,8 @@ def main() -> int:
     return 0
 
 
-__all__ = ["parse_cam_summary", "build_arg_parser", "main"]
+__all__ = [
+    "parse_cam_summary",
+    "build_arg_parser",
+    "main",
+]

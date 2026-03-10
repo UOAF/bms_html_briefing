@@ -367,13 +367,21 @@ def extract_cam_brief_data(
     packages: list[dict[str, Any]] = []
     summary_bullseye: dict[str, Any] = {}
     l16_source_path: str | None = None
+    current_time_ms = cmp_parsed.get("current_time") if isinstance(cmp_parsed.get("current_time"), int) else None
+    current_time_z = cmp_parsed.get("current_time_z") if isinstance(cmp_parsed.get("current_time_z"), str) else None
 
     try:
         summary = parse_cam_summary(
             source_path,
+            cmp_parsed=cmp_parsed,
+            uni_parsed=uni_parsed,
             bms_base_dir=support_base_dir,
-            best_effort=True,
+            container_version=parsed_cam.container_version,
         )
+        if current_time_ms is None and isinstance(summary.get("current_time_ms"), int):
+            current_time_ms = summary.get("current_time_ms")
+        if not current_time_z and isinstance(summary.get("current_time_z"), str):
+            current_time_z = summary.get("current_time_z")
         if isinstance(summary.get("bullseye"), dict):
             summary_bullseye = summary.get("bullseye")
         raw_packages = summary.get("packages")
@@ -391,8 +399,8 @@ def extract_cam_brief_data(
         if isinstance(raw_warnings, list):
             warnings.extend(str(item) for item in raw_warnings)
     except Exception as exc:
-        logger.exception("CAM summary parse failed for %s", source_path)
-        warnings.append(f"Summary parse fallback: {exc}")
+        logger.exception("CAM summary shaping failed for %s", source_path)
+        warnings.append(f"Summary shaping fallback: {exc}")
 
     # Fallback when summary-level package shaping is unavailable but UNI packages exist.
     if not packages:
@@ -517,6 +525,8 @@ def extract_cam_brief_data(
         "source_path": str(source_path),
         "support_base_dir": str(support_base_dir) if support_base_dir is not None else None,
         "l16_source_path": l16_source_path,
+        "current_time_ms": current_time_ms,
+        "current_time_z": current_time_z,
         "player": {
             "squadron_id": {
                 "num": player_squadron[0],
