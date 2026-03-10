@@ -1,5 +1,35 @@
 import logging
+import re
 logger = logging.getLogger('html_brief_log')
+
+
+def _format_time_hhmmssz(value):
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if text == "":
+        return ""
+
+    normalized = re.sub(r"[zZ]$", "", text).strip()
+
+    match_colon = re.match(r"^(\d{1,2})\s*:\s*(\d{2})(?:\s*:\s*(\d{2})(?:\.\d+)?)?$", normalized)
+    if match_colon:
+        hours = match_colon.group(1).zfill(2)
+        minutes = match_colon.group(2)
+        seconds = (match_colon.group(3) or "00").zfill(2)
+        return f"{hours}:{minutes}:{seconds}z"
+
+    match_digits = re.match(r"^(\d{3,6})$", normalized)
+    if match_digits:
+        digits = match_digits.group(1)
+        if len(digits) <= 4:
+            hhmm = digits.zfill(4)
+            return f"{hhmm[:2]}:{hhmm[2:]}:00z"
+        hhmmss = digits.zfill(6)
+        return f"{hhmmss[:2]}:{hhmmss[2:4]}:{hhmmss[4:]}z"
+
+    return text
+
 
 class Briefing:
     def __init__(self, file_contents = None):
@@ -228,7 +258,8 @@ class Briefing:
             if line_contents == None:
                 return ""
             else:
-                return line_contents[1].strip("\t").split("\t")[1].split(": ")[1]
+                raw = line_contents[1].strip("\t").split("\t")[1].split(": ")[1]
+                return _format_time_hhmmssz(raw)
 
         def init_flight(self, brf, line_contents):
             if line_contents == None:
@@ -240,7 +271,8 @@ class Briefing:
             if line_contents == None:
                 return ""
             else:
-                return line_contents[1].strip("\t").split("\t")[2].split(": ")[1]
+                raw = line_contents[1].strip("\t").split("\t")[2].split(": ")[1]
+                return _format_time_hhmmssz(raw)
 
         def init_role(self, brf, line_contents):
             if line_contents == None:
@@ -252,7 +284,8 @@ class Briefing:
             if line_contents == None:
                 return ""
             else:
-                return line_contents[1].strip("\t").split("\t")[3].split(": ")[1]
+                raw = line_contents[1].strip("\t").split("\t")[3].split(": ")[1]
+                return _format_time_hhmmssz(raw)
             
         def init_aircraft(self, brf, line_contents):
             if line_contents == None:

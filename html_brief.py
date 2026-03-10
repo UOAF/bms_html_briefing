@@ -1,5 +1,8 @@
 import argparse
+import base64
+import binascii
 import configparser
+import json
 import logging
 import os
 import sys
@@ -9,6 +12,7 @@ from itertools import count
 from threading import Thread
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 import webbrowser
 
 from bs4 import BeautifulSoup, NavigableString
@@ -23,6 +27,7 @@ except Exception:  # pragma: no cover - optional dependency
     HTML = None
 
 from lib.bms_config import BmsConfig
+from lib.cam_integration import CamIntegrationError, extract_cam_brief_data
 from lib.html_gen import generate_html_file, page_contents_ini_to_list
 from lib.kneeboard_export import export_kneeboards
 
@@ -88,6 +93,11 @@ class TheaterUpdate(BaseModel):
     target_folder: Optional[str] = None
     map_file: Optional[str] = None
     copy_to_kto: Optional[bool] = None
+
+
+class CamLoadRequest(BaseModel):
+    filename: str
+    content_b64: str
 
 
 def build_default_config() -> configparser.ConfigParser:
@@ -281,6 +291,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     app.state.auto_open_url: Optional[str] = None
     app.state.last_pdf_path: Optional[str] = None
     app.state.last_brief_path: Optional[str] = None
+    app.state.last_cam_summary_path: Optional[str] = None
+    app.state.last_cam_summary: Optional[Dict[str, Any]] = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
     app.state.brief_pages_ref: Optional[int] = None
@@ -458,6 +470,82 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         else:
             data.update({"error": "BMS config not loaded"})
         return data
+
+    @app.post("/api/cam/load")
+    def load_cam(payload: CamLoadRequest) -> Dict[str, Any]:
+        filename = (payload.filename or "").strip()
+        if not filename:
+            raise HTTPException(status_code=400, detail="filename is required")
+
+        suffix = Path(filename).suffix.lower()
+        if suffix not in {".cam", ".trn", ".tac"}:
+            raise HTTPException(status_code=400, detail="Only .cam/.trn/.tac files are supported")
+
+        content_b64 = (payload.content_b64 or "").strip()
+        if content_b64.startswith("data:") and "," in content_b64:
+            content_b64 = content_b64.split(",", 1)[1]
+        if not content_b64:
+            raise HTTPException(status_code=400, detail="content_b64 is required")
+
+        try:
+            cam_blob = base64.b64decode(content_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid base64 payload: {exc}") from exc
+        if not cam_blob:
+            raise HTTPException(status_code=400, detail="Uploaded CAM payload is empty")
+
+        ensure_dirs(app.state.cfg)
+        output_dir = resolve_path(app.state.cfg["system"]["output_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        tmp_cam_path = output_dir / f".cam_upload_{uuid4().hex}{suffix}"
+        tmp_cam_path.write_bytes(cam_blob)
+
+        bms = app.state.bms_cfg
+        bms_base_dir: Optional[str] = None
+        theater_target_folder: Optional[str] = None
+        theater_name: Optional[str] = None
+        if bms is not None:
+            bms_base_dir = getattr(bms, "base_dir", None) or None
+            theater_name = getattr(bms, "theater", None) or None
+            try:
+                if bms.theater_config.has_section(bms.theater):
+                    theater_target_folder = bms.theater_config[bms.theater].get("target_folder", "") or None
+            except Exception:
+                theater_target_folder = None
+
+        try:
+            cam_data = extract_cam_brief_data(
+                tmp_cam_path,
+                bms_base_dir=bms_base_dir,
+                theater_target_folder=theater_target_folder,
+                theater_name=theater_name,
+                save_stem=Path(filename).stem,
+            )
+        except CamIntegrationError as exc:
+            logger.error("CAM integration error: %s", exc)
+            raise HTTPException(status_code=500, detail=f"CAM integration failed: {exc}") from exc
+        except Exception as exc:
+            logger.error("CAM parsing failed: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to parse CAM file: {exc}") from exc
+        finally:
+            try:
+                tmp_cam_path.unlink()
+            except Exception:
+                pass
+
+        safe_stem = "".join(c for c in Path(filename).stem if c.isalnum() or c in {"_", "-"}) or "campaign"
+        json_path = output_dir / f"{safe_stem}_cam.json"
+        json_path.write_text(json.dumps(cam_data, indent=2), encoding="utf-8")
+
+        app.state.last_cam_summary_path = str(json_path)
+        app.state.last_cam_summary = cam_data
+
+        return {
+            "status": "ok",
+            "output_file": str(json_path),
+            "cam": cam_data,
+        }
 
     @app.post("/api/generate")
     def generate(payload: PreviewRequest = None) -> Dict[str, str]:

@@ -711,159 +711,170 @@
     </header>
 
     <div class="layout">
-    <div class="main-column">
-      <section class="mfd-box mfd-toolbar no-print">
-        <div class="button-row controls-row mfd-anchor">
-          <button id="generate-btn-main" class="generate-brief-btn">Gen brf</button>
-          <button id="save-edits-btn">Save</button>
-          <button id="load-edits-btn">Load</button>
-          <button id="reset-edits-btn">Reset</button>
-        </div>
-      </section>
+      <div class="main-column">
+        <section class="mfd-box mfd-toolbar no-print">
+          <div class="button-row controls-row mfd-anchor">
+            <button id="generate-btn-main" class="generate-brief-btn">Gen brf</button>
+            <button id="save-edits-btn">Save</button>
+            <button id="load-edits-btn">Load</button>
+            <button id="reset-edits-btn">Reset</button>
+          </div>
+        </section>
 
-      <section class="mfd-box mfd-page-nav">
-        <div class="page-shortcuts mfd-anchor" id="page-shortcuts"></div>
-        <iframe id="brief-frame" src="/brief" title="Briefing preview"></iframe>
-      </section>
+        <section class="mfd-box mfd-page-nav">
+          <div class="page-shortcuts mfd-anchor" id="page-shortcuts"></div>
+          <iframe id="brief-frame" src="/brief" title="Briefing preview"></iframe>
+        </section>
 
-      <section class="mfd-box mfd-flow mfd-with-bottom-btn no-print">
-        <div class="chain mfd-anchor">
-          <button id="generate-btn-output" class="generate-brief-btn">Gen brf</button>
-          <button id="pdf-btn">Gen PDF</button>
-          <button id="export-btn">Export</button>
-          <button id="auto-export-mode-btn" class="auto-export-mode-btn" type="button">AUTO-EXPORT<br>OFF</button>
-        </div>
-        <button id="open-pdf-btn" class="mfd-bottom-btn">Open PDF</button>
-      </section>
+        <section class="mfd-box mfd-flow mfd-with-bottom-btn no-print">
+          <div class="chain mfd-anchor">
+            <button id="generate-btn-output" class="generate-brief-btn">Gen brf</button>
+            <button id="pdf-btn">Gen PDF</button>
+            <button id="export-btn">Export</button>
+            <button id="auto-export-mode-btn" class="auto-export-mode-btn" type="button">AUTO-EXPORT<br>OFF</button>
+          </div>
+          <button id="open-pdf-btn" class="mfd-bottom-btn">Open PDF</button>
+        </section>
 
-      <section class="mfd-box mfd-layout">
-        <div class="mfd-anchor mfd-anchor-right no-print">
-          <button id="save-layout-btn" type="button">Save layout</button>
-        </div>
-        <div class="panel-head">
-          <h3 class="heading-zero">Layout</h3>
-        </div>
-        <div class="spacer-sm">
-          <label for="page-select">Page</label>
-          <select id="page-select" class="page-select"></select>
-        </div>
-        <div class="grid two grid-start">
-          <div>
-            <label>Page sections</label>
-            <ul id="section-list" class="sortable"></ul>
+        <section class="mfd-box mfd-layout">
+          <div class="mfd-anchor mfd-anchor-right no-print">
+            <button id="save-layout-btn" type="button">Save layout</button>
           </div>
-          <div>
-            <label>Available sections</label>
-            <ul id="available-list" class="sortable"></ul>
+          <div class="panel-head">
+            <h3 class="heading-zero">Layout</h3>
           </div>
-        </div>
-      </section>
+          <div class="spacer-sm">
+            <label for="page-select">Page</label>
+            <select id="page-select" class="page-select"></select>
+          </div>
+          <div class="grid two grid-start">
+            <div>
+              <label>Page sections</label>
+              <ul id="section-list" class="sortable"></ul>
+            </div>
+            <div>
+              <label>Available sections</label>
+              <ul id="available-list" class="sortable"></ul>
+            </div>
+          </div>
+        </section>
 
-      <section>
-        <h3 class="heading-top-zero">Messages</h3>
-        <div id="log">Waiting...</div>
-      </section>
-    </div>
+        <section>
+          <h3 class="heading-top-zero">Messages</h3>
+          <div id="log">Waiting...</div>
+        </section>
+      </div>
 
-    <div class="side-column">
-      <section id="status-card" class="mfd-box mfd-status">
-        <div class="mfd-anchor mfd-anchor-right no-print">
-          <button id="reload-btn" type="button" title="Reload BMS config">Reload</button>
-        </div>
-        <h3 class="heading-top-zero">STATUS</h3>
-        <div class="grid two">
-          <div>
-            <label>Config path</label>
-            <div id="config-path" class="truncate status-value" title="–">–</div>
+      <div class="side-column">
+        <section id="status-card" class="mfd-box mfd-status">
+          <div class="mfd-anchor mfd-anchor-right no-print">
+            <button id="reload-btn" type="button" title="Reload BMS config">Reload</button>
           </div>
-          <div>
-            <label>BMS base dir</label>
-            <div id="base-dir" class="truncate status-value" title="–">–</div>
+          <h3 class="heading-top-zero">STATUS</h3>
+          <div class="grid two">
+            <div>
+              <label>Config path</label>
+              <div id="config-path" class="truncate status-value" title="–">–</div>
+            </div>
+            <div>
+              <label>BMS base dir</label>
+              <div id="base-dir" class="truncate status-value" title="–">–</div>
+            </div>
+            <div>
+              <label>Theater</label>
+              <div id="theater" class="status-value">–</div>
+            </div>
+            <div>
+              <label>Callsign</label>
+              <div id="callsign" class="status-value">–</div>
+            </div>
+            <div>
+              <label>Target folder</label>
+              <div id="target-folder" class="truncate status-value" title="–">–</div>
+            </div>
+            <div>
+              <label>PDF output dir</label>
+              <div id="pdf-dir-status" class="truncate status-value" title="–">–</div>
+            </div>
           </div>
-          <div>
-            <label>Theater</label>
-            <div id="theater" class="status-value">–</div>
-          </div>
-          <div>
-            <label>Callsign</label>
-            <div id="callsign" class="status-value">–</div>
-          </div>
-          <div>
-            <label>Target folder</label>
-            <div id="target-folder" class="truncate status-value" title="–">–</div>
-          </div>
-          <div>
-            <label>PDF output dir</label>
-            <div id="pdf-dir-status" class="truncate status-value" title="–">–</div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="mfd-box mfd-settings">
-        <div class="mfd-anchor mfd-anchor-right no-print">
-          <button type="submit" form="config-form" title="Save application settings">Save</button>
-        </div>
-        <div class="panel-head">
-          <h3 class="heading-zero">Settings</h3>
-        </div>
-        <form id="config-form" class="grid two">
-          <div>
-            <label for="bms_version">BMS version</label>
-            <select id="bms_version" name="bms_version"></select>
+        <section class="mfd-box mfd-settings">
+          <div class="mfd-anchor mfd-anchor-right no-print">
+            <button type="submit" form="config-form" title="Save application settings">Save</button>
           </div>
-          <div>
-            <label for="bms_available_versions">Available versions</label>
-            <input id="bms_available_versions" name="bms_available_versions" placeholder="4.37, 4.38">
+          <div class="panel-head">
+            <h3 class="heading-zero">Settings</h3>
           </div>
-          <div>
-            <label for="default_airframe">Airframe</label>
-            <select id="default_airframe" name="default_airframe">
-              <option value="F-16">F-16</option>
-              <option value="F-15">F-15</option>
-            </select>
-          </div>
-          <div>
-            <label for="wine_prefix">Wine prefix (Linux)</label>
-            <input id="wine_prefix" name="wine_prefix" placeholder="/path/to/wineprefix">
-          </div>
-          <div>
-            <label for="output_dir">Output dir</label>
-            <input id="output_dir" name="output_dir" placeholder="./output">
-          </div>
-          <div>
-            <label for="pdf_output_dir">PDF output dir</label>
-            <input id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards">
-          </div>
-        </form>
-      </section>
+          <form id="config-form" class="grid two">
+            <div>
+              <label for="bms_version">BMS version</label>
+              <select id="bms_version" name="bms_version"></select>
+            </div>
+            <div>
+              <label for="bms_available_versions">Available versions</label>
+              <input id="bms_available_versions" name="bms_available_versions" placeholder="4.37, 4.38">
+            </div>
+            <div>
+              <label for="default_airframe">Airframe</label>
+              <select id="default_airframe" name="default_airframe">
+                <option value="F-16">F-16</option>
+                <option value="F-15">F-15</option>
+              </select>
+            </div>
+            <div>
+              <label for="wine_prefix">Wine prefix (Linux)</label>
+              <input id="wine_prefix" name="wine_prefix" placeholder="/path/to/wineprefix">
+            </div>
+            <div>
+              <label for="output_dir">Output dir</label>
+              <input id="output_dir" name="output_dir" placeholder="./output">
+            </div>
+            <div>
+              <label for="pdf_output_dir">PDF output dir</label>
+              <input id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards">
+            </div>
+          </form>
+        </section>
 
-      <section class="mfd-box mfd-theater mfd-with-bottom-btn">
-        <div class="mfd-anchor mfd-anchor-right no-print">
-          <button id="save_theater_btn" type="button" title="Save theater settings">Save</button>
-        </div>
-        <div class="panel-head">
-          <h3 class="heading-zero">Theater</h3>
-        </div>
-        <div class="grid two">
-          <div>
-            <label>Theater</label>
-            <input id="theater_name" readonly>
+        <section class="mfd-box no-print">
+          <div class="panel-head">
+            <h3 class="heading-zero">CAM</h3>
           </div>
           <div>
-            <label for="target_folder">Target folder</label>
-            <input id="target_folder_field" placeholder="/path/to/theater/target">
+            <label for="cam-file-input">Campaign save (.cam/.trn/.tac)</label>
+            <input id="cam-file-input" type="file" accept=".cam,.trn,.tac">
           </div>
-          <div>
-            <label for="map_file">Map file</label>
-            <input id="map_file_field" placeholder="/path/to/map.png">
+        </section>
+
+        <section class="mfd-box mfd-theater mfd-with-bottom-btn">
+          <div class="mfd-anchor mfd-anchor-right no-print">
+            <button id="save_theater_btn" type="button" title="Save theater settings">Save</button>
           </div>
+          <div class="panel-head">
+            <h3 class="heading-zero">Theater</h3>
+          </div>
+          <div class="grid two">
+            <div>
+              <label>Theater</label>
+              <input id="theater_name" readonly>
+            </div>
+            <div>
+              <label for="target_folder">Target folder</label>
+              <input id="target_folder_field" placeholder="/path/to/theater/target">
+            </div>
+            <div>
+              <label for="map_file">Map file</label>
+              <input id="map_file_field" placeholder="/path/to/map.png">
+            </div>
+          </div>
+          <button id="copy_to_kto_btn" class="auto-export-mode-btn mfd-bottom-btn" type="button">COPY TO KTO<br>OFF</button>
+        </section>
+        <div class="settings-meta">
+          <span>v0.8</span>
+          <span aria-hidden="true">|</span>
+          <a href="https://codeberg.org/wsywsy/bms_html_briefing" target="_blank" rel="noopener noreferrer">source</a>
         </div>
-        <button id="copy_to_kto_btn" class="auto-export-mode-btn mfd-bottom-btn" type="button">COPY TO KTO<br>OFF</button>
-      </section>
-      <div class="settings-meta">
-        <span>v0.8</span>
-        <span aria-hidden="true">|</span>
-        <a href="https://codeberg.org/wsywsy/bms_html_briefing" target="_blank" rel="noopener noreferrer">source</a>
       </div>
     </div>
   </div>
@@ -882,6 +893,21 @@
     const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
     const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
     const exportBtn = document.getElementById("export-btn");
+    const camFileInput = document.getElementById("cam-file-input");
+    const CAM_PREVIEW_PACKAGE_SELECT_ID = "cam-support-package-select";
+    const CAM_PREVIEW_PACKAGE_QUERY_ID = "cam-support-package-query";
+    const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
+    const CAM_SUPPORT_CELL_IDS = [
+      "package_1", "package_2", "package_3", "package_4", "package_5", "package_6", "package_7", "package_30",
+      "package_8", "package_9", "package_10", "package_11", "package_12", "package_13", "package_14", "package_31",
+      "package_15", "package_16", "package_17", "package_18", "package_19", "package_21", "package_22", "package_32",
+      "package_23", "package_24", "package_25", "package_26", "package_27", "package_28", "package_29", "package_33",
+      "package_34", "package_35", "package_36", "package_37", "package_38", "package_39", "package_40", "package_41"
+    ];
+    const CAM_SUPPORT_COLS = 8;
+    const CAM_SUPPORT_MAX_ROWS = Math.floor(CAM_SUPPORT_CELL_IDS.length / CAM_SUPPORT_COLS);
+    const CAM_DATE_CELL_ID = "current_date";
+    const CAM_MOONPHASE_CELL_ID = "moonphase";
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
     window.layoutDirty = false;
     let lastLogId = 0;
@@ -900,6 +926,9 @@
     let autoExportOnChange = false;
     let autoExportPdfOnly = false;
     let copyToKtoEnabled = false;
+    let pendingCamBullseye = null;
+    let pendingCamPackageIndex = null;
+    let lastCamData = null;
     const sectionLabels = {
       airbase: "Airbase",
       package: "Package",
@@ -932,6 +961,456 @@
         logLines.length = LOG_MAX_LINES;
       }
       logEl.textContent = logLines.join("\n");
+    }
+
+    function updateCamSummaryUi(camData, outputPath = null) {
+      if (!camData) return;
+      if (!outputPath) return;
+      if (camFileInput) {
+        camFileInput.title = `CAM parsed: ${outputPath}`;
+      }
+    }
+
+    function getCamPackages(camData) {
+      if (!camData || !Array.isArray(camData.packages)) return [];
+      return camData.packages.filter((pkg) => pkg && typeof pkg === "object");
+    }
+
+    function getMissionName(entity) {
+      if (!entity || typeof entity !== "object") return "";
+      const tasking = entity.tasking;
+      if (!tasking || typeof tasking !== "object") return "";
+      const missionName = typeof tasking.mission_name === "string" ? tasking.mission_name.trim() : "";
+      if (missionName && missionName.toUpperCase() !== "NONE") return missionName;
+      const oldMissionName = typeof tasking.old_mission_name === "string" ? tasking.old_mission_name.trim() : "";
+      if (oldMissionName && oldMissionName.toUpperCase() !== "NONE") return oldMissionName;
+      return "";
+    }
+
+    function formatCamTime(value) {
+      if (typeof value !== "string") return "";
+      const raw = value.trim();
+      if (!raw) return "";
+      const normalized = raw.replace(/z$/i, "");
+
+      const hhmmssColon = normalized.match(/^(\d{1,2})\s*:\s*(\d{2})(?:\s*:\s*(\d{2})(?:\.\d+)?)?$/);
+      if (hhmmssColon) {
+        const hh = hhmmssColon[1].padStart(2, "0");
+        const mm = hhmmssColon[2];
+        const ss = (hhmmssColon[3] || "00").padStart(2, "0");
+        return `${hh}:${mm}:${ss}z`;
+      }
+
+      const hhmmssDigits = normalized.match(/^(\d{3,6})$/);
+      if (hhmmssDigits) {
+        const digits = hhmmssDigits[1];
+        if (digits.length <= 4) {
+          const hhmm = digits.padStart(4, "0");
+          return `${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00z`;
+        }
+        const hhmmss = digits.padStart(6, "0");
+        return `${hhmmss.slice(0, 2)}:${hhmmss.slice(2, 4)}:${hhmmss.slice(4)}z`;
+      }
+
+      return raw;
+    }
+
+    function formatCamAircraftWithCount(flight) {
+      const aircraft = typeof flight?.aircraft === "string" ? flight.aircraft.trim() : "";
+      if (!aircraft) return "";
+      if (/^\d+\s+/.test(aircraft)) return aircraft;
+
+      const rawCount =
+        flight?.aircraft_count ??
+        flight?.aircraft_num ??
+        flight?.flight_size ??
+        flight?.num_aircraft;
+      const parsedCount = Number.parseInt(String(rawCount ?? ""), 10);
+      if (Number.isFinite(parsedCount) && parsedCount > 0) {
+        return `${parsedCount} ${aircraft}`;
+      }
+      return aircraft;
+    }
+
+    function getCamPackageLabel(pkg, index) {
+      const packageNumber = Number.isFinite(pkg?.package_number) ? String(pkg.package_number) : `#${index + 1}`;
+      const missionName = getMissionName(pkg);
+      return missionName ? `${packageNumber} (${missionName})` : packageNumber;
+    }
+
+    function getSavedCamSupportPackageIndex() {
+      const raw = localStorage.getItem(CAM_SUPPORT_PACKAGE_SAVED_KEY);
+      const parsed = Number.parseInt(String(raw ?? ""), 10);
+      if (!Number.isFinite(parsed) || parsed < 0) return null;
+      return parsed;
+    }
+
+    function saveCamSupportPackageIndex(index) {
+      if (!Number.isFinite(index) || index < 0) {
+        localStorage.removeItem(CAM_SUPPORT_PACKAGE_SAVED_KEY);
+        return;
+      }
+      localStorage.setItem(CAM_SUPPORT_PACKAGE_SAVED_KEY, String(index));
+    }
+
+    function saveCurrentCamSupportPackageSelection() {
+      saveCamSupportPackageIndex(getSelectedCamPackageIndex());
+    }
+
+    function getPreviewCamPackageSelect() {
+      const cw = briefFrame?.contentWindow;
+      if (!cw || !cw.document) return null;
+      return cw.document.getElementById(CAM_PREVIEW_PACKAGE_SELECT_ID);
+    }
+
+    function getPreviewCamPackageQuery() {
+      const cw = briefFrame?.contentWindow;
+      if (!cw || !cw.document) return null;
+      return cw.document.getElementById(CAM_PREVIEW_PACKAGE_QUERY_ID);
+    }
+
+    function packageSearchText(pkg, index) {
+      const label = getCamPackageLabel(pkg, index);
+      const packageNumber = Number.isFinite(pkg?.package_number) ? String(pkg.package_number) : "";
+      const flights = Array.isArray(pkg?.flights) ? pkg.flights : [];
+      const roleTokens = flights
+        .map((flight) => getMissionName(flight))
+        .filter((name) => typeof name === "string" && name.trim())
+        .join(" ");
+      return `${label} ${packageNumber} ${roleTokens}`.toLowerCase();
+    }
+
+    function bindCamPackageSelectorInPreview() {
+      const select = getPreviewCamPackageSelect();
+      const query = getPreviewCamPackageQuery();
+      if (!select) return false;
+      if (select.dataset.camBound === "1") return true;
+      select.dataset.camBound = "1";
+      select.addEventListener("change", () => {
+        if (!lastCamData) return;
+        const selected = getSelectedCamPackageIndex();
+        if (!Number.isFinite(selected)) return;
+        applyCamPackageToSupportingTable(lastCamData, selected, false);
+      });
+      if (query && query.dataset.camBound !== "1") {
+        query.dataset.camBound = "1";
+        query.addEventListener("input", () => {
+          if (!lastCamData) return;
+          const before = getSelectedCamPackageIndex();
+          updateCamPackageSelector(lastCamData);
+          const after = getSelectedCamPackageIndex();
+          if (Number.isFinite(after) && after !== before) {
+            applyCamPackageToSupportingTable(lastCamData, after, true);
+          }
+        });
+      }
+      return true;
+    }
+
+    function updateCamPackageSelector(camData) {
+      const select = getPreviewCamPackageSelect();
+      const query = getPreviewCamPackageQuery();
+      if (!select) return false;
+      const packages = getCamPackages(camData);
+      const previousValue = Number.parseInt(select.value, 10);
+      const queryText = (query?.value || "").trim().toLowerCase();
+      const packageEntries = packages.map((pkg, index) => ({
+        index,
+        label: getCamPackageLabel(pkg, index),
+        search: packageSearchText(pkg, index),
+      }));
+      const filtered = queryText
+        ? packageEntries.filter((entry) => entry.search.includes(queryText))
+        : packageEntries;
+      select.innerHTML = "";
+      if (!filtered.length) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = packages.length ? "No matching packages" : "No packages loaded";
+        select.appendChild(option);
+        select.disabled = true;
+        pendingCamPackageIndex = null;
+        return true;
+      }
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select package";
+      select.appendChild(placeholder);
+
+      filtered.forEach((entry) => {
+        const option = document.createElement("option");
+        option.value = String(entry.index);
+        option.textContent = entry.label;
+        select.appendChild(option);
+      });
+
+      let selectedIndex = pendingCamPackageIndex;
+      if (queryText && filtered.length === 1) {
+        selectedIndex = filtered[0].index;
+      }
+      if (!Number.isFinite(selectedIndex)) {
+        const savedIndex = getSavedCamSupportPackageIndex();
+        if (Number.isFinite(savedIndex) && savedIndex >= 0 && savedIndex < packages.length) {
+          selectedIndex = savedIndex;
+        }
+      }
+      if (!Number.isFinite(selectedIndex)) {
+        if (Number.isFinite(previousValue) && previousValue >= 0 && previousValue < packages.length) {
+          selectedIndex = previousValue;
+        }
+      }
+      if (Number.isFinite(selectedIndex)) {
+        const isVisible = filtered.some((entry) => entry.index === selectedIndex);
+        if (!isVisible) {
+          selectedIndex = null;
+        }
+      }
+      if (Number.isFinite(selectedIndex)) {
+        select.value = String(selectedIndex);
+      } else {
+        select.value = "";
+      }
+      select.disabled = false;
+      return true;
+    }
+
+    function getSelectedCamPackageIndex() {
+      const select = getPreviewCamPackageSelect();
+      if (!select) return Number.isFinite(pendingCamPackageIndex) ? pendingCamPackageIndex : null;
+      const parsed = Number.parseInt(select.value, 10);
+      if (!Number.isFinite(parsed) || parsed < 0) return null;
+      return parsed;
+    }
+
+    function buildSupportRowFromCamFlight(flight, pkg) {
+      const flightTiming = (flight && typeof flight.timing === "object") ? flight.timing : {};
+      return [
+        typeof flight?.callsign === "string" ? flight.callsign : "",
+        Number.isFinite(flight?.flight_number) ? String(flight.flight_number) : "",
+        getMissionName(flight),
+        formatCamAircraftWithCount(flight),
+        formatCamTime(flightTiming.takeoff_time_z || ""),
+        formatCamTime(flightTiming.push_time_z || ""),
+        formatCamTime(flightTiming.time_on_target_z || ""),
+        typeof flight?.l16 === "string" ? flight.l16 : ""
+      ];
+    }
+
+    function buildSupportRowsFromCamPackage(pkg) {
+      const flights = Array.isArray(pkg?.flights) ? pkg.flights.filter((flight) => flight && typeof flight === "object") : [];
+      const rows = flights.slice(0, CAM_SUPPORT_MAX_ROWS).map((flight) => buildSupportRowFromCamFlight(flight, pkg));
+      if (!rows.length) {
+        const packageTiming = (pkg && typeof pkg.timing === "object") ? pkg.timing : {};
+        rows.push([
+          "",
+          Number.isFinite(pkg?.package_number) ? String(pkg.package_number) : "",
+          getMissionName(pkg),
+          "",
+          formatCamTime(packageTiming.takeoff_time_z || ""),
+          formatCamTime(packageTiming.push_time_z || ""),
+          formatCamTime(packageTiming.time_on_target_z || ""),
+          ""
+        ]);
+      }
+      while (rows.length < CAM_SUPPORT_MAX_ROWS) {
+        rows.push(["", "", "", "", "", "", "", ""]);
+      }
+      return { rows, flightCount: flights.length };
+    }
+
+    function getCamL16ByFlightNumber(camData) {
+      const out = new Map();
+      const packages = getCamPackages(camData);
+      packages.forEach((pkg) => {
+        const flights = Array.isArray(pkg?.flights) ? pkg.flights : [];
+        flights.forEach((flight) => {
+          if (!flight || typeof flight !== "object") return;
+          const number = Number.parseInt(String(flight.flight_number ?? ""), 10);
+          if (!Number.isFinite(number)) return;
+          const l16 = typeof flight.l16 === "string" ? flight.l16.trim() : "";
+          out.set(number, l16);
+        });
+      });
+      return out;
+    }
+
+    function applyCamL16ToMainPackage(camData, silent = false) {
+      if (!camData) return false;
+      const l16ByFlight = getCamL16ByFlightNumber(camData);
+      const cw = briefFrame?.contentWindow;
+      if (!cw || !cw.document) return false;
+      const table = cw.document.getElementById("package");
+      if (!table) return false;
+      const rows = Array.from(table.querySelectorAll("tbody tr"));
+      if (!rows.length) return false;
+
+      let applied = 0;
+      const saved = getSavedEdits();
+      rows.forEach((row, rowIndex) => {
+        const cells = Array.from(row.querySelectorAll("td"));
+        if (cells.length < 8) return;
+        const number = Number.parseInt((cells[1].textContent || "").trim(), 10);
+        const value = Number.isFinite(number) ? (l16ByFlight.get(number) || "") : "";
+        cells[7].textContent = value;
+        const l16CellId = `package_main_l16_${rowIndex + 1}`;
+        const domId = cells[7].id || l16CellId;
+        saved[domId] = value;
+        if (value) applied += 1;
+      });
+      localStorage.setItem("contenteditables", JSON.stringify(saved));
+      if (!silent && applied > 0) {
+        log(`Main package L16 applied for ${applied} flights`);
+      }
+      return applied > 0;
+    }
+    
+    function getMoonPhase(camData) {
+      if (!camData || (!camData.moonPhase)) return "";
+      return camData.moonPhase;
+    }
+
+    function applyCamMoonPhaseToWeatherTable(camData, silent = false) {
+      const moonPhase = getMoonPhase(camData);
+      const id = CAM_MOONPHASE_CELL_ID
+      if (!moonPhase) {
+        if (!silent) log("No moon phase in CAM data.");
+        return false;
+      }
+      const saved = getSavedEdits()
+      saved[id] = moonPhase;
+      localStorage.setItem("contenteditables", JSON.stringify(saved));
+
+      const cw = briefFrame?.contentWindow;
+      if (cw && cw.document) {
+        const el = cw.document.getElementById(id);
+        if (el) el.textContent = saved[id] || "";
+        if (typeof cw.saveChangedData === "function") {
+          try {
+            cw.saveChangedData();
+          } catch {
+            // keep localStorage update even if saveChangedData fails
+          }
+        }
+        if (!silent) {
+          log(`Moon phase populated from CAM file.`);
+        }
+      }
+      return true;
+    }
+
+    function applyCamPackageToSupportingTable(camData, packageIndex = null, silent = false) {
+      const packages = getCamPackages(camData);
+      if (!packages.length) {
+        if (!silent) log("No CAM package data loaded");
+        return false;
+      }
+      let selectedIndex = packageIndex !== null ? packageIndex : getSelectedCamPackageIndex();
+      if (!Number.isFinite(selectedIndex) || selectedIndex < 0 || selectedIndex >= packages.length) {
+        selectedIndex = 0;
+      }
+
+      const selectedPackage = packages[selectedIndex];
+      const { rows, flightCount } = buildSupportRowsFromCamPackage(selectedPackage);
+      const values = rows.flat().slice(0, CAM_SUPPORT_CELL_IDS.length);
+      const saved = getSavedEdits();
+      CAM_SUPPORT_CELL_IDS.forEach((id, idx) => {
+        saved[id] = values[idx] || "";
+      });
+      localStorage.setItem("contenteditables", JSON.stringify(saved));
+
+      const cw = briefFrame?.contentWindow;
+      if (cw && cw.document) {
+        CAM_SUPPORT_CELL_IDS.forEach((id) => {
+          const el = cw.document.getElementById(id);
+          if (el) el.innerHTML = saved[id] || "";
+        });
+        if (typeof cw.saveChangedData === "function") {
+          try {
+            cw.saveChangedData();
+          } catch {
+            // keep localStorage update even if saveChangedData fails
+          }
+        }
+        const selector = getPreviewCamPackageSelect();
+        if (selector) {
+          selector.value = String(selectedIndex);
+        }
+        pendingCamPackageIndex = null;
+        if (!silent) {
+          log(`Supporting package populated from CAM package ${getCamPackageLabel(selectedPackage, selectedIndex)}`);
+          if (flightCount > CAM_SUPPORT_MAX_ROWS) {
+            log(`Package has ${flightCount} flights; showing first ${CAM_SUPPORT_MAX_ROWS}`);
+          }
+        }
+        return true;
+      }
+
+      pendingCamPackageIndex = selectedIndex;
+      if (!silent) log("Supporting package queued; open/generate briefing to apply on load");
+      return false;
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result || "");
+        reader.onerror = () => reject(new Error("Failed to read CAM file"));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function camBullseyeToMapLatLng(camData) {
+      const bull = camData && camData.bullseye ? camData.bullseye : null;
+      if (!bull) return null;
+      if (Number.isFinite(bull.map_lat) && Number.isFinite(bull.map_lng)) {
+        return { lat: bull.map_lat, lng: bull.map_lng };
+      }
+      const x = bull.x;
+      const y = bull.y;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      // Legacy fallback: interpret as Falcon world scalar.
+      const imageHeight = 4096;
+      const falconHeight = 3359580;
+      const lat = (x / falconHeight) * imageHeight - imageHeight;
+      const lng = (y / falconHeight) * imageHeight;
+      return { lat, lng };
+    }
+
+    function applyBullseyePosToStorage(latlng) {
+      const saved = getSavedEdits();
+      saved.bullseyePos = latlng;
+      localStorage.setItem("contenteditables", JSON.stringify(saved));
+    }
+
+    function applyCamBullseyeToMap(camData, silent = false) {
+      if (!camData || !camData.bullseye) return false;
+      const x = camData.bullseye.x;
+      const y = camData.bullseye.y;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+
+      const latlng = camBullseyeToMapLatLng(camData);
+      if (!latlng || !Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) return false;
+      applyBullseyePosToStorage(latlng);
+
+      const frame = document.getElementById("brief-frame");
+      const cw = frame?.contentWindow;
+      if (cw && typeof cw.setBullseye === "function") {
+        cw.setBullseye(latlng);
+        if (typeof cw.saveChangedData === "function") {
+          try {
+            cw.saveChangedData();
+          } catch {
+            // keep localStorage value set above even if saveChangedData fails
+          }
+        }
+        pendingCamBullseye = null;
+        if (!silent) log("CAM bullseye applied to map");
+        return true;
+      }
+      pendingCamBullseye = camData;
+      if (!silent) log("CAM bullseye queued; open/generate briefing to apply on map load");
+      return false;
     }
 
     function applyAutoExportMode(onChange, pdfOnly) {
@@ -1216,6 +1695,43 @@
       }
     }
 
+    async function loadCamFromInput() {
+      const file = camFileInput?.files && camFileInput.files[0];
+      if (!file) {
+        log("Select a .cam/.trn/.tac file first");
+        return;
+      }
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        const base64Payload = typeof dataUrl === "string" && dataUrl.includes(",")
+          ? dataUrl.split(",", 2)[1]
+          : dataUrl;
+        const response = await fetchJSON("/api/cam/load", {
+          method: "POST",
+          body: JSON.stringify({
+            filename: file.name,
+            content_b64: base64Payload
+          })
+        });
+        lastCamData = response.cam || null;
+        updateCamSummaryUi(lastCamData, response.output_file || "–");
+        log(`CAM loaded; JSON written to ${response.output_file}`);
+        if (lastCamData && Array.isArray(lastCamData.warnings) && lastCamData.warnings.length) {
+          log(`CAM warnings: ${lastCamData.warnings.join(" | ")}`);
+        }
+        applyCamBullseyeToMap(lastCamData, false);
+        bindCamPackageSelectorInPreview();
+        updateCamPackageSelector(lastCamData);
+        const selectedIndex = getSelectedCamPackageIndex();
+        if (Number.isFinite(selectedIndex)) {
+          applyCamPackageToSupportingTable(lastCamData, selectedIndex, false);
+        }
+        applyCamL16ToMainPackage(lastCamData, false);
+      } catch (err) {
+        log(`CAM load failed: ${err.message}`);
+      }
+    }
+
     function getSavedEdits() {
       try {
         return JSON.parse(localStorage.getItem("contenteditables") || "{}");
@@ -1225,18 +1741,28 @@
     }
 
     function getLatestEdits() {
+      let dataFromFrame = null;
       const cw = briefFrame?.contentWindow;
       if (cw && typeof cw.saveChangedData === "function") {
         try {
           const data = cw.saveChangedData();
           if (data && typeof data === "object" && !Array.isArray(data)) {
-            return data;
+            dataFromFrame = data;
           }
         } catch (err) {
           log(`saveChangedData failed: ${err.message}`);
         }
       }
-      return getSavedEdits();
+      // saveChangedData persists only contenteditable fields; re-apply CAM L16 so
+      // non-contenteditable main package L16 cells are present in payload as well.
+      if (lastCamData) {
+        applyCamL16ToMainPackage(lastCamData, true);
+      }
+      const saved = getSavedEdits();
+      if (dataFromFrame && typeof dataFromFrame === "object") {
+        return { ...saved, ...dataFromFrame };
+      }
+      return saved;
     }
 
     function buildPagesObj() {
@@ -1413,6 +1939,12 @@
       await runExportFlow("manual");
     });
 
+    if (camFileInput) {
+      camFileInput.addEventListener("change", async () => {
+        await loadCamFromInput();
+      });
+    }
+
     const briefFrame = document.getElementById("brief-frame");
     function callBriefing(fnName) {
       const cw = briefFrame?.contentWindow;
@@ -1442,11 +1974,53 @@
 
     briefFrame.addEventListener("load", () => {
       callBriefing("loadChangedData");
+      bindCamPackageSelectorInPreview();
+      updateCamPackageSelector(lastCamData);
+      if (pendingCamBullseye) {
+        applyCamBullseyeToMap(pendingCamBullseye, true);
+      }
+      if (lastCamData) {
+        const selectedIndex = getSelectedCamPackageIndex();
+        const savedIndex = getSavedCamSupportPackageIndex();
+        const packageIndex = Number.isFinite(selectedIndex)
+          ? selectedIndex
+          : (Number.isFinite(pendingCamPackageIndex)
+            ? pendingCamPackageIndex
+            : (Number.isFinite(savedIndex) ? savedIndex : null));
+        if (Number.isFinite(packageIndex)) {
+          applyCamPackageToSupportingTable(lastCamData, packageIndex, true);
+        }
+        applyCamL16ToMainPackage(lastCamData, true);
+      }
     });
 
-    document.getElementById("save-edits-btn").addEventListener("click", () => callBriefing("saveChangedData"));
-    document.getElementById("load-edits-btn").addEventListener("click", () => callBriefing("loadChangedData"));
-    document.getElementById("reset-edits-btn").addEventListener("click", () => callBriefing("resetContenteditables"));
+    updateCamPackageSelector(null);
+
+    document.getElementById("save-edits-btn").addEventListener("click", () => {
+      callBriefing("saveChangedData");
+      saveCurrentCamSupportPackageSelection();
+    });
+    document.getElementById("load-edits-btn").addEventListener("click", () => {
+      callBriefing("loadChangedData");
+      if (!lastCamData) return;
+      updateCamPackageSelector(lastCamData);
+      const savedIndex = getSavedCamSupportPackageIndex();
+      if (Number.isFinite(savedIndex)) {
+        applyCamPackageToSupportingTable(lastCamData, savedIndex, true);
+      }
+    });
+    document.getElementById("reset-edits-btn").addEventListener("click", () => {
+      callBriefing("resetContenteditables");
+      saveCamSupportPackageIndex(null);
+      pendingCamPackageIndex = null;
+      const query = getPreviewCamPackageQuery();
+      if (query) query.value = "";
+      const select = getPreviewCamPackageSelect();
+      if (select) select.value = "";
+      if (lastCamData) {
+        updateCamPackageSelector(lastCamData);
+      }
+    });
     document.getElementById("open-pdf-btn").addEventListener("click", () => {
       window.open("/pdf", "_blank");
     });

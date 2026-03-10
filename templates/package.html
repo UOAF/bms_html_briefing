@@ -2,6 +2,37 @@
   tr.primary {
       font-weight: bold;
   }
+  .cam-package-picker {
+      float: right;
+      font-weight: normal;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35em;
+  }
+  .cam-package-picker input {
+      font: inherit;
+      width: 8.5em;
+      color: #111111;
+      background: #ffffff;
+      border: 1px solid #666666;
+      padding: 0.05em 0.3em;
+  }
+  .cam-package-picker select {
+      font: inherit;
+      max-width: 14em;
+      color: #111111;
+      background: #ffffff;
+      border: 1px solid #666666;
+      padding: 0.05em 0.3em;
+  }
+  .cam-package-picker label {
+      color: #111111;
+  }
+  @media print {
+      .cam-package-picker {
+          display: none !important;
+      }
+  }
 </style>
 <table width=100%>
       <tr>
@@ -10,13 +41,14 @@
 </table>
 <table width=100% id="package" class="hidable">
     <colgroup>
-        <col style="width:15%;">
-        <col style="width:10%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
+        <col style="width:14%;">
+        <col style="width:8%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:8%;">
     </colgroup>
     <thead>
         <tr>
@@ -27,6 +59,7 @@
             <th>Takeoff</th>
             <th>Push</th>
             <th>TOT</th>
+            <th>L16</th>
         </tr>
     </thead>
     <tbody>
@@ -39,24 +72,34 @@
 	<td>{{flight.takeoff}}</td>
 	<td>{{flight.push}}</td>
 	<td>{{flight.tot}}</td>
+	<td id="package_main_l16_{{loop.index}}">{{flight.l16}}</td>
       </tr>
       {% endfor %}
     </tbody>
 </table>
 <table width=100%>
       <tr>
-<th class="header clickable" onclick="toggleVisHeader(this)" id="suppPackage_header"><span class="arrow">▼</span>Supporting package</th>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="suppPackage_header"><span class="arrow">▼</span>Supporting package
+  <span class="cam-package-picker" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">
+    <label for="cam-support-package-select">CAM</label>
+    <input id="cam-support-package-query" type="search" placeholder="# / role" title="Type to filter package list">
+    <select id="cam-support-package-select" title="CAM supporting package">
+      <option value="">No CAM package loaded</option>
+    </select>
+  </span>
+</th>
   </tr>
 </table>
 <table width=100% id="suppPackage" class="hidable">
     <colgroup>
-        <col style="width:15%;">
-        <col style="width:10%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
-        <col style="width:15%;">
+        <col style="width:14%;">
+        <col style="width:8%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:14%;">
+        <col style="width:8%;">
     </colgroup>
     <thead>
         <tr>
@@ -67,6 +110,7 @@
             <th>Takeoff</th>
             <th>Push</th>
             <th>TOT</th>
+            <th>L16</th>
         </tr>
     </thead>
     <tbody>
@@ -78,6 +122,7 @@
 	<td contenteditable="true" class="editable" id="package_5"></td>
 	<td contenteditable="true" class="editable" id="package_6"></td>
 	<td contenteditable="true" class="editable" id="package_7"></td>
+	<td contenteditable="true" class="editable" id="package_30"></td>
       </tr>
     </tbody>
     <tbody>
@@ -89,6 +134,7 @@
 	<td contenteditable="true" class="editable" id="package_12"></td>
 	<td contenteditable="true" class="editable" id="package_13"></td>
 	<td contenteditable="true" class="editable" id="package_14"></td>
+	<td contenteditable="true" class="editable" id="package_31"></td>
       </tr>
     </tbody>
     <tbody>
@@ -100,6 +146,7 @@
 	<td contenteditable="true" class="editable" id="package_19"></td>
 	<td contenteditable="true" class="editable" id="package_21"></td>
 	<td contenteditable="true" class="editable" id="package_22"></td>
+	<td contenteditable="true" class="editable" id="package_32"></td>
       </tr>
     </tbody>
     <tbody>
@@ -111,6 +158,19 @@
 	<td contenteditable="true" class="editable" id="package_27"></td>
 	<td contenteditable="true" class="editable" id="package_28"></td>
 	<td contenteditable="true" class="editable" id="package_29"></td>
+	<td contenteditable="true" class="editable" id="package_33"></td>
+      </tr>
+    </tbody>
+    <tbody>
+      <tr>
+	<td contenteditable="true" class="editable" id="package_34"></td>
+	<td contenteditable="true" class="editable" id="package_35"></td>
+	<td contenteditable="true" class="editable" id="package_36"></td>
+	<td contenteditable="true" class="editable" id="package_37"></td>
+	<td contenteditable="true" class="editable" id="package_38"></td>
+	<td contenteditable="true" class="editable" id="package_39"></td>
+	<td contenteditable="true" class="editable" id="package_40"></td>
+	<td contenteditable="true" class="editable" id="package_41"></td>
       </tr>
     </tbody>
 </table>
