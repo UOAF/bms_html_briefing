@@ -24,6 +24,7 @@ from .core import (
     register_default_parsers,
 )
 from .uni import _collect_package_numbers, _record_index_by_id, list_package_generated_flights
+from lib.parse_twx import load_twx_date_for_cam_path
 
 
 def _load_strings(support_base_dir: Path | None) -> dict[int, str]:
@@ -343,6 +344,7 @@ def parse_cam_summary(
     cmp_parsed: dict[str, Any] | None = None,
     uni_parsed: dict[str, Any] | None = None,
     container_version: int | None = None,
+    current_date: str | None = None,
 ) -> dict[str, Any]:
     """High-level API: parse CAM and return package/time/bullseye summary."""
 
@@ -403,7 +405,7 @@ def parse_cam_summary(
         if not isinstance(uni_parsed, dict):
             raise ParseError("CAM file does not contain a parseable .uni entry")
 
-    return _build_summary_from_parsed(
+    summary = _build_summary_from_parsed(
         source_path=source_path,
         container_version=container_version,
         cmp_parsed=cmp_parsed,
@@ -411,6 +413,11 @@ def parse_cam_summary(
         support_base_dir=support_base_dir,
         package_numbers=package_numbers,
     )
+    if not isinstance(current_date, str):
+        inferred_date, _ = load_twx_date_for_cam_path(source_path)
+        current_date = inferred_date
+    summary["current_date"] = current_date if isinstance(current_date, str) else None
+    return summary
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

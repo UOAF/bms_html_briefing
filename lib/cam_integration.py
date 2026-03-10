@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from lib.parse_l16 import format_l16_code, load_l16_for_save
+from lib.parse_twx import load_twx_date_for_cam_path, load_twx_date_for_save
 
 logger = logging.getLogger("html_brief_log")
 
@@ -369,6 +370,13 @@ def extract_cam_brief_data(
     l16_source_path: str | None = None
     current_time_ms = cmp_parsed.get("current_time") if isinstance(cmp_parsed.get("current_time"), int) else None
     current_time_z = cmp_parsed.get("current_time_z") if isinstance(cmp_parsed.get("current_time_z"), str) else None
+    current_date, _ = load_twx_date_for_cam_path(source_path)
+    if current_date is None:
+        current_date, _ = load_twx_date_for_save(
+            bms_base_dir=bms_base_dir,
+            theater_target_folder=theater_target_folder,
+            save_stem=save_stem or source_path.stem,
+        )
 
     try:
         summary = parse_cam_summary(
@@ -377,11 +385,14 @@ def extract_cam_brief_data(
             uni_parsed=uni_parsed,
             bms_base_dir=support_base_dir,
             container_version=parsed_cam.container_version,
+            current_date=current_date,
         )
         if current_time_ms is None and isinstance(summary.get("current_time_ms"), int):
             current_time_ms = summary.get("current_time_ms")
         if not current_time_z and isinstance(summary.get("current_time_z"), str):
             current_time_z = summary.get("current_time_z")
+        if current_date is None and isinstance(summary.get("current_date"), str):
+            current_date = summary.get("current_date")
         if isinstance(summary.get("bullseye"), dict):
             summary_bullseye = summary.get("bullseye")
         raw_packages = summary.get("packages")
@@ -525,6 +536,7 @@ def extract_cam_brief_data(
         "source_path": str(source_path),
         "support_base_dir": str(support_base_dir) if support_base_dir is not None else None,
         "l16_source_path": l16_source_path,
+        "current_date": current_date,
         "current_time_ms": current_time_ms,
         "current_time_z": current_time_z,
         "player": {
