@@ -31,3 +31,5 @@ build/*
 config.local.ini
 theaters_4.37.local.ini
 theaters_4.38.local.ini
+/install.sh
+/install_win.sh
