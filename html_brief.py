@@ -1,6 +1,4 @@
 import argparse
-import base64
-import binascii
 import configparser
 import json
 import logging
@@ -12,7 +10,6 @@ from itertools import count
 from threading import Thread
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
 import webbrowser
 
 from bs4 import BeautifulSoup, NavigableString
@@ -30,6 +27,7 @@ from lib.bms_config import BmsConfig
 from lib.cam_integration import CamIntegrationError, extract_cam_brief_data
 from lib.html_gen import generate_html_file, page_contents_ini_to_list
 from lib.kneeboard_export import export_kneeboards
+from lib.parse_l16 import _campaign_dirs
 
 logger = logging.getLogger("html_brief_log")
 logger_ui = logging.getLogger("ui_logger")
@@ -95,9 +93,8 @@ class TheaterUpdate(BaseModel):
     copy_to_kto: Optional[bool] = None
 
 
-class CamLoadRequest(BaseModel):
-    filename: str
-    content_b64: str
+class CamLoadLocalRequest(BaseModel):
+    path: str
 
 
 def build_default_config() -> configparser.ConfigParser:
@@ -471,36 +468,9 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             data.update({"error": "BMS config not loaded"})
         return data
 
-    @app.post("/api/cam/load")
-    def load_cam(payload: CamLoadRequest) -> Dict[str, Any]:
-        filename = (payload.filename or "").strip()
-        if not filename:
-            raise HTTPException(status_code=400, detail="filename is required")
+    cam_suffixes = {".cam", ".trn", ".tac"}
 
-        suffix = Path(filename).suffix.lower()
-        if suffix not in {".cam", ".trn", ".tac"}:
-            raise HTTPException(status_code=400, detail="Only .cam/.trn/.tac files are supported")
-
-        content_b64 = (payload.content_b64 or "").strip()
-        if content_b64.startswith("data:") and "," in content_b64:
-            content_b64 = content_b64.split(",", 1)[1]
-        if not content_b64:
-            raise HTTPException(status_code=400, detail="content_b64 is required")
-
-        try:
-            cam_blob = base64.b64decode(content_b64, validate=True)
-        except (binascii.Error, ValueError) as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid base64 payload: {exc}") from exc
-        if not cam_blob:
-            raise HTTPException(status_code=400, detail="Uploaded CAM payload is empty")
-
-        ensure_dirs(app.state.cfg)
-        output_dir = resolve_path(app.state.cfg["system"]["output_dir"])
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        tmp_cam_path = output_dir / f".cam_upload_{uuid4().hex}{suffix}"
-        tmp_cam_path.write_bytes(cam_blob)
-
+    def _resolve_cam_context() -> tuple[Optional[str], Optional[str], Optional[str], list[Path]]:
         bms = app.state.bms_cfg
         bms_base_dir: Optional[str] = None
         theater_target_folder: Optional[str] = None
@@ -513,14 +483,90 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
                     theater_target_folder = bms.theater_config[bms.theater].get("target_folder", "") or None
             except Exception:
                 theater_target_folder = None
+        campaign_dirs = _campaign_dirs(
+            bms_base_dir=bms_base_dir,
+            theater_target_folder=theater_target_folder,
+        )
+        return bms_base_dir, theater_target_folder, theater_name, campaign_dirs
+
+    def _path_within(path: Path, base: Path) -> bool:
+        try:
+            path.relative_to(base)
+            return True
+        except ValueError:
+            return False
+
+    @app.get("/api/cam/saves")
+    def list_cam_saves() -> Dict[str, Any]:
+        _, _, _, campaign_dirs = _resolve_cam_context()
+        saves: list[dict[str, Any]] = []
+        seen: set[Path] = set()
+        for directory in campaign_dirs:
+            try:
+                for candidate in directory.iterdir():
+                    if not candidate.is_file():
+                        continue
+                    suffix = candidate.suffix.lower()
+                    if suffix not in cam_suffixes:
+                        continue
+                    resolved = candidate.resolve()
+                    if resolved in seen:
+                        continue
+                    seen.add(resolved)
+                    stat = candidate.stat()
+                    saves.append(
+                        {
+                            "name": candidate.name,
+                            "stem": candidate.stem,
+                            "suffix": suffix,
+                            "path": str(resolved),
+                            "size": stat.st_size,
+                            "mtime": stat.st_mtime,
+                        }
+                    )
+            except Exception as exc:
+                logger.warning("Failed listing campaign directory %s: %s", directory, exc)
+        saves.sort(key=lambda item: item.get("mtime", 0.0), reverse=True)
+        return {
+            "campaign_dirs": [str(path) for path in campaign_dirs],
+            "allowed_extensions": sorted(cam_suffixes),
+            "saves": saves,
+        }
+
+    @app.post("/api/cam/load-local")
+    def load_cam_local(payload: CamLoadLocalRequest) -> Dict[str, Any]:
+        path_text = (payload.path or "").strip()
+        if not path_text:
+            raise HTTPException(status_code=400, detail="path is required")
+
+        try:
+            source_path = Path(path_text).expanduser().resolve()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid save path: {exc}") from exc
+        if not source_path.is_file():
+            raise HTTPException(status_code=400, detail=f"Save file does not exist: {source_path}")
+
+        suffix = source_path.suffix.lower()
+        if suffix not in cam_suffixes:
+            raise HTTPException(status_code=400, detail="Only .cam/.trn/.tac files are supported")
+
+        bms_base_dir, theater_target_folder, theater_name, campaign_dirs = _resolve_cam_context()
+        if not campaign_dirs:
+            raise HTTPException(status_code=400, detail="No campaign directories resolved from BMS config")
+        if not any(_path_within(source_path, directory) for directory in campaign_dirs):
+            raise HTTPException(status_code=400, detail="Selected save path is outside allowed campaign directories")
+
+        ensure_dirs(app.state.cfg)
+        output_dir = resolve_path(app.state.cfg["system"]["output_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             cam_data = extract_cam_brief_data(
-                tmp_cam_path,
+                source_path,
                 bms_base_dir=bms_base_dir,
                 theater_target_folder=theater_target_folder,
                 theater_name=theater_name,
-                save_stem=Path(filename).stem,
+                save_stem=source_path.stem,
             )
         except CamIntegrationError as exc:
             logger.error("CAM integration error: %s", exc)
@@ -528,13 +574,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         except Exception as exc:
             logger.error("CAM parsing failed: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to parse CAM file: {exc}") from exc
-        finally:
-            try:
-                tmp_cam_path.unlink()
-            except Exception:
-                pass
 
-        safe_stem = "".join(c for c in Path(filename).stem if c.isalnum() or c in {"_", "-"}) or "campaign"
+        safe_stem = "".join(c for c in source_path.stem if c.isalnum() or c in {"_", "-"}) or "campaign"
         json_path = output_dir / f"{safe_stem}_cam.json"
         json_path.write_text(json.dumps(cam_data, indent=2), encoding="utf-8")
 
@@ -543,6 +584,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
 
         return {
             "status": "ok",
+            "source_file": str(source_path),
             "output_file": str(json_path),
             "cam": cam_data,
         }

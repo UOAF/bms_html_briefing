@@ -841,9 +841,17 @@
           <div class="panel-head">
             <h3 class="heading-zero">CAM</h3>
           </div>
-          <div>
-            <label for="cam-file-input">Campaign save (.cam/.trn/.tac)</label>
-            <input id="cam-file-input" type="file" accept=".cam,.trn,.tac">
+          <div class="grid two">
+            <div>
+              <label for="cam-save-select">Campaign save (.cam/.trn/.tac)</label>
+              <select id="cam-save-select">
+                <option value="">No saves found</option>
+              </select>
+            </div>
+            <div style="display:flex; gap:8px; align-items:flex-end;">
+              <button id="cam-refresh-btn" type="button" title="Refresh campaign save list">Refresh saves</button>
+              <button id="cam-load-btn" type="button" title="Load selected campaign save" disabled>Load selected</button>
+            </div>
           </div>
         </section>
 
@@ -893,10 +901,13 @@
     const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
     const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
     const exportBtn = document.getElementById("export-btn");
-    const camFileInput = document.getElementById("cam-file-input");
+    const camSaveSelect = document.getElementById("cam-save-select");
+    const camRefreshBtn = document.getElementById("cam-refresh-btn");
+    const camLoadBtn = document.getElementById("cam-load-btn");
     const CAM_PREVIEW_PACKAGE_SELECT_ID = "cam-support-package-select";
     const CAM_PREVIEW_PACKAGE_QUERY_ID = "cam-support-package-query";
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
+    const CAM_LAST_SAVE_PATH_KEY = "cam_last_save_path";
     const CAM_SUPPORT_CELL_IDS = [
       "package_1", "package_2", "package_3", "package_4", "package_5", "package_6", "package_7", "package_30",
       "package_8", "package_9", "package_10", "package_11", "package_12", "package_13", "package_14", "package_31",
@@ -929,6 +940,7 @@
     let pendingCamBullseye = null;
     let pendingCamPackageIndex = null;
     let lastCamData = null;
+    let camAutoLoadAttempted = false;
     const sectionLabels = {
       airbase: "Airbase",
       package: "Package",
@@ -966,8 +978,8 @@
     function updateCamSummaryUi(camData, outputPath = null) {
       if (!camData) return;
       if (!outputPath) return;
-      if (camFileInput) {
-        camFileInput.title = `CAM parsed: ${outputPath}`;
+      if (camSaveSelect) {
+        camSaveSelect.title = `CAM parsed: ${outputPath}`;
       }
     }
 
@@ -1351,15 +1363,6 @@
       return false;
     }
 
-    function fileToDataUrl(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result || "");
-        reader.onerror = () => reject(new Error("Failed to read CAM file"));
-        reader.readAsDataURL(file);
-      });
-    }
-
     function camBullseyeToMapLatLng(camData) {
       const bull = camData && camData.bullseye ? camData.bullseye : null;
       if (!bull) return null;
@@ -1542,6 +1545,8 @@
         pages = Array.isArray(data.pages) ? data.pages : [];
         renderPages();
         await loadTheater();
+        await refreshCamSaveList(true);
+        await autoLoadSavedCamIfNeeded();
         if (!hasError && pages.length > 0) {
         await doPreview(currentOverrides());
       }
@@ -1605,6 +1610,7 @@
 
     document.getElementById("reload-btn").addEventListener("click", async () => {
       try {
+        resetSavedCamSelection();
         await fetchJSON("/api/reload", { method: "POST" });
         log("Reloaded BMS config");
         await loadStatus();
@@ -1695,29 +1701,108 @@
       }
     }
 
-    async function loadCamFromInput() {
-      const file = camFileInput?.files && camFileInput.files[0];
-      if (!file) {
-        log("Select a .cam/.trn/.tac file first");
+    function formatCamSaveLabel(save) {
+      if (!save || typeof save !== "object") return "";
+      const name = typeof save.name === "string" ? save.name : "";
+      const mtime = Number(save.mtime);
+      if (!name) return "";
+      if (!Number.isFinite(mtime)) return name;
+      return `${name} (${new Date(mtime * 1000).toLocaleString()})`;
+    }
+
+    function populateCamSaveSelect(saves) {
+      if (!camSaveSelect) return;
+      const previousValue = camSaveSelect.value || "";
+      let storedValue = "";
+      try {
+        storedValue = localStorage.getItem(CAM_LAST_SAVE_PATH_KEY) || "";
+      } catch {
+        storedValue = "";
+      }
+      camSaveSelect.innerHTML = "";
+      if (!Array.isArray(saves) || saves.length === 0) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "No saves found";
+        camSaveSelect.appendChild(option);
+        camSaveSelect.disabled = true;
+        if (camLoadBtn) camLoadBtn.disabled = true;
+        return;
+      }
+
+      let optionCount = 0;
+      saves.forEach((save) => {
+        if (!save || typeof save.path !== "string" || !save.path) return;
+        const option = document.createElement("option");
+        option.value = save.path;
+        option.textContent = formatCamSaveLabel(save) || save.path;
+        option.title = save.path;
+        camSaveSelect.appendChild(option);
+        optionCount += 1;
+      });
+      if (!optionCount) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "No saves found";
+        camSaveSelect.appendChild(option);
+        camSaveSelect.disabled = true;
+        if (camLoadBtn) camLoadBtn.disabled = true;
+        return;
+      }
+
+      camSaveSelect.disabled = false;
+      if (camLoadBtn) camLoadBtn.disabled = false;
+      const hasPrevious = Array.from(camSaveSelect.options).some((option) => option.value === previousValue);
+      const hasStored = !!storedValue && Array.from(camSaveSelect.options).some((option) => option.value === storedValue);
+      if (hasPrevious) {
+        camSaveSelect.value = previousValue;
+      } else if (hasStored) {
+        camSaveSelect.value = storedValue;
+      } else {
+        camSaveSelect.selectedIndex = 0;
+      }
+    }
+
+    async function refreshCamSaveList(silent = true) {
+      try {
+        const response = await fetchJSON("/api/cam/saves");
+        const saves = Array.isArray(response.saves) ? response.saves : [];
+        populateCamSaveSelect(saves);
+        if (!silent) {
+          log(saves.length ? `Campaign saves refreshed (${saves.length})` : "No campaign saves found");
+        }
+      } catch (err) {
+        log(`Failed to refresh campaign saves: ${err.message}`);
+      }
+    }
+
+    async function loadCamFromSelection(options = {}) {
+      const silent = !!options.silent;
+      const selectedPath = typeof camSaveSelect?.value === "string" ? camSaveSelect.value.trim() : "";
+      if (!selectedPath) {
+        if (!silent) log("Select a campaign save first");
         return;
       }
       try {
-        const dataUrl = await fileToDataUrl(file);
-        const base64Payload = typeof dataUrl === "string" && dataUrl.includes(",")
-          ? dataUrl.split(",", 2)[1]
-          : dataUrl;
-        const response = await fetchJSON("/api/cam/load", {
+        const response = await fetchJSON("/api/cam/load-local", {
           method: "POST",
-          body: JSON.stringify({
-            filename: file.name,
-            content_b64: base64Payload
-          })
+          body: JSON.stringify({ path: selectedPath })
         });
         lastCamData = response.cam || null;
+        if (camSaveSelect && typeof response.source_file === "string" && response.source_file) {
+          camSaveSelect.value = response.source_file;
+        }
+        try {
+          localStorage.setItem(CAM_LAST_SAVE_PATH_KEY, typeof response.source_file === "string" && response.source_file ? response.source_file : selectedPath);
+        } catch {
+          // Keep behavior even if localStorage is unavailable.
+        }
         updateCamSummaryUi(lastCamData, response.output_file || "–");
-        log(`CAM loaded; JSON written to ${response.output_file}`);
+        if (!silent) {
+          log(`CAM loaded from ${response.source_file || selectedPath}; JSON written to ${response.output_file}`);
+        }
         if (lastCamData && Array.isArray(lastCamData.warnings) && lastCamData.warnings.length) {
-          log(`CAM warnings: ${lastCamData.warnings.join(" | ")}`);
+          if (!silent) log(`CAM warnings: ${lastCamData.warnings.join(" | ")}`);
         }
         applyCamBullseyeToMap(lastCamData, false);
         bindCamPackageSelectorInPreview();
@@ -1728,8 +1813,40 @@
         }
         applyCamL16ToMainPackage(lastCamData, false);
       } catch (err) {
-        log(`CAM load failed: ${err.message}`);
+        if (!silent) log(`CAM load failed: ${err.message}`);
       }
+    }
+
+    async function autoLoadSavedCamIfNeeded() {
+      if (camAutoLoadAttempted) return;
+      camAutoLoadAttempted = true;
+      if (lastCamData) return;
+      const selectedPath = typeof camSaveSelect?.value === "string" ? camSaveSelect.value.trim() : "";
+      if (!selectedPath) return;
+      try {
+        const storedPath = localStorage.getItem(CAM_LAST_SAVE_PATH_KEY) || "";
+        if (!storedPath || storedPath !== selectedPath) return;
+      } catch {
+        return;
+      }
+      await loadCamFromSelection({ silent: true });
+    }
+
+    function resetSavedCamSelection() {
+      try {
+        localStorage.removeItem(CAM_LAST_SAVE_PATH_KEY);
+      } catch {
+        // Keep behavior even if localStorage is unavailable.
+      }
+      if (camSaveSelect) {
+        camSaveSelect.value = "";
+        camSaveSelect.title = "";
+      }
+      camAutoLoadAttempted = false;
+      lastCamData = null;
+      pendingCamBullseye = null;
+      pendingCamPackageIndex = null;
+      updateCamPackageSelector(null);
     }
 
     function getSavedEdits() {
@@ -1939,9 +2056,25 @@
       await runExportFlow("manual");
     });
 
-    if (camFileInput) {
-      camFileInput.addEventListener("change", async () => {
-        await loadCamFromInput();
+    if (camRefreshBtn) {
+      camRefreshBtn.addEventListener("click", async () => {
+        await refreshCamSaveList(false);
+      });
+    }
+    if (camSaveSelect) {
+      camSaveSelect.addEventListener("change", () => {
+        const selectedPath = typeof camSaveSelect.value === "string" ? camSaveSelect.value.trim() : "";
+        if (!selectedPath) return;
+        try {
+          localStorage.setItem(CAM_LAST_SAVE_PATH_KEY, selectedPath);
+        } catch {
+          // Keep behavior even if localStorage is unavailable.
+        }
+      });
+    }
+    if (camLoadBtn) {
+      camLoadBtn.addEventListener("click", async () => {
+        await loadCamFromSelection();
       });
     }
 
@@ -2231,6 +2364,7 @@
           await fetchJSON("/api/theater", { method: "POST", body: JSON.stringify(payload) });
           log("Theater settings saved");
           await loadTheater(true);
+          await refreshCamSaveList(false);
         } catch (err) {
           log(`Save theater failed: ${err.message}`);
         }
