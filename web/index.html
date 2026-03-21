@@ -915,10 +915,6 @@
       "package_23", "package_24", "package_25", "package_26", "package_27", "package_28", "package_29", "package_33",
       "package_34", "package_35", "package_36", "package_37", "package_38", "package_39", "package_40", "package_41"
     ];
-    const CAM_SUPPORT_COLS = 8;
-    const CAM_SUPPORT_MAX_ROWS = Math.floor(CAM_SUPPORT_CELL_IDS.length / CAM_SUPPORT_COLS);
-    const CAM_DATE_CELL_ID = "current_date";
-    const CAM_MOONPHASE_CELL_ID = "moonphase";
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
     window.layoutDirty = false;
     let lastLogId = 0;
@@ -937,8 +933,6 @@
     let autoExportOnChange = false;
     let autoExportPdfOnly = false;
     let copyToKtoEnabled = false;
-    let pendingCamBullseye = null;
-    let pendingCamPackageIndex = null;
     let lastCamData = null;
     let camAutoLoadAttempted = false;
     const sectionLabels = {
@@ -983,73 +977,6 @@
       }
     }
 
-    function getCamPackages(camData) {
-      if (!camData || !Array.isArray(camData.packages)) return [];
-      return camData.packages.filter((pkg) => pkg && typeof pkg === "object");
-    }
-
-    function getMissionName(entity) {
-      if (!entity || typeof entity !== "object") return "";
-      const tasking = entity.tasking;
-      if (!tasking || typeof tasking !== "object") return "";
-      const missionName = typeof tasking.mission_name === "string" ? tasking.mission_name.trim() : "";
-      if (missionName && missionName.toUpperCase() !== "NONE") return missionName;
-      const oldMissionName = typeof tasking.old_mission_name === "string" ? tasking.old_mission_name.trim() : "";
-      if (oldMissionName && oldMissionName.toUpperCase() !== "NONE") return oldMissionName;
-      return "";
-    }
-
-    function formatCamTime(value) {
-      if (typeof value !== "string") return "";
-      const raw = value.trim();
-      if (!raw) return "";
-      const normalized = raw.replace(/z$/i, "");
-
-      const hhmmssColon = normalized.match(/^(\d{1,2})\s*:\s*(\d{2})(?:\s*:\s*(\d{2})(?:\.\d+)?)?$/);
-      if (hhmmssColon) {
-        const hh = hhmmssColon[1].padStart(2, "0");
-        const mm = hhmmssColon[2];
-        const ss = (hhmmssColon[3] || "00").padStart(2, "0");
-        return `${hh}:${mm}:${ss}z`;
-      }
-
-      const hhmmssDigits = normalized.match(/^(\d{3,6})$/);
-      if (hhmmssDigits) {
-        const digits = hhmmssDigits[1];
-        if (digits.length <= 4) {
-          const hhmm = digits.padStart(4, "0");
-          return `${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00z`;
-        }
-        const hhmmss = digits.padStart(6, "0");
-        return `${hhmmss.slice(0, 2)}:${hhmmss.slice(2, 4)}:${hhmmss.slice(4)}z`;
-      }
-
-      return raw;
-    }
-
-    function formatCamAircraftWithCount(flight) {
-      const aircraft = typeof flight?.aircraft === "string" ? flight.aircraft.trim() : "";
-      if (!aircraft) return "";
-      if (/^\d+\s+/.test(aircraft)) return aircraft;
-
-      const rawCount =
-        flight?.aircraft_count ??
-        flight?.aircraft_num ??
-        flight?.flight_size ??
-        flight?.num_aircraft;
-      const parsedCount = Number.parseInt(String(rawCount ?? ""), 10);
-      if (Number.isFinite(parsedCount) && parsedCount > 0) {
-        return `${parsedCount} ${aircraft}`;
-      }
-      return aircraft;
-    }
-
-    function getCamPackageLabel(pkg, index) {
-      const packageNumber = Number.isFinite(pkg?.package_number) ? String(pkg.package_number) : `#${index + 1}`;
-      const missionName = getMissionName(pkg);
-      return missionName ? `${packageNumber} (${missionName})` : packageNumber;
-    }
-
     function getSavedCamSupportPackageIndex() {
       const raw = localStorage.getItem(CAM_SUPPORT_PACKAGE_SAVED_KEY);
       const parsed = Number.parseInt(String(raw ?? ""), 10);
@@ -1081,15 +1008,46 @@
       return cw.document.getElementById(CAM_PREVIEW_PACKAGE_QUERY_ID);
     }
 
-    function packageSearchText(pkg, index) {
-      const label = getCamPackageLabel(pkg, index);
-      const packageNumber = Number.isFinite(pkg?.package_number) ? String(pkg.package_number) : "";
-      const flights = Array.isArray(pkg?.flights) ? pkg.flights : [];
-      const roleTokens = flights
-        .map((flight) => getMissionName(flight))
-        .filter((name) => typeof name === "string" && name.trim())
-        .join(" ");
-      return `${label} ${packageNumber} ${roleTokens}`.toLowerCase();
+    function clearSavedCamRenderedValues({ clearBullseye = false, clearSupportPackage = false } = {}) {
+      const saved = getSavedEdits();
+      if (clearBullseye) {
+        delete saved.bullseyePos;
+      }
+      if (clearSupportPackage) {
+        CAM_SUPPORT_CELL_IDS.forEach((id) => {
+          delete saved[id];
+        });
+      }
+      Object.keys(saved).forEach((key) => {
+        if (key.startsWith("package_main_l16_")) {
+          delete saved[key];
+        }
+      });
+      localStorage.setItem("contenteditables", JSON.stringify(saved));
+    }
+
+    function rebuildPreviewCamPackageOptions(select, options, selectedValue, queryText) {
+      if (!select) return;
+      select.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = options.length ? "Select package" : "No matching packages";
+      select.appendChild(placeholder);
+      options.forEach((optionData) => {
+        const option = document.createElement("option");
+        option.value = optionData.value;
+        option.textContent = optionData.label;
+        option.dataset.search = optionData.search;
+        select.appendChild(option);
+      });
+      if (selectedValue && options.some((option) => option.value === selectedValue)) {
+        select.value = selectedValue;
+      } else if (queryText && options.length === 1) {
+        select.value = options[0].value;
+      } else {
+        select.value = "";
+      }
+      select.disabled = options.length === 0;
     }
 
     function bindCamPackageSelectorInPreview() {
@@ -1097,323 +1055,45 @@
       const query = getPreviewCamPackageQuery();
       if (!select) return false;
       if (select.dataset.camBound === "1") return true;
+      select._camOptions = Array.from(select.querySelectorAll("option"))
+        .filter((option) => option.value !== "")
+        .map((option) => ({
+          value: option.value,
+          label: option.textContent || "",
+          search: (option.dataset.search || option.textContent || "").toLowerCase(),
+        }));
       select.dataset.camBound = "1";
-      select.addEventListener("change", () => {
-        if (!lastCamData) return;
+      select.addEventListener("change", async () => {
         const selected = getSelectedCamPackageIndex();
         if (!Number.isFinite(selected)) return;
-        applyCamPackageToSupportingTable(lastCamData, selected, false);
+        clearSavedCamRenderedValues({ clearSupportPackage: true });
+        saveCamSupportPackageIndex(selected);
+        await doPreview(currentOverrides());
       });
       if (query && query.dataset.camBound !== "1") {
         query.dataset.camBound = "1";
         query.addEventListener("input", () => {
-          if (!lastCamData) return;
-          const before = getSelectedCamPackageIndex();
-          updateCamPackageSelector(lastCamData);
-          const after = getSelectedCamPackageIndex();
-          if (Number.isFinite(after) && after !== before) {
-            applyCamPackageToSupportingTable(lastCamData, after, true);
-          }
+          const sourceOptions = Array.isArray(select._camOptions) ? select._camOptions : [];
+          const selectedValue = select.value;
+          const queryText = (query.value || "").trim().toLowerCase();
+          const visibleOptions = queryText
+            ? sourceOptions.filter((option) => option.search.includes(queryText))
+            : sourceOptions;
+          rebuildPreviewCamPackageOptions(select, visibleOptions, selectedValue, queryText);
         });
       }
-      return true;
-    }
-
-    function updateCamPackageSelector(camData) {
-      const select = getPreviewCamPackageSelect();
-      const query = getPreviewCamPackageQuery();
-      if (!select) return false;
-      const packages = getCamPackages(camData);
-      const previousValue = Number.parseInt(select.value, 10);
-      const queryText = (query?.value || "").trim().toLowerCase();
-      const packageEntries = packages.map((pkg, index) => ({
-        index,
-        label: getCamPackageLabel(pkg, index),
-        search: packageSearchText(pkg, index),
-      }));
-      const filtered = queryText
-        ? packageEntries.filter((entry) => entry.search.includes(queryText))
-        : packageEntries;
-      select.innerHTML = "";
-      if (!filtered.length) {
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = packages.length ? "No matching packages" : "No packages loaded";
-        select.appendChild(option);
-        select.disabled = true;
-        pendingCamPackageIndex = null;
-        return true;
-      }
-
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = "Select package";
-      select.appendChild(placeholder);
-
-      filtered.forEach((entry) => {
-        const option = document.createElement("option");
-        option.value = String(entry.index);
-        option.textContent = entry.label;
-        select.appendChild(option);
-      });
-
-      let selectedIndex = pendingCamPackageIndex;
-      if (queryText && filtered.length === 1) {
-        selectedIndex = filtered[0].index;
-      }
-      if (!Number.isFinite(selectedIndex)) {
-        const savedIndex = getSavedCamSupportPackageIndex();
-        if (Number.isFinite(savedIndex) && savedIndex >= 0 && savedIndex < packages.length) {
-          selectedIndex = savedIndex;
-        }
-      }
-      if (!Number.isFinite(selectedIndex)) {
-        if (Number.isFinite(previousValue) && previousValue >= 0 && previousValue < packages.length) {
-          selectedIndex = previousValue;
-        }
-      }
-      if (Number.isFinite(selectedIndex)) {
-        const isVisible = filtered.some((entry) => entry.index === selectedIndex);
-        if (!isVisible) {
-          selectedIndex = null;
-        }
-      }
-      if (Number.isFinite(selectedIndex)) {
-        select.value = String(selectedIndex);
-      } else {
-        select.value = "";
-      }
-      select.disabled = false;
       return true;
     }
 
     function getSelectedCamPackageIndex() {
       const select = getPreviewCamPackageSelect();
-      if (!select) return Number.isFinite(pendingCamPackageIndex) ? pendingCamPackageIndex : null;
+      if (!select) {
+        const saved = getSavedCamSupportPackageIndex();
+        return Number.isFinite(saved) ? saved : null;
+      }
       const parsed = Number.parseInt(select.value, 10);
       if (!Number.isFinite(parsed) || parsed < 0) return null;
       return parsed;
-    }
-
-    function buildSupportRowFromCamFlight(flight, pkg) {
-      const flightTiming = (flight && typeof flight.timing === "object") ? flight.timing : {};
-      return [
-        typeof flight?.callsign === "string" ? flight.callsign : "",
-        Number.isFinite(flight?.flight_number) ? String(flight.flight_number) : "",
-        getMissionName(flight),
-        formatCamAircraftWithCount(flight),
-        formatCamTime(flightTiming.takeoff_time_z || ""),
-        formatCamTime(flightTiming.push_time_z || ""),
-        formatCamTime(flightTiming.time_on_target_z || ""),
-        typeof flight?.l16 === "string" ? flight.l16 : ""
-      ];
-    }
-
-    function buildSupportRowsFromCamPackage(pkg) {
-      const flights = Array.isArray(pkg?.flights) ? pkg.flights.filter((flight) => flight && typeof flight === "object") : [];
-      const rows = flights.slice(0, CAM_SUPPORT_MAX_ROWS).map((flight) => buildSupportRowFromCamFlight(flight, pkg));
-      if (!rows.length) {
-        const packageTiming = (pkg && typeof pkg.timing === "object") ? pkg.timing : {};
-        rows.push([
-          "",
-          Number.isFinite(pkg?.package_number) ? String(pkg.package_number) : "",
-          getMissionName(pkg),
-          "",
-          formatCamTime(packageTiming.takeoff_time_z || ""),
-          formatCamTime(packageTiming.push_time_z || ""),
-          formatCamTime(packageTiming.time_on_target_z || ""),
-          ""
-        ]);
-      }
-      while (rows.length < CAM_SUPPORT_MAX_ROWS) {
-        rows.push(["", "", "", "", "", "", "", ""]);
-      }
-      return { rows, flightCount: flights.length };
-    }
-
-    function getCamL16ByFlightNumber(camData) {
-      const out = new Map();
-      const packages = getCamPackages(camData);
-      packages.forEach((pkg) => {
-        const flights = Array.isArray(pkg?.flights) ? pkg.flights : [];
-        flights.forEach((flight) => {
-          if (!flight || typeof flight !== "object") return;
-          const number = Number.parseInt(String(flight.flight_number ?? ""), 10);
-          if (!Number.isFinite(number)) return;
-          const l16 = typeof flight.l16 === "string" ? flight.l16.trim() : "";
-          out.set(number, l16);
-        });
-      });
-      return out;
-    }
-
-    function applyCamL16ToMainPackage(camData, silent = false) {
-      if (!camData) return false;
-      const l16ByFlight = getCamL16ByFlightNumber(camData);
-      const cw = briefFrame?.contentWindow;
-      if (!cw || !cw.document) return false;
-      const table = cw.document.getElementById("package");
-      if (!table) return false;
-      const rows = Array.from(table.querySelectorAll("tbody tr"));
-      if (!rows.length) return false;
-
-      let applied = 0;
-      const saved = getSavedEdits();
-      rows.forEach((row, rowIndex) => {
-        const cells = Array.from(row.querySelectorAll("td"));
-        if (cells.length < 8) return;
-        const number = Number.parseInt((cells[1].textContent || "").trim(), 10);
-        const value = Number.isFinite(number) ? (l16ByFlight.get(number) || "") : "";
-        cells[7].textContent = value;
-        const l16CellId = `package_main_l16_${rowIndex + 1}`;
-        const domId = cells[7].id || l16CellId;
-        saved[domId] = value;
-        if (value) applied += 1;
-      });
-      localStorage.setItem("contenteditables", JSON.stringify(saved));
-      if (!silent && applied > 0) {
-        log(`Main package L16 applied for ${applied} flights`);
-      }
-      return applied > 0;
-    }
-    
-    function getMoonPhase(camData) {
-      if (!camData || (!camData.moonPhase)) return "";
-      return camData.moonPhase;
-    }
-
-    function applyCamMoonPhaseToWeatherTable(camData, silent = false) {
-      const moonPhase = getMoonPhase(camData);
-      const id = CAM_MOONPHASE_CELL_ID
-      if (!moonPhase) {
-        if (!silent) log("No moon phase in CAM data.");
-        return false;
-      }
-      const saved = getSavedEdits()
-      saved[id] = moonPhase;
-      localStorage.setItem("contenteditables", JSON.stringify(saved));
-
-      const cw = briefFrame?.contentWindow;
-      if (cw && cw.document) {
-        const el = cw.document.getElementById(id);
-        if (el) el.textContent = saved[id] || "";
-        if (typeof cw.saveChangedData === "function") {
-          try {
-            cw.saveChangedData();
-          } catch {
-            // keep localStorage update even if saveChangedData fails
-          }
-        }
-        if (!silent) {
-          log(`Moon phase populated from CAM file.`);
-        }
-      }
-      return true;
-    }
-
-    function applyCamPackageToSupportingTable(camData, packageIndex = null, silent = false) {
-      const packages = getCamPackages(camData);
-      if (!packages.length) {
-        if (!silent) log("No CAM package data loaded");
-        return false;
-      }
-      let selectedIndex = packageIndex !== null ? packageIndex : getSelectedCamPackageIndex();
-      if (!Number.isFinite(selectedIndex) || selectedIndex < 0 || selectedIndex >= packages.length) {
-        selectedIndex = 0;
-      }
-
-      const selectedPackage = packages[selectedIndex];
-      const { rows, flightCount } = buildSupportRowsFromCamPackage(selectedPackage);
-      const values = rows.flat().slice(0, CAM_SUPPORT_CELL_IDS.length);
-      const saved = getSavedEdits();
-      CAM_SUPPORT_CELL_IDS.forEach((id, idx) => {
-        saved[id] = values[idx] || "";
-      });
-      localStorage.setItem("contenteditables", JSON.stringify(saved));
-
-      const cw = briefFrame?.contentWindow;
-      if (cw && cw.document) {
-        CAM_SUPPORT_CELL_IDS.forEach((id) => {
-          const el = cw.document.getElementById(id);
-          if (el) el.innerHTML = saved[id] || "";
-        });
-        if (typeof cw.saveChangedData === "function") {
-          try {
-            cw.saveChangedData();
-          } catch {
-            // keep localStorage update even if saveChangedData fails
-          }
-        }
-        const selector = getPreviewCamPackageSelect();
-        if (selector) {
-          selector.value = String(selectedIndex);
-        }
-        pendingCamPackageIndex = null;
-        if (!silent) {
-          log(`Supporting package populated from CAM package ${getCamPackageLabel(selectedPackage, selectedIndex)}`);
-          if (flightCount > CAM_SUPPORT_MAX_ROWS) {
-            log(`Package has ${flightCount} flights; showing first ${CAM_SUPPORT_MAX_ROWS}`);
-          }
-        }
-        return true;
-      }
-
-      pendingCamPackageIndex = selectedIndex;
-      if (!silent) log("Supporting package queued; open/generate briefing to apply on load");
-      return false;
-    }
-
-    function camBullseyeToMapLatLng(camData) {
-      const bull = camData && camData.bullseye ? camData.bullseye : null;
-      if (!bull) return null;
-      if (Number.isFinite(bull.map_lat) && Number.isFinite(bull.map_lng)) {
-        return { lat: bull.map_lat, lng: bull.map_lng };
-      }
-      const x = bull.x;
-      const y = bull.y;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-      // Legacy fallback: interpret as Falcon world scalar.
-      const imageHeight = 4096;
-      const falconHeight = 3359580;
-      const lat = (x / falconHeight) * imageHeight - imageHeight;
-      const lng = (y / falconHeight) * imageHeight;
-      return { lat, lng };
-    }
-
-    function applyBullseyePosToStorage(latlng) {
-      const saved = getSavedEdits();
-      saved.bullseyePos = latlng;
-      localStorage.setItem("contenteditables", JSON.stringify(saved));
-    }
-
-    function applyCamBullseyeToMap(camData, silent = false) {
-      if (!camData || !camData.bullseye) return false;
-      const x = camData.bullseye.x;
-      const y = camData.bullseye.y;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-
-      const latlng = camBullseyeToMapLatLng(camData);
-      if (!latlng || !Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) return false;
-      applyBullseyePosToStorage(latlng);
-
-      const frame = document.getElementById("brief-frame");
-      const cw = frame?.contentWindow;
-      if (cw && typeof cw.setBullseye === "function") {
-        cw.setBullseye(latlng);
-        if (typeof cw.saveChangedData === "function") {
-          try {
-            cw.saveChangedData();
-          } catch {
-            // keep localStorage value set above even if saveChangedData fails
-          }
-        }
-        pendingCamBullseye = null;
-        if (!silent) log("CAM bullseye applied to map");
-        return true;
-      }
-      pendingCamBullseye = camData;
-      if (!silent) log("CAM bullseye queued; open/generate briefing to apply on map load");
-      return false;
     }
 
     function applyAutoExportMode(onChange, pdfOnly) {
@@ -1674,7 +1354,13 @@
           wine_prefix: wineInput.value,
           output_dir: document.getElementById("output_dir").value,
           pdf_output_dir: document.getElementById("pdf_output_dir").value
-        }
+        },
+        cam_package_index: (() => {
+          const selected = getSelectedCamPackageIndex();
+          if (Number.isFinite(selected)) return selected;
+          const saved = getSavedCamSupportPackageIndex();
+          return Number.isFinite(saved) ? saved : null;
+        })()
       };
     }
 
@@ -1804,14 +1490,12 @@
         if (lastCamData && Array.isArray(lastCamData.warnings) && lastCamData.warnings.length) {
           if (!silent) log(`CAM warnings: ${lastCamData.warnings.join(" | ")}`);
         }
-        applyCamBullseyeToMap(lastCamData, false);
-        bindCamPackageSelectorInPreview();
-        updateCamPackageSelector(lastCamData);
-        const selectedIndex = getSelectedCamPackageIndex();
-        if (Number.isFinite(selectedIndex)) {
-          applyCamPackageToSupportingTable(lastCamData, selectedIndex, false);
-        }
-        applyCamL16ToMainPackage(lastCamData, false);
+        const selectedIndex = Number.isFinite(response.selected_package_index) ? response.selected_package_index : 0;
+        clearSavedCamRenderedValues({ clearBullseye: true, clearSupportPackage: true });
+        saveCamSupportPackageIndex(selectedIndex);
+        const overrides = currentOverrides();
+        overrides.cam_package_index = selectedIndex;
+        await doPreview(overrides);
       } catch (err) {
         if (!silent) log(`CAM load failed: ${err.message}`);
       }
@@ -1842,11 +1526,9 @@
         camSaveSelect.value = "";
         camSaveSelect.title = "";
       }
+      saveCamSupportPackageIndex(null);
       camAutoLoadAttempted = false;
       lastCamData = null;
-      pendingCamBullseye = null;
-      pendingCamPackageIndex = null;
-      updateCamPackageSelector(null);
     }
 
     function getSavedEdits() {
@@ -1869,11 +1551,6 @@
         } catch (err) {
           log(`saveChangedData failed: ${err.message}`);
         }
-      }
-      // saveChangedData persists only contenteditable fields; re-apply CAM L16 so
-      // non-contenteditable main package L16 cells are present in payload as well.
-      if (lastCamData) {
-        applyCamL16ToMainPackage(lastCamData, true);
       }
       const saved = getSavedEdits();
       if (dataFromFrame && typeof dataFromFrame === "object") {
@@ -2108,26 +1785,11 @@
     briefFrame.addEventListener("load", () => {
       callBriefing("loadChangedData");
       bindCamPackageSelectorInPreview();
-      updateCamPackageSelector(lastCamData);
-      if (pendingCamBullseye) {
-        applyCamBullseyeToMap(pendingCamBullseye, true);
-      }
-      if (lastCamData) {
-        const selectedIndex = getSelectedCamPackageIndex();
-        const savedIndex = getSavedCamSupportPackageIndex();
-        const packageIndex = Number.isFinite(selectedIndex)
-          ? selectedIndex
-          : (Number.isFinite(pendingCamPackageIndex)
-            ? pendingCamPackageIndex
-            : (Number.isFinite(savedIndex) ? savedIndex : null));
-        if (Number.isFinite(packageIndex)) {
-          applyCamPackageToSupportingTable(lastCamData, packageIndex, true);
-        }
-        applyCamL16ToMainPackage(lastCamData, true);
+      const selectedIndex = getSelectedCamPackageIndex();
+      if (Number.isFinite(selectedIndex)) {
+        saveCamSupportPackageIndex(selectedIndex);
       }
     });
-
-    updateCamPackageSelector(null);
 
     document.getElementById("save-edits-btn").addEventListener("click", () => {
       callBriefing("saveChangedData");
@@ -2135,24 +1797,12 @@
     });
     document.getElementById("load-edits-btn").addEventListener("click", () => {
       callBriefing("loadChangedData");
-      if (!lastCamData) return;
-      updateCamPackageSelector(lastCamData);
-      const savedIndex = getSavedCamSupportPackageIndex();
-      if (Number.isFinite(savedIndex)) {
-        applyCamPackageToSupportingTable(lastCamData, savedIndex, true);
-      }
+      saveCurrentCamSupportPackageSelection();
     });
     document.getElementById("reset-edits-btn").addEventListener("click", () => {
       callBriefing("resetContenteditables");
-      saveCamSupportPackageIndex(null);
-      pendingCamPackageIndex = null;
       const query = getPreviewCamPackageQuery();
       if (query) query.value = "";
-      const select = getPreviewCamPackageSelect();
-      if (select) select.value = "";
-      if (lastCamData) {
-        updateCamPackageSelector(lastCamData);
-      }
     });
     document.getElementById("open-pdf-btn").addEventListener("click", () => {
       window.open("/pdf", "_blank");

@@ -72,7 +72,7 @@
 	<td>{{flight.takeoff}}</td>
 	<td>{{flight.push}}</td>
 	<td>{{flight.tot}}</td>
-	<td id="package_main_l16_{{loop.index}}">{{flight.l16}}</td>
+	<td id="package_main_l16_{{loop.index}}">{{cam_main_package_l16.get(flight.flight|string, flight.l16)}}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -83,8 +83,15 @@
   <span class="cam-package-picker" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">
     <label for="cam-support-package-select">CAM</label>
     <input id="cam-support-package-query" type="search" placeholder="# / role" title="Type to filter package list">
-    <select id="cam-support-package-select" title="CAM supporting package">
+    <select id="cam-support-package-select" title="CAM supporting package" {% if not cam_package_options %}disabled{% endif %}>
+      {% if cam_package_options %}
+      <option value="">Select package</option>
+      {% for option in cam_package_options %}
+      <option value="{{option.index}}" data-search="{{option.search_text}}" {% if option.selected %}selected{% endif %}>{{option.label}}</option>
+      {% endfor %}
+      {% else %}
       <option value="">No CAM package loaded</option>
+      {% endif %}
     </select>
   </span>
 </th>
@@ -113,64 +120,13 @@
             <th>L16</th>
         </tr>
     </thead>
+    {% for row in cam_support_package_rows %}
     <tbody>
       <tr>
-	<td contenteditable="true" class="editable" id="package_1"></td>
-	<td contenteditable="true" class="editable" id="package_2"></td>
-	<td contenteditable="true" class="editable" id="package_3"></td>
-	<td contenteditable="true" class="editable" id="package_4"></td>
-	<td contenteditable="true" class="editable" id="package_5"></td>
-	<td contenteditable="true" class="editable" id="package_6"></td>
-	<td contenteditable="true" class="editable" id="package_7"></td>
-	<td contenteditable="true" class="editable" id="package_30"></td>
+	{% for cell in row %}
+	<td contenteditable="true" class="editable" id="{{cell.id}}">{{cell.value}}</td>
+	{% endfor %}
       </tr>
     </tbody>
-    <tbody>
-      <tr>
-	<td contenteditable="true" class="editable" id="package_8"></td>
-	<td contenteditable="true" class="editable" id="package_9"></td>
-	<td contenteditable="true" class="editable" id="package_10"></td>
-	<td contenteditable="true" class="editable" id="package_11"></td>
-	<td contenteditable="true" class="editable" id="package_12"></td>
-	<td contenteditable="true" class="editable" id="package_13"></td>
-	<td contenteditable="true" class="editable" id="package_14"></td>
-	<td contenteditable="true" class="editable" id="package_31"></td>
-      </tr>
-    </tbody>
-    <tbody>
-      <tr>
-	<td contenteditable="true" class="editable" id="package_15"></td>
-	<td contenteditable="true" class="editable" id="package_16"></td>
-	<td contenteditable="true" class="editable" id="package_17"></td>
-	<td contenteditable="true" class="editable" id="package_18"></td>
-	<td contenteditable="true" class="editable" id="package_19"></td>
-	<td contenteditable="true" class="editable" id="package_21"></td>
-	<td contenteditable="true" class="editable" id="package_22"></td>
-	<td contenteditable="true" class="editable" id="package_32"></td>
-      </tr>
-    </tbody>
-    <tbody>
-      <tr>
-	<td contenteditable="true" class="editable" id="package_23"></td>
-	<td contenteditable="true" class="editable" id="package_24"></td>
-	<td contenteditable="true" class="editable" id="package_25"></td>
-	<td contenteditable="true" class="editable" id="package_26"></td>
-	<td contenteditable="true" class="editable" id="package_27"></td>
-	<td contenteditable="true" class="editable" id="package_28"></td>
-	<td contenteditable="true" class="editable" id="package_29"></td>
-	<td contenteditable="true" class="editable" id="package_33"></td>
-      </tr>
-    </tbody>
-    <tbody>
-      <tr>
-	<td contenteditable="true" class="editable" id="package_34"></td>
-	<td contenteditable="true" class="editable" id="package_35"></td>
-	<td contenteditable="true" class="editable" id="package_36"></td>
-	<td contenteditable="true" class="editable" id="package_37"></td>
-	<td contenteditable="true" class="editable" id="package_38"></td>
-	<td contenteditable="true" class="editable" id="package_39"></td>
-	<td contenteditable="true" class="editable" id="package_40"></td>
-	<td contenteditable="true" class="editable" id="package_41"></td>
-      </tr>
-    </tbody>
+    {% endfor %}
 </table>

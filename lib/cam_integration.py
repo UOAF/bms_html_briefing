@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from lib.parse_l16 import format_l16_code, load_l16_for_save
-from lib.parse_twx import load_twx_date_for_cam_path, load_twx_date_for_save
+from lib.cam.types import ParsedCmpData, ParsedUniData, SummaryInput, SummaryOutput
+from lib.parsers.parse_cmp import parse_cmp
+from lib.parsers.parse_l16 import load_parsed_l16_for_save
+from lib.parsers.parse_summary import build_summary_output
+from lib.parsers.parse_twx import load_parsed_twx_for_cam_path, load_parsed_twx_for_save
+from lib.parsers.parse_uni import parse_uni
 
 logger = logging.getLogger("html_brief_log")
 
@@ -14,26 +18,15 @@ class CamIntegrationError(RuntimeError):
     """Raised when CAM integration cannot parse expected data."""
 
 
-def _to_vuid_tuple(value: Any) -> Optional[tuple[int, int]]:
-    if not isinstance(value, dict):
-        return None
-    num = value.get("num")
-    creator = value.get("creator")
-    if isinstance(num, int) and isinstance(creator, int):
-        return (num, creator)
-    return None
-
-
-def _resolve_cam_modules() -> tuple[Any, Any]:
+def _resolve_cam_modules() -> Any:
     try:
         from lib.cam.cam_content import parse_cam_file
-        from lib.cam.summary import parse_cam_summary
     except Exception as exc:
         logger.exception("Failed to import CAM parser modules")
         raise CamIntegrationError(f"Failed to import CAM parser modules: {exc}") from exc
 
     logger.debug("Resolved CAM modules via static package imports")
-    return parse_cam_file, parse_cam_summary
+    return parse_cam_file
 
 
 def _infer_support_base_dir(
@@ -193,132 +186,6 @@ def _infer_support_base_dir(
     return None
 
 
-def _record_index_by_id(uni_parsed: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
-    out: dict[tuple[int, int], dict[str, Any]] = {}
-    records = uni_parsed.get("records")
-    if not isinstance(records, list):
-        return out
-    for record in records:
-        if not isinstance(record, dict):
-            continue
-        rec_id = _to_vuid_tuple(record.get("id"))
-        if rec_id is None:
-            continue
-        out[rec_id] = record
-    return out
-
-
-def _collect_player_package_ids(
-    uni_parsed: dict[str, Any],
-    player_squadron_id: tuple[int, int] | None,
-) -> tuple[set[tuple[int, int]], str]:
-    if player_squadron_id is None:
-        return set(), "all_packages_fallback"
-
-    packages = uni_parsed.get("packages")
-    if not isinstance(packages, list):
-        return set(), "all_packages_fallback"
-
-    record_by_id = _record_index_by_id(uni_parsed)
-    player_kind: str | None = None
-    player_record = record_by_id.get(player_squadron_id)
-    if isinstance(player_record, dict) and isinstance(player_record.get("kind"), str):
-        player_kind = player_record.get("kind")
-
-    # Highest confidence for many saves: CMP player id points to a player flight.
-    if player_kind == "flight":
-        flight_linked: set[tuple[int, int]] = set()
-        for package in packages:
-            if not isinstance(package, dict):
-                continue
-            package_id = _to_vuid_tuple(package.get("id"))
-            if package_id is None:
-                continue
-            planned = package.get("planned_flight_slots")
-            if isinstance(planned, list):
-                for slot in planned:
-                    if isinstance(slot, dict) and _to_vuid_tuple(slot.get("id")) == player_squadron_id:
-                        flight_linked.add(package_id)
-                        break
-            refs = package.get("flight_refs")
-            if isinstance(refs, list):
-                for ref in refs:
-                    if isinstance(ref, dict) and _to_vuid_tuple(ref.get("id")) == player_squadron_id:
-                        flight_linked.add(package_id)
-                        break
-            urefs = package.get("unit_refs")
-            if isinstance(urefs, list):
-                for ref in urefs:
-                    if isinstance(ref, dict) and _to_vuid_tuple(ref.get("id")) == player_squadron_id:
-                        flight_linked.add(package_id)
-                        break
-        if flight_linked:
-            return flight_linked, "player_flight_ref"
-
-    # Highest confidence: package references explicitly include player's squadron VU_ID.
-    explicit: set[tuple[int, int]] = set()
-    for package in packages:
-        if not isinstance(package, dict):
-            continue
-        package_id = _to_vuid_tuple(package.get("id"))
-        if package_id is None:
-            continue
-        refs = package.get("unit_refs")
-        if not isinstance(refs, list):
-            continue
-        for ref in refs:
-            if not isinstance(ref, dict):
-                continue
-            if ref.get("kind") != "squadron":
-                continue
-            if _to_vuid_tuple(ref.get("id")) == player_squadron_id:
-                explicit.add(package_id)
-                break
-    if explicit:
-        return explicit, "player_squadron_ref"
-
-    # Fallback: match package squadron callsign index against player squadron callsign index.
-    player_callsign_idx: int | None = None
-    if isinstance(player_record, dict):
-        profile = player_record.get("callsign_profile")
-        if isinstance(profile, dict) and isinstance(profile.get("callsign_idx"), int):
-            player_callsign_idx = profile.get("callsign_idx")
-
-    if player_callsign_idx is None:
-        return set(), "all_packages_fallback"
-
-    by_callsign: set[tuple[int, int]] = set()
-    for package in packages:
-        if not isinstance(package, dict):
-            continue
-        package_id = _to_vuid_tuple(package.get("id"))
-        if package_id is None:
-            continue
-        refs = package.get("unit_refs")
-        if not isinstance(refs, list):
-            continue
-        for ref in refs:
-            if not isinstance(ref, dict) or ref.get("kind") != "squadron":
-                continue
-            ref_id = _to_vuid_tuple(ref.get("id"))
-            if ref_id is None:
-                continue
-            ref_record = record_by_id.get(ref_id)
-            if not isinstance(ref_record, dict):
-                continue
-            profile = ref_record.get("callsign_profile")
-            if not isinstance(profile, dict):
-                continue
-            ref_callsign_idx = profile.get("callsign_idx")
-            if isinstance(ref_callsign_idx, int) and ref_callsign_idx == player_callsign_idx:
-                by_callsign.add(package_id)
-                break
-
-    if by_callsign:
-        return by_callsign, "callsign_idx_fallback"
-    return set(), "all_packages_fallback"
-
-
 def extract_cam_brief_data(
     cam_file_path: str | Path,
     *,
@@ -335,7 +202,7 @@ def extract_cam_brief_data(
         theater_name,
         save_stem,
     )
-    parse_cam_file, parse_cam_summary = _resolve_cam_modules()
+    parse_cam_file = _resolve_cam_modules()
 
     source_path = Path(cam_file_path).resolve()
     support_base_dir = _infer_support_base_dir(
@@ -347,209 +214,84 @@ def extract_cam_brief_data(
     parsed_cam = parse_cam_file(
         source_path,
         bms_base_dir=support_base_dir,
-        parse_entries=True,
+        parse_entries=False,
         best_effort=True,
     )
-    cmp_parsed = parsed_cam.get_parsed_by_ext(".cmp") or {}
-    uni_parsed = parsed_cam.get_parsed_by_ext(".uni") or {}
+    cmp_entry = parsed_cam.get_entry_by_ext(".cmp")
+    uni_entry = parsed_cam.get_entry_by_ext(".uni")
 
-    player_squadron = _to_vuid_tuple(cmp_parsed.get("player_squadron_id"))
-    selected_package_ids, match_method = _collect_player_package_ids(uni_parsed, player_squadron)
-    logger.debug(
-        "CAM parsed: cmp=%s uni=%s player_squadron=%s match_method=%s selected_package_ids=%d",
-        isinstance(cmp_parsed, dict),
-        isinstance(uni_parsed, dict),
-        player_squadron,
-        match_method,
-        len(selected_package_ids),
-    )
-
-    warnings: list[str] = []
-    packages: list[dict[str, Any]] = []
-    summary_bullseye: dict[str, Any] = {}
-    l16_source_path: str | None = None
-    current_time_ms = cmp_parsed.get("current_time") if isinstance(cmp_parsed.get("current_time"), int) else None
-    current_time_z = cmp_parsed.get("current_time_z") if isinstance(cmp_parsed.get("current_time_z"), str) else None
-    current_date, _ = load_twx_date_for_cam_path(source_path)
-    if current_date is None:
-        current_date, _ = load_twx_date_for_save(
+    twx_data = load_parsed_twx_for_cam_path(source_path)
+    if not twx_data.current_date:
+        twx_data = load_parsed_twx_for_save(
             bms_base_dir=bms_base_dir,
             theater_target_folder=theater_target_folder,
             save_stem=save_stem or source_path.stem,
         )
-
-    try:
-        summary = parse_cam_summary(
-            source_path,
-            cmp_parsed=cmp_parsed,
-            uni_parsed=uni_parsed,
-            bms_base_dir=support_base_dir,
-            container_version=parsed_cam.container_version,
-            current_date=current_date,
-        )
-        if current_time_ms is None and isinstance(summary.get("current_time_ms"), int):
-            current_time_ms = summary.get("current_time_ms")
-        if not current_time_z and isinstance(summary.get("current_time_z"), str):
-            current_time_z = summary.get("current_time_z")
-        if current_date is None and isinstance(summary.get("current_date"), str):
-            current_date = summary.get("current_date")
-        if isinstance(summary.get("bullseye"), dict):
-            summary_bullseye = summary.get("bullseye")
-        raw_packages = summary.get("packages")
-        if isinstance(raw_packages, list):
-            if selected_package_ids:
-                packages = [
-                    package
-                    for package in raw_packages
-                    if isinstance(package, dict)
-                    and _to_vuid_tuple(package.get("package_id")) in selected_package_ids
-                ]
-            else:
-                packages = [package for package in raw_packages if isinstance(package, dict)]
-        raw_warnings = summary.get("warnings")
-        if isinstance(raw_warnings, list):
-            warnings.extend(str(item) for item in raw_warnings)
-    except Exception as exc:
-        logger.exception("CAM summary shaping failed for %s", source_path)
-        warnings.append(f"Summary shaping fallback: {exc}")
-
-    # Fallback when summary-level package shaping is unavailable but UNI packages exist.
-    if not packages:
-        raw_uni_packages = uni_parsed.get("packages")
-        if isinstance(raw_uni_packages, list):
-            fallback_packages: list[dict[str, Any]] = []
-            for package in raw_uni_packages:
-                if not isinstance(package, dict):
-                    continue
-                package_id = _to_vuid_tuple(package.get("id"))
-                if selected_package_ids and package_id not in selected_package_ids:
-                    continue
-                fallback_packages.append(
-                    {
-                        "package_id": package.get("id"),
-                        "package_number": package.get("package_number"),
-                        "tasking": package.get("package_mission"),
-                        "timing": package.get("timing"),
-                        "steerpoints": package.get("waypoints") if isinstance(package.get("waypoints"), list) else [],
-                        "flights": [],
-                        "notes": ["fallback_from_uni_packages"],
-                    }
-                )
-            if fallback_packages:
-                warnings.append("Using UNI package fallback data shape.")
-                packages = fallback_packages
-                logger.debug(
-                    "Using UNI package fallback shape: packages=%d",
-                    len(fallback_packages),
-                )
-
-    # Optional Link16 mapping (by flight number) for package/support table enrichment.
-    l16_by_flight, l16_path = load_l16_for_save(
+    l16_data = load_parsed_l16_for_save(
         bms_base_dir=bms_base_dir,
         theater_target_folder=theater_target_folder,
         save_stem=save_stem or source_path.stem,
     )
-    if l16_path is not None:
-        l16_source_path = str(l16_path)
-    for package in packages:
-        if not isinstance(package, dict):
-            continue
-        flights = package.get("flights")
-        if not isinstance(flights, list):
-            continue
-        for flight in flights:
-            if not isinstance(flight, dict):
-                continue
-            number = flight.get("flight_number")
-            if isinstance(number, int):
-                flight["l16"] = format_l16_code(l16_by_flight.get(number))
-    logger.debug(
-        "Link16 enrichment complete: l16_source=%s mapped_flights=%d",
-        l16_source_path,
-        len(l16_by_flight),
+
+    summary_input = SummaryInput(
+        source_path=source_path,
+        support_base_dir=support_base_dir,
+        container_version=parsed_cam.container_version,
+        cmp=(
+            parse_cmp(
+                cmp_entry.data,
+                container_version=parsed_cam.container_version,
+                support_base_dir=support_base_dir,
+                decode_metadata=cmp_entry.decode_metadata,
+            )
+            if cmp_entry is not None
+            else ParsedCmpData.from_dict(None)
+        ),
+        uni=(
+            parse_uni(
+                uni_entry.data,
+                container_version=parsed_cam.container_version,
+                support_base_dir=support_base_dir,
+                decode_metadata=uni_entry.decode_metadata,
+            )
+            if uni_entry is not None
+            else ParsedUniData.from_dict(None)
+        ),
+        twx=twx_data,
+        l16=l16_data,
+        theater_name=theater_name or "",
     )
 
-    def bullseye_grid_size_for_theater(theater: str | None) -> tuple[int, int]:
-        # Deterministic baseline grid for BMS campaign bullseye coordinates.
-        # Keep explicit theater hook for future per-theater overrides if needed.
-        _ = theater
-        return (1024, 1024)
-
-    def map_coord_from_cmp(value: int, axis: str, grid_size: int) -> float:
-        # Most saves: bullseye is in campaign grid units (0..grid_size).
-        # Some saves: bullseye may already be Falcon world scalar-ish values.
-        if abs(value) <= grid_size * 2:
-            map_scalar = (float(value) / float(grid_size)) * 4096.0
-        else:
-            map_scalar = (float(value) / 3359580.0) * 4096.0
-        if axis == "lat":
-            return map_scalar - 4096.0
-        return map_scalar
-
-    bullseye_name_id = cmp_parsed.get("bullseye_name_id")
-    bullseye_x = cmp_parsed.get("bullseye_x") if isinstance(cmp_parsed.get("bullseye_x"), int) else None
-    bullseye_y = cmp_parsed.get("bullseye_y") if isinstance(cmp_parsed.get("bullseye_y"), int) else None
-    grid_x, grid_y = bullseye_grid_size_for_theater(theater_name)
-
-    map_lat: float | None = None
-    map_lng: float | None = None
-    if isinstance(bullseye_x, int) and isinstance(bullseye_y, int):
-        # CAM bullseye coordinates use theater grid orientation:
-        # x -> horizontal map axis (lng), y -> vertical map axis (lat).
-        map_lng = map_coord_from_cmp(bullseye_x, "lng", grid_x)
-        map_lat = map_coord_from_cmp(bullseye_y, "lat", grid_y)
+    try:
+        summary_output = build_summary_output(summary_input)
         logger.debug(
-            "Bullseye transformed: cmp=(%d,%d) grid=(%d,%d) map=(%.3f,%.3f)",
-            bullseye_x,
-            bullseye_y,
-            grid_x,
-            grid_y,
-            map_lat,
-            map_lng,
+            "Extract CAM brief data done: package_count=%d warnings=%d",
+            summary_output.package_count,
+            len(summary_output.warnings),
         )
-
-    bullseye = {
-        "x": bullseye_x,
-        "y": bullseye_y,
-        "name_id": bullseye_name_id if isinstance(bullseye_name_id, int) else None,
-        "name": summary_bullseye.get("name") if isinstance(summary_bullseye.get("name"), str) else None,
-        "map_lat": map_lat,
-        "map_lng": map_lng,
-        "map_grid_size_x": grid_x,
-        "map_grid_size_y": grid_y,
-    }
-
-    if match_method == "all_packages_fallback":
-        warnings.append("Could not isolate player-linked packages; returning all parsed packages.")
-
-    if player_squadron is None:
-        warnings.append("player_squadron_id not found in .cmp; package list may include all teams.")
-    elif not packages:
-        warnings.append("No player-linked packages matched in parsed UNI package references.")
-    logger.debug(
-        "Extract CAM brief data done: package_count=%d warnings=%d",
-        len(packages),
-        len(warnings),
-    )
-
-    return {
-        "source_path": str(source_path),
-        "support_base_dir": str(support_base_dir) if support_base_dir is not None else None,
-        "l16_source_path": l16_source_path,
-        "current_date": current_date,
-        "current_time_ms": current_time_ms,
-        "current_time_z": current_time_z,
-        "player": {
-            "squadron_id": {
-                "num": player_squadron[0],
-                "creator": player_squadron[1],
-            }
-            if player_squadron is not None
-            else None,
-            "package_match_method": match_method,
-        },
-        "bullseye": bullseye,
-        "package_count": len(packages),
-        "packages": packages,
-        "warnings": warnings,
-    }
+        return summary_output.to_dict()
+    except Exception as exc:
+        logger.exception("CAM summary shaping failed for %s", source_path)
+        fallback = SummaryOutput(
+            source_path=str(source_path),
+            support_base_dir=str(support_base_dir) if support_base_dir is not None else "",
+            l16_source_path=str(l16_data.source_path) if l16_data.source_path is not None else "",
+            current_date=twx_data.current_date,
+            current_time_ms=None,
+            player={"squadron_id": None, "package_match_method": "summary_failed"},
+            bullseye={
+                "x": None,
+                "y": None,
+                "name_id": None,
+                "name": "",
+                "map_lat": None,
+                "map_lng": None,
+                "map_grid_size_x": 1024,
+                "map_grid_size_y": 1024,
+            },
+            package_count=0,
+            packages=[],
+            warnings=[f"Summary shaping failed: {exc}"],
+            container_version=parsed_cam.container_version,
+        )
+        return fallback.to_dict()

@@ -120,6 +120,15 @@ let stptLineIniCoords = [{% for line in stpt_lines %}
 stptLineMapCoords = [[],[],[],[]];
 
 map.setView([-imageWidth/2, imageHeight/2], -2);
+const initialBullseye = {
+    lat: {% if cam_bullseye.lat is not none %}{{cam_bullseye.lat}}{% else %}null{% endif %},
+    lng: {% if cam_bullseye.lng is not none %}{{cam_bullseye.lng}}{% else %}null{% endif %}
+};
+if (Number.isFinite(initialBullseye.lat) && Number.isFinite(initialBullseye.lng)) {
+    setBullseye(initialBullseye);
+} else {
+    setBullseye(map.getCenter());
+}
 
 function drawMap(url) {
 // dimensions of the image

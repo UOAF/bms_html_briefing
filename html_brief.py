@@ -27,7 +27,7 @@ from lib.bms_config import BmsConfig
 from lib.cam_integration import CamIntegrationError, extract_cam_brief_data
 from lib.html_gen import generate_html_file, page_contents_ini_to_list
 from lib.kneeboard_export import export_kneeboards
-from lib.parse_l16 import _campaign_dirs
+from lib.parsers.parse_l16 import _campaign_dirs
 
 logger = logging.getLogger("html_brief_log")
 logger_ui = logging.getLogger("ui_logger")
@@ -78,6 +78,7 @@ class PdfRequest(BaseModel):
     bms: Optional[Dict[str, str]] = None
     system: Optional[Dict[str, str]] = None
     theater: Optional[Dict[str, Any]] = None
+    cam_package_index: Optional[int] = None
 
 
 class PreviewRequest(BaseModel):
@@ -85,6 +86,7 @@ class PreviewRequest(BaseModel):
     bms: Optional[Dict[str, str]] = None
     system: Optional[Dict[str, str]] = None
     theater: Optional[Dict[str, Any]] = None
+    cam_package_index: Optional[int] = None
 
 
 class TheaterUpdate(BaseModel):
@@ -290,6 +292,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     app.state.last_brief_path: Optional[str] = None
     app.state.last_cam_summary_path: Optional[str] = None
     app.state.last_cam_summary: Optional[Dict[str, Any]] = None
+    app.state.last_cam_package_index: Optional[int] = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
     app.state.brief_pages_ref: Optional[int] = None
@@ -496,6 +499,24 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         except ValueError:
             return False
 
+    def _resolve_cam_render_state(request_index: Optional[int]) -> tuple[Optional[Dict[str, Any]], Optional[int]]:
+        cam_summary = app.state.last_cam_summary if isinstance(app.state.last_cam_summary, dict) else None
+        if cam_summary is None:
+            app.state.last_cam_package_index = None
+            return None, None
+
+        packages = cam_summary.get("packages")
+        package_count = len(packages) if isinstance(packages, list) else 0
+        if package_count <= 0:
+            app.state.last_cam_package_index = None
+            return cam_summary, None
+
+        selected_index = request_index if isinstance(request_index, int) else app.state.last_cam_package_index
+        if not isinstance(selected_index, int) or selected_index < 0 or selected_index >= package_count:
+            selected_index = 0
+        app.state.last_cam_package_index = selected_index
+        return cam_summary, selected_index
+
     @app.get("/api/cam/saves")
     def list_cam_saves() -> Dict[str, Any]:
         _, _, _, campaign_dirs = _resolve_cam_context()
@@ -581,11 +602,14 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
 
         app.state.last_cam_summary_path = str(json_path)
         app.state.last_cam_summary = cam_data
+        packages = cam_data.get("packages")
+        app.state.last_cam_package_index = 0 if isinstance(packages, list) and packages else None
 
         return {
             "status": "ok",
             "source_file": str(source_path),
             "output_file": str(json_path),
+            "selected_package_index": app.state.last_cam_package_index,
             "cam": cam_data,
         }
 
@@ -602,7 +626,14 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             raise HTTPException(status_code=500, detail=f"Generate config error: {exc}")
         ensure_dirs(cfg_generate)
         try:
-            generate_html_file(cfg_generate, bms_cfg_generate, "index")
+            cam_summary, cam_package_index = _resolve_cam_render_state(getattr(payload, "cam_package_index", None) if payload else None)
+            generate_html_file(
+                cfg_generate,
+                bms_cfg_generate,
+                "index",
+                cam_summary=cam_summary,
+                cam_package_index=cam_package_index,
+            )
             output_file = resolve_path(cfg_generate["system"]["output_dir"]) / "index.html"
             app.state.last_brief_path = str(output_file)
             try:
@@ -626,7 +657,14 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             raise HTTPException(status_code=500, detail=f"Preview config error: {exc}")
         ensure_dirs(cfg_preview)
         try:
-            generate_html_file(cfg_preview, bms_cfg_preview, "index")
+            cam_summary, cam_package_index = _resolve_cam_render_state(payload.cam_package_index)
+            generate_html_file(
+                cfg_preview,
+                bms_cfg_preview,
+                "index",
+                cam_summary=cam_summary,
+                cam_package_index=cam_package_index,
+            )
             output_file = resolve_path(cfg_preview["system"]["output_dir"]) / "index.html"
             app.state.last_brief_path = str(output_file)
             try:
@@ -654,7 +692,14 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             raise HTTPException(status_code=500, detail=f"PDF config error: {exc}")
         ensure_dirs(cfg_pdf)
         try:
-            generate_html_file(cfg_pdf, bms_cfg_pdf, "index")
+            cam_summary, cam_package_index = _resolve_cam_render_state(payload.cam_package_index)
+            generate_html_file(
+                cfg_pdf,
+                bms_cfg_pdf,
+                "index",
+                cam_summary=cam_summary,
+                cam_package_index=cam_package_index,
+            )
             output_file = resolve_path(cfg_pdf["system"]["output_dir"]) / "index.html"
             app.state.last_brief_path = str(output_file)
             try:
