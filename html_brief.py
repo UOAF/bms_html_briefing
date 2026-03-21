@@ -24,10 +24,10 @@ except Exception:  # pragma: no cover - optional dependency
     HTML = None
 
 from lib.bms_config import BmsConfig
+from lib.campaign_paths import campaign_dirs
 from lib.cam_integration import CamIntegrationError, extract_cam_brief_data
 from lib.html_gen import generate_html_file, page_contents_ini_to_list
 from lib.kneeboard_export import export_kneeboards
-from lib.parsers.parse_l16 import _campaign_dirs
 
 logger = logging.getLogger("html_brief_log")
 logger_ui = logging.getLogger("ui_logger")
@@ -486,11 +486,11 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
                     theater_target_folder = bms.theater_config[bms.theater].get("target_folder", "") or None
             except Exception:
                 theater_target_folder = None
-        campaign_dirs = _campaign_dirs(
+        campaign_dir_list = campaign_dirs(
             bms_base_dir=bms_base_dir,
             theater_target_folder=theater_target_folder,
         )
-        return bms_base_dir, theater_target_folder, theater_name, campaign_dirs
+        return bms_base_dir, theater_target_folder, theater_name, campaign_dir_list
 
     def _path_within(path: Path, base: Path) -> bool:
         try:
