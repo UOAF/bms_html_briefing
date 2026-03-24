@@ -1,4 +1,5 @@
 import os, sys, logging, configparser
+from lib.theater_paths import read_theater_center, resolve_target_folder_from_theater
 
 logger = logging.getLogger('html_brief_log')
 logger_ui = logging.getLogger('ui_logger')
@@ -10,6 +11,9 @@ class BmsConfig:
     theater_config = None
     target_folder_failed = False
     kto_target_folder = ""
+    theater_center_latitude = None
+    theater_center_longitude = None
+    theater_center_source = ""
 
     def __init__(self, cfg, theater_ini_pattern = None):
         version = cfg['bms']['bms_version']
@@ -51,6 +55,9 @@ class BmsConfig:
             self.theater = cfg['override']['theater']
 
         self.kto_target_folder = os.path.join(self.base_dir, 'Data', 'TerrData', 'Objects', 'KoreaObj')
+        self.theater_center_latitude = None
+        self.theater_center_longitude = None
+        self.theater_center_source = ""
 
         if getattr(sys, 'frozen', False):
             script_dir = os.path.dirname(sys.executable)
@@ -90,29 +97,20 @@ class BmsConfig:
                 self.theater_config[self.theater] = {}
                 self.theater_config[self.theater]['copy_to_kto'] = 'False'
             try:
-                if os.path.exists(os.path.join(self.base_dir, 'Data', 'TerrData', 'TheaterDefinition', 'theater.lst')):
-                    with open(os.path.join(self.base_dir, 'Data', 'TerrData', 'TheaterDefinition', 'theater.lst'), "r") as theater_lst:
-                        theater_lst_contents = theater_lst.readlines()
+                target_folder = resolve_target_folder_from_theater(self.base_dir, self.theater)
+                if target_folder is not None:
+                    self.theater_config[self.theater]['target_folder'] = str(target_folder)
                 else:
-                    with open(os.path.join(self.base_dir, 'Data', 'TerrData', 'TheaterDefinition', 'Theater.lst'), "r") as theater_lst:
-                        theater_lst_contents = theater_lst.readlines()
-
-
-                tdf_location = next(l for l in theater_lst_contents if l.strip('\n ').endswith('\\' + self.theater + '.tdf')).strip('\n ').split('\\')
-                with open(os.path.join(self.base_dir, 'Data', *tdf_location), "r") as theater_tdf:
-                    theater_tdf_contents = theater_tdf.readlines()
-
-                datadir_l = next(l for l in theater_tdf_contents if l.strip('\n ').startswith('3ddatadir'))
-                datadir = ' '.join(datadir_l.split(' ')[1:]).strip('\n ').split('\\')
-                self.theater_config[self.theater]['target_folder'] = os.path.join(self.base_dir, 'Data', *datadir, "KoreaObj")
-
-                if not os.path.exists(self.theater_config[self.theater]['target_folder']):
-                # attempt to fix:
-                    datadir = ["TerrData" if w.capitalize() == "Terrdata" else w.capitalize() for w in datadir]
-                    self.theater_config[self.theater]['target_folder'] = os.path.join(self.base_dir, 'Data', *datadir, "KoreaObj")
-                if not os.path.exists(self.theater_config[self.theater]['target_folder']):
                     self.target_folder_failed = True
 
             except Exception as e:
                 logger.error(e)
                 self.target_folder_failed = True
+
+        try:
+            center_latitude, center_longitude, center_source = read_theater_center(self.base_dir, self.theater)
+            self.theater_center_latitude = center_latitude
+            self.theater_center_longitude = center_longitude
+            self.theater_center_source = str(center_source) if center_source is not None else ""
+        except Exception as e:
+            logger.warning(f"Couldn't resolve theater center for {self.theater}: {e}")

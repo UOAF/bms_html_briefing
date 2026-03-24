@@ -113,14 +113,29 @@ class Briefing:
                 return ""
             else:
                 s = next(l for l in file_contents if l.strip("\t \n)").startswith("Sunrise"))
-                return s[s.find(":"):].strip(": \t \n")
+                return s[s.find(":"):].strip(": \t \n").split('z')[0]+"z"
+
+        def init_sunrize_local(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                s = next(l for l in file_contents if l.strip("\t \n)").startswith("Sunrise"))
+                return s[s.find(":"):].strip(": \t \n").split('z')[1].strip("()l")+"l"
+
 
         def init_sunset(self, file_contents):
             if file_contents == None:
                 return ""
             else:
                 s = next(l for l in file_contents if l.strip("\t \n) ").startswith("Sunset"))
-                return s[s.find(":"):].strip(": \t \n")
+                return s[s.find(":"):].strip(": \t \n").split('z')[0]+"z"
+
+        def init_sunset_local(self, file_contents):
+            if file_contents == None:
+                return ""
+            else:
+                s = next(l for l in file_contents if l.strip("\t \n) ").startswith("Sunset"))
+                return s[s.find(":"):].strip(": \t \n").split('z')[1].strip("()l")+"l"
 
     class Situation:
         def __init__(self, file_contents = None):

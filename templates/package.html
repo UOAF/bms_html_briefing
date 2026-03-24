@@ -72,7 +72,7 @@
 	<td>{{flight.takeoff}}</td>
 	<td>{{flight.push}}</td>
 	<td>{{flight.tot}}</td>
-	<td id="package_main_l16_{{loop.index}}">{{cam_main_package_l16.get(flight.flight|string, flight.l16)}}</td>
+	<td id="package_main_l16_{{loop.index}}">{{main_package_l16.get(flight.callsign|replace(' ', '')|lower, main_package_l16.get(flight.flight|string, flight.l16))}}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -83,10 +83,10 @@
   <span class="cam-package-picker" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">
     <label for="cam-support-package-select">CAM</label>
     <input id="cam-support-package-query" type="search" placeholder="# / role" title="Type to filter package list">
-    <select id="cam-support-package-select" title="CAM supporting package" {% if not cam_package_options %}disabled{% endif %}>
-      {% if cam_package_options %}
+    <select id="cam-support-package-select" title="CAM supporting package" {% if not package_options %}disabled{% endif %}>
+      {% if package_options %}
       <option value="">Select package</option>
-      {% for option in cam_package_options %}
+      {% for option in package_options %}
       <option value="{{option.index}}" data-search="{{option.search_text}}" {% if option.selected %}selected{% endif %}>{{option.label}}</option>
       {% endfor %}
       {% else %}
@@ -120,7 +120,7 @@
             <th>L16</th>
         </tr>
     </thead>
-    {% for row in cam_support_package_rows %}
+    {% for row in support_package_rows %}
     <tbody>
       <tr>
 	{% for cell in row %}

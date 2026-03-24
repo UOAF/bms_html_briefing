@@ -12,7 +12,7 @@ logger_ui = logging.getLogger('ui_logger')
 def page_contents_ini_to_list(conf):
     return [[s.strip(' \n') for s in value.split(',') if s != ''] for key, value in conf['pages'].items()]
 
-def generate_html_file(conf, bms_conf, name, page_num = 0, cam_summary = None, cam_package_index = None):
+def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None, selected_package_index = None):
     if getattr(sys, 'frozen', False):
         script_dir = os.path.dirname(sys.executable)
     else:
@@ -84,8 +84,12 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, cam_summary = None, c
         env = Environment(loader=FileSystemLoader(templates_dir))
         index_tmpl = env.get_template("index.html")
         render_context = build_brief_render_context(
-            cam_summary=cam_summary,
-            cam_package_index=cam_package_index,
+            brief_summary=brief_summary,
+            selected_package_index=selected_package_index,
+            theater_center={
+                "lat": getattr(bms_conf, "theater_center_latitude", None),
+                "lng": getattr(bms_conf, "theater_center_longitude", None),
+            },
         )
 
         with open(os.path.join(conf['system']['output_dir'], name+".html"), "w", encoding = "utf-8") as index_output:
@@ -109,10 +113,11 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, cam_summary = None, c
                                                  num = page_num,
                                                  logo_present = True,
                                                  brief_is_joined = True,
-                                                 cam_package_options = render_context["cam_package_options"],
-                                                 cam_support_package_rows = render_context["cam_support_package_rows"],
-                                                 cam_main_package_l16 = render_context["cam_main_package_l16"],
-                                                 cam_bullseye = render_context["cam_bullseye"],
+                                                 package_options = render_context["package_options"],
+                                                 support_package_rows = render_context["support_package_rows"],
+                                                 main_package_l16 = render_context["main_package_l16"],
+                                                 bullseye = render_context["bullseye"],
+                                                 moon_data = render_context["moon_data"],
                                                  ))
     except Exception as e:
         logger.error(f"Couldn't generate HTML: {e}")

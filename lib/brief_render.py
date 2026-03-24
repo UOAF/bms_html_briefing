@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
+import logging
 from typing import Any
 
-from lib.cam.cam_content import _find_support_file, _load_strings_by_id
-
+import datetime as dt
+from lib.moon import moon_rise_set_times, moonphase_crude
 
 CAM_SUPPORT_CELL_IDS = [
     "package_1", "package_2", "package_3", "package_4", "package_5", "package_6", "package_7", "package_30",
@@ -15,6 +15,8 @@ CAM_SUPPORT_CELL_IDS = [
 ]
 CAM_SUPPORT_COLS = 8
 CAM_SUPPORT_MAX_ROWS = len(CAM_SUPPORT_CELL_IDS) // CAM_SUPPORT_COLS
+
+logger = logging.getLogger("html_brief_log")
 
 
 def _as_int(value: Any) -> int | None:
@@ -66,10 +68,15 @@ def _format_cam_aircraft(flight: Any) -> str:
         return ""
     if aircraft[:1].isdigit():
         return aircraft
-    for key in ("aircraft_count", "aircraft_num", "flight_size", "num_aircraft"):
-        count = _as_int(flight.get(key))
-        if isinstance(count, int) and count > 0:
-            return f"{count} {aircraft}"
+    sources = [flight]
+    tasking = flight.get("tasking")
+    if isinstance(tasking, dict):
+        sources.append(tasking)
+    for source in sources:
+        for key in ("aircraft_count", "aircraft_num", "flight_size", "num_aircraft"):
+            count = _as_int(source.get(key))
+            if isinstance(count, int) and count > 0:
+                return f"{count} {aircraft}"
     return aircraft
 
 
@@ -82,13 +89,10 @@ def _format_l16_code(record: Any) -> str:
     return str(stn)
 
 
-def _load_strings(support_base_dir: Path | None) -> dict[int, str]:
-    strings_path = _find_support_file("Strings.txt", support_base_dir=support_base_dir)
-    if strings_path is None:
-        strings_path = _find_support_file("strings.txt", support_base_dir=support_base_dir)
-    if strings_path is None:
-        return {}
-    return _load_strings_by_id(strings_path)
+def _normalize_callsign(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return "".join(value.split()).lower()
 
 
 def _blank_support_rows() -> list[list[dict[str, str]]]:
@@ -101,28 +105,65 @@ def _blank_support_rows() -> list[list[dict[str, str]]]:
         rows.append(row)
     return rows
 
+def _format_datetime(d):
+    return str(d.hour) + ":" + str(d.minute) + "z"
 
-def _build_cam_render_context(
-    cam_summary: dict[str, Any] | None,
+def _default_moon_data() -> dict[str, str]:
+    return {"rise": "", "set": "", "phase": ""}
+
+
+def _get_moon_data_from_date(
+    date_string: Any,
+    *,
+    latitude: float | None,
+    longitude: float | None,
+) -> dict[str, str]:
+    try:
+        date_day = dt.date(year = int(date_string.split('-')[0]), month = int(date_string.split('-')[1]), day = int(date_string.split('-')[2])) 
+        if not isinstance(latitude, (int, float)) or not isinstance(longitude, (int, float)):
+            logger.debug(
+                "Moon data using fallback coordinates for date %r: lat=%r lng=%r",
+                date_string,
+                latitude,
+                longitude,
+            )
+            latitude = 50.0
+            longitude = -50.0
+        rise_set = moon_rise_set_times(date_day, latitude, -longitude, accuracy = 5)
+        rise_string = ", ".join([_format_datetime(x) for x in rise_set[0]])
+        set_string = ", ".join([_format_datetime(x) for x in rise_set[1]])
+        moon_phase = moonphase_crude(date_day)
+        return {"rise" : rise_string, "set" : set_string, "phase": moon_phase}
+    except Exception as exc:
+        logger.debug("Moon data lookup failed for date %r: %s", date_string, exc)
+        return _default_moon_data()
+
+def _build_summary_render_context(
+    brief_summary: dict[str, Any] | None,
     selected_package_index: int | None,
+    theater_center: dict[str, float | None] | None,
 ) -> dict[str, Any]:
-    support_base_dir_raw = cam_summary.get("support_base_dir") if isinstance(cam_summary, dict) else None
-    support_base_dir = Path(support_base_dir_raw) if isinstance(support_base_dir_raw, str) and support_base_dir_raw else None
-    strings_by_id = _load_strings(support_base_dir)
     empty_context = {
-        "cam_package_options": [],
-        "cam_support_package_rows": _blank_support_rows(),
-        "cam_main_package_l16": {},
-        "cam_bullseye": {"lat": None, "lng": None, "name": ""},
+        "package_options": [],
+        "support_package_rows": _blank_support_rows(),
+        "main_package_l16": {},
+        "bullseye": {"lat": None, "lng": None},
+        "moon_data": _default_moon_data(),
     }
-    if not isinstance(cam_summary, dict):
+    if not isinstance(brief_summary, dict):
+        logger.debug("Brief render context requested without summary data; using empty defaults.")
         return empty_context
 
-    packages_raw = cam_summary.get("packages")
+    packages_raw = brief_summary.get("packages")
     packages = [pkg for pkg in packages_raw if isinstance(pkg, dict)] if isinstance(packages_raw, list) else []
 
     selected_index = selected_package_index if isinstance(selected_package_index, int) else None
     if packages and (selected_index is None or selected_index < 0 or selected_index >= len(packages)):
+        logger.debug(
+            "Brief render selection reset to first package: requested=%r package_count=%d",
+            selected_package_index,
+            len(packages),
+        )
         selected_index = 0
 
     package_options: list[dict[str, Any]] = []
@@ -175,6 +216,10 @@ def _build_cam_render_context(
                     ]
                 )
         if not row_values:
+            logger.debug(
+                "Brief render using package-level timing fallback for selected package index %d",
+                selected_index,
+            )
             timing = selected_package.get("timing") if isinstance(selected_package.get("timing"), dict) else {}
             row_values.append(
                 [
@@ -213,37 +258,62 @@ def _build_cam_render_context(
                 continue
             flight_number = _as_int(flight.get("flight_number"))
             l16 = flight.get("l16")
-            if flight_number is None:
-                continue
             l16_text = _format_l16_code(l16)
-            if l16_text:
+            if not l16_text:
+                continue
+            if flight_number is not None:
                 main_package_l16[str(flight_number)] = l16_text
+            callsign = _normalize_callsign(flight.get("callsign"))
+            if callsign:
+                main_package_l16[callsign] = l16_text
 
-    bullseye = cam_summary.get("bullseye") if isinstance(cam_summary.get("bullseye"), dict) else {}
+    bullseye = brief_summary.get("bullseye") if isinstance(brief_summary.get("bullseye"), dict) else {}
     lat = bullseye.get("map_lat")
     lng = bullseye.get("map_lng")
-    name_id = bullseye.get("name_id")
-    bullseye_name = strings_by_id.get(name_id, "") if isinstance(name_id, int) else ""
+
+    center_latitude = None
+    center_longitude = None
+    if isinstance(theater_center, dict):
+        center_latitude = theater_center.get("lat")
+        center_longitude = theater_center.get("lng")
+
+    moon_data = _get_moon_data_from_date(
+        brief_summary.get("current_date"),
+        latitude=center_latitude,
+        longitude=center_longitude,
+    )
+    logger.debug(
+        "Built brief render context: packages=%d selected_index=%r support_rows=%d l16_overrides=%d has_bullseye=%s moon_phase=%s theater_center=(%r,%r)",
+        len(packages),
+        selected_index,
+        len(support_rows),
+        len(main_package_l16),
+        isinstance(lat, (int, float)) and isinstance(lng, (int, float)),
+        moon_data.get("phase", ""),
+        center_latitude,
+        center_longitude,
+    )
 
     return {
-        "cam_package_options": package_options,
-        "cam_support_package_rows": support_rows,
-        "cam_main_package_l16": main_package_l16,
-        "cam_bullseye": {
+        "package_options": package_options,
+        "support_package_rows": support_rows,
+        "main_package_l16": main_package_l16,
+        "bullseye": {
             "lat": lat if isinstance(lat, (int, float)) else None,
             "lng": lng if isinstance(lng, (int, float)) else None,
-            "name": bullseye_name if isinstance(bullseye_name, str) else "",
         },
+        "moon_data": moon_data,
     }
 
 
 def build_brief_render_context(
     *,
-    cam_summary: dict[str, Any] | None = None,
-    cam_package_index: int | None = None,
+    brief_summary: dict[str, Any] | None = None,
+    selected_package_index: int | None = None,
+    theater_center: dict[str, float | None] | None = None,
 ) -> dict[str, Any]:
     context: dict[str, Any] = {}
-    context.update(_build_cam_render_context(cam_summary, cam_package_index))
+    context.update(_build_summary_render_context(brief_summary, selected_package_index, theater_center))
     return context
 
 

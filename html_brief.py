@@ -78,7 +78,7 @@ class PdfRequest(BaseModel):
     bms: Optional[Dict[str, str]] = None
     system: Optional[Dict[str, str]] = None
     theater: Optional[Dict[str, Any]] = None
-    cam_package_index: Optional[int] = None
+    selected_package_index: Optional[int] = None
 
 
 class PreviewRequest(BaseModel):
@@ -86,7 +86,7 @@ class PreviewRequest(BaseModel):
     bms: Optional[Dict[str, str]] = None
     system: Optional[Dict[str, str]] = None
     theater: Optional[Dict[str, Any]] = None
-    cam_package_index: Optional[int] = None
+    selected_package_index: Optional[int] = None
 
 
 class TheaterUpdate(BaseModel):
@@ -290,9 +290,9 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     app.state.auto_open_url: Optional[str] = None
     app.state.last_pdf_path: Optional[str] = None
     app.state.last_brief_path: Optional[str] = None
-    app.state.last_cam_summary_path: Optional[str] = None
-    app.state.last_cam_summary: Optional[Dict[str, Any]] = None
-    app.state.last_cam_package_index: Optional[int] = None
+    app.state.last_brief_summary_path: Optional[str] = None
+    app.state.last_brief_summary: Optional[Dict[str, Any]] = None
+    app.state.last_selected_package_index: Optional[int] = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
     app.state.brief_pages_ref: Optional[int] = None
@@ -324,6 +324,9 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             "target_folder": cfg.get("target_folder", ""),
             "map_file": map_file,
             "copy_to_kto": cfg.get("copy_to_kto", "False") == "True",
+            "center_latitude": getattr(bms, "theater_center_latitude", None),
+            "center_longitude": getattr(bms, "theater_center_longitude", None),
+            "center_source": getattr(bms, "theater_center_source", ""),
         }
 
     @app.get("/", response_class=HTMLResponse)
@@ -423,6 +426,9 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             "target_folder": section.get("target_folder", ""),
             "map_file": section.get("map_file", section.get("default_map_file", "")),
             "copy_to_kto": section.get("copy_to_kto", "False") == "True",
+            "center_latitude": getattr(bms, "theater_center_latitude", None),
+            "center_longitude": getattr(bms, "theater_center_longitude", None),
+            "center_source": getattr(bms, "theater_center_source", ""),
         }
 
     @app.post("/api/reload")
@@ -463,6 +469,9 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
                     "target_folder": target_folder,
                     "kto_target_folder": bms.kto_target_folder,
                     "target_folder_failed": bms.target_folder_failed,
+                    "center_latitude": getattr(bms, "theater_center_latitude", None),
+                    "center_longitude": getattr(bms, "theater_center_longitude", None),
+                    "center_source": getattr(bms, "theater_center_source", ""),
                     "brief_changed": None if (app.state.brief_mtime_ref is None or brief_mtime is None) else brief_mtime > app.state.brief_mtime_ref,
                     "callsign_changed": None if (app.state.callsign_mtime_ref is None or callsign_mtime is None) else callsign_mtime > app.state.callsign_mtime_ref,
                 }
@@ -499,23 +508,23 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         except ValueError:
             return False
 
-    def _resolve_cam_render_state(request_index: Optional[int]) -> tuple[Optional[Dict[str, Any]], Optional[int]]:
-        cam_summary = app.state.last_cam_summary if isinstance(app.state.last_cam_summary, dict) else None
-        if cam_summary is None:
-            app.state.last_cam_package_index = None
+    def _resolve_brief_render_state(request_index: Optional[int]) -> tuple[Optional[Dict[str, Any]], Optional[int]]:
+        brief_summary = app.state.last_brief_summary if isinstance(app.state.last_brief_summary, dict) else None
+        if brief_summary is None:
+            app.state.last_selected_package_index = None
             return None, None
 
-        packages = cam_summary.get("packages")
+        packages = brief_summary.get("packages")
         package_count = len(packages) if isinstance(packages, list) else 0
         if package_count <= 0:
-            app.state.last_cam_package_index = None
-            return cam_summary, None
+            app.state.last_selected_package_index = None
+            return brief_summary, None
 
-        selected_index = request_index if isinstance(request_index, int) else app.state.last_cam_package_index
+        selected_index = request_index if isinstance(request_index, int) else app.state.last_selected_package_index
         if not isinstance(selected_index, int) or selected_index < 0 or selected_index >= package_count:
             selected_index = 0
-        app.state.last_cam_package_index = selected_index
-        return cam_summary, selected_index
+        app.state.last_selected_package_index = selected_index
+        return brief_summary, selected_index
 
     @app.get("/api/cam/saves")
     def list_cam_saves() -> Dict[str, Any]:
@@ -600,17 +609,17 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         json_path = output_dir / f"{safe_stem}_cam.json"
         json_path.write_text(json.dumps(cam_data, indent=2), encoding="utf-8")
 
-        app.state.last_cam_summary_path = str(json_path)
-        app.state.last_cam_summary = cam_data
+        app.state.last_brief_summary_path = str(json_path)
+        app.state.last_brief_summary = cam_data
         packages = cam_data.get("packages")
-        app.state.last_cam_package_index = 0 if isinstance(packages, list) and packages else None
+        app.state.last_selected_package_index = 0 if isinstance(packages, list) and packages else None
 
         return {
             "status": "ok",
             "source_file": str(source_path),
             "output_file": str(json_path),
-            "selected_package_index": app.state.last_cam_package_index,
-            "cam": cam_data,
+            "selected_package_index": app.state.last_selected_package_index,
+            "summary": cam_data,
         }
 
     @app.post("/api/generate")
@@ -626,13 +635,13 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             raise HTTPException(status_code=500, detail=f"Generate config error: {exc}")
         ensure_dirs(cfg_generate)
         try:
-            cam_summary, cam_package_index = _resolve_cam_render_state(getattr(payload, "cam_package_index", None) if payload else None)
+            brief_summary, selected_package_index = _resolve_brief_render_state(getattr(payload, "selected_package_index", None) if payload else None)
             generate_html_file(
                 cfg_generate,
                 bms_cfg_generate,
                 "index",
-                cam_summary=cam_summary,
-                cam_package_index=cam_package_index,
+                brief_summary=brief_summary,
+                selected_package_index=selected_package_index,
             )
             output_file = resolve_path(cfg_generate["system"]["output_dir"]) / "index.html"
             app.state.last_brief_path = str(output_file)
@@ -657,13 +666,13 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             raise HTTPException(status_code=500, detail=f"Preview config error: {exc}")
         ensure_dirs(cfg_preview)
         try:
-            cam_summary, cam_package_index = _resolve_cam_render_state(payload.cam_package_index)
+            brief_summary, selected_package_index = _resolve_brief_render_state(payload.selected_package_index)
             generate_html_file(
                 cfg_preview,
                 bms_cfg_preview,
                 "index",
-                cam_summary=cam_summary,
-                cam_package_index=cam_package_index,
+                brief_summary=brief_summary,
+                selected_package_index=selected_package_index,
             )
             output_file = resolve_path(cfg_preview["system"]["output_dir"]) / "index.html"
             app.state.last_brief_path = str(output_file)
@@ -692,13 +701,13 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             raise HTTPException(status_code=500, detail=f"PDF config error: {exc}")
         ensure_dirs(cfg_pdf)
         try:
-            cam_summary, cam_package_index = _resolve_cam_render_state(payload.cam_package_index)
+            brief_summary, selected_package_index = _resolve_brief_render_state(payload.selected_package_index)
             generate_html_file(
                 cfg_pdf,
                 bms_cfg_pdf,
                 "index",
-                cam_summary=cam_summary,
-                cam_package_index=cam_package_index,
+                brief_summary=brief_summary,
+                selected_package_index=selected_package_index,
             )
             output_file = resolve_path(cfg_pdf["system"]["output_dir"]) / "index.html"
             app.state.last_brief_path = str(output_file)
