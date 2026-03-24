@@ -5,3 +5,4 @@ fastapi
 uvicorn
 weasyprint
 beautifulsoup4
+pystray

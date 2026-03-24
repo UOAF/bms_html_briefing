@@ -4,10 +4,11 @@ import json
 import logging
 import os
 import sys
+import time
 from contextlib import asynccontextmanager
 from collections import deque
 from itertools import count
-from threading import Thread
+from threading import Event, Thread
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import webbrowser
@@ -22,6 +23,14 @@ try:
     from weasyprint import HTML
 except Exception:  # pragma: no cover - optional dependency
     HTML = None
+try:
+    from PIL import Image
+except Exception:  # pragma: no cover - optional dependency
+    Image = None
+try:
+    import pystray
+except Exception:  # pragma: no cover - optional dependency
+    pystray = None
 
 from lib.bms_config import BmsConfig
 from lib.campaign_paths import campaign_dirs
@@ -293,6 +302,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     app.state.last_brief_summary_path: Optional[str] = None
     app.state.last_brief_summary: Optional[Dict[str, Any]] = None
     app.state.last_selected_package_index: Optional[int] = None
+    app.state.shutdown_callback = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
     app.state.brief_pages_ref: Optional[int] = None
@@ -439,6 +449,22 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             logger.error("Failed to reload BMS config: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to reload BMS config: {exc}")
         return {"status": "ok", "base_dir": getattr(app.state.bms_cfg, 'base_dir', ""), "theater": getattr(app.state.bms_cfg, 'theater', "")}
+
+    @app.post("/api/quit")
+    def quit_app() -> Dict[str, str]:
+        shutdown_callback = getattr(app.state, "shutdown_callback", None)
+        if shutdown_callback is None:
+            raise HTTPException(status_code=503, detail="Quit is not available")
+
+        def delayed_shutdown() -> None:
+            time.sleep(0.2)
+            try:
+                shutdown_callback()
+            except Exception:
+                logger.exception("Failed to shut down application from UI request")
+
+        Thread(target=delayed_shutdown, name="html-brief-ui-quit", daemon=True).start()
+        return {"status": "ok"}
 
     @app.get("/api/status")
     def status() -> Dict[str, Any]:
@@ -794,9 +820,108 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
 app = create_app()
 
 
-if __name__ == "__main__":
-    import uvicorn
+class ServerController:
+    def __init__(self, app: FastAPI, host: str, port: int):
+        import uvicorn
 
+        self.server = uvicorn.Server(
+            uvicorn.Config(
+                app,
+                host=host,
+                port=port,
+                reload=False,
+                access_log=False,
+                log_config=None,
+            )
+        )
+        self._stopped = Event()
+        self._thread = Thread(target=self._run, name="html-brief-server", daemon=True)
+
+    def _run(self) -> None:
+        try:
+            self.server.run()
+        except Exception:
+            logger.exception("Uvicorn server stopped unexpectedly")
+            raise
+        finally:
+            self._stopped.set()
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def run_foreground(self) -> None:
+        self._run()
+
+    def request_stop(self) -> None:
+        self.server.should_exit = True
+
+    def stop(self, timeout: float = 10.0) -> None:
+        self.request_stop()
+        self._thread.join(timeout=timeout)
+
+    def wait(self, timeout: Optional[float] = None) -> bool:
+        return self._stopped.wait(timeout=timeout)
+
+
+def load_tray_icon_image() -> Any:
+    if Image is None:
+        raise RuntimeError("Pillow is not available for tray icon support")
+    icon_path = STATIC_ROOT / "assets" / "icon.png"
+    if not icon_path.exists():
+        raise FileNotFoundError(f"Tray icon not found: {icon_path}")
+    with Image.open(icon_path) as image:
+        return image.copy()
+
+
+def run_with_tray(app: FastAPI, host: str, port: int) -> None:
+    if pystray is None:
+        raise RuntimeError("pystray is not installed")
+
+    icon_image = load_tray_icon_image()
+    server = ServerController(app, host, port)
+    shutting_down = Event()
+    app_url = getattr(app.state, "auto_open_url", None) or f"http://{host}:{port}"
+
+    def request_shutdown(icon: Any) -> None:
+        if shutting_down.is_set():
+            return
+        shutting_down.set()
+        server.request_stop()
+        icon.stop()
+
+    def open_in_browser(icon: Any, item: Any) -> None:
+        del icon, item
+        Thread(target=webbrowser.open, args=(app_url,), daemon=True).start()
+
+    def on_quit(icon: Any, item: Any) -> None:
+        del item
+        Thread(target=request_shutdown, args=(icon,), daemon=True).start()
+
+    tray_icon = pystray.Icon(
+        "html_brief",
+        icon=icon_image,
+        title="Falcon BMS HTML Briefings",
+        menu=pystray.Menu(
+            pystray.MenuItem("Open in Browser", open_in_browser, default=True),
+            pystray.MenuItem("Quit", on_quit),
+        ),
+    )
+    app.state.shutdown_callback = lambda: request_shutdown(tray_icon)
+
+    def stop_tray_when_server_exits() -> None:
+        server.wait()
+        request_shutdown(tray_icon)
+
+    server.start()
+    Thread(target=stop_tray_when_server_exits, name="html-brief-tray-watch", daemon=True).start()
+    try:
+        tray_icon.run()
+    finally:
+        app.state.shutdown_callback = None
+        server.stop()
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the BMS briefing server")
     parser.add_argument(
         "-c",
@@ -812,6 +937,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("-p", "--port", type=int, default=8000, help="Port to bind (default: 8000)")
     parser.add_argument("--no-browser", action="store_true", help="Do not auto-open the UI in a browser")
+    tray_group = parser.add_mutually_exclusive_group()
+    tray_group.add_argument("--tray", action="store_true", help="Run in the system tray")
+    tray_group.add_argument("--no-tray", action="store_true", help="Disable the system tray")
     args = parser.parse_args()
 
     config_path = Path(args.config).expanduser()
@@ -822,4 +950,14 @@ if __name__ == "__main__":
     if not args.no_browser:
         app.state.auto_open_url = f"http://127.0.0.1:{args.port}"
 
-    uvicorn.run(app, host="127.0.0.1", port=args.port, reload=False, access_log=False, log_config = None)
+    use_tray = args.tray or (IS_FROZEN and not args.no_tray)
+
+    if use_tray:
+        run_with_tray(app, host="127.0.0.1", port=args.port)
+    else:
+        server = ServerController(app, host="127.0.0.1", port=args.port)
+        app.state.shutdown_callback = server.request_stop
+        try:
+            server.run_foreground()
+        finally:
+            app.state.shutdown_callback = None

@@ -42,6 +42,8 @@ Replace ```logo.png``` with your own logo (appears in the flight roster section)
 2. ```pip install -r requirements.txt```
 3. ```python html_brief.py```
 
+When launched from a frozen executable, the app starts in the system tray by default. The tray menu contains a single action: ```Quit```.
+
 ### Configuration
 - The app reads and writes `config.ini` next to the executable (or this repository root when run from source). If it does not exist, a default one is created on first launch.
 - Settings changed in the UI are saved back to `config.ini` and theatersXXX.ini on "Save config" click.
@@ -91,6 +93,8 @@ Targets section of the kneeboard can be used to upload target reference images. 
 ### Launch options
 - ```-p PORT```: set the port (default: 8000).
 - ```--no-browser```: prevent the app from automatically opening a browser tab on startup.
+- ```--tray```: force tray mode when running from source.
+- ```--no-tray```: disable tray mode for the frozen executable.
 
 Modification
 -------------

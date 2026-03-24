@@ -577,6 +577,7 @@
     .badge-row {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 0.5rem;
     }
 
@@ -626,8 +627,32 @@
       box-shadow: none;
     }
 
+    .badge-row #quit-app-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      width: auto;
+      height: 32px;
+      padding: 0.25rem 0.8rem;
+      border: none;
+      background: #9f1010;
+      color: #ffffff;
+      font-size: 1.05rem;
+      white-space: nowrap;
+      box-shadow: none;
+    }
+
     .badge-row #toggle-toolbar:hover {
       color: var(--line);
+      text-shadow: none;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .badge-row #quit-app-btn:hover {
+      color: #ffffff;
+      background: #bf1a1a;
       text-shadow: none;
       box-shadow: none;
       transform: none;
@@ -636,6 +661,14 @@
     .badge-row #toggle-toolbar:active:not(:disabled) {
       background: #ffffff;
       color: #000000;
+      text-shadow: none;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .badge-row #quit-app-btn:active:not(:disabled) {
+      background: #ffffff;
+      color: #9f1010;
       text-shadow: none;
       box-shadow: none;
       transform: none;
@@ -665,6 +698,36 @@
     .settings-meta a {
       text-transform: none;
       letter-spacing: inherit;
+    }
+
+    .shutdown-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      box-sizing: border-box;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .shutdown-panel {
+      width: min(560px, 100%);
+      padding: 1.5rem 1.75rem;
+      border: 1px solid #ffffff;
+      background: var(--bg);
+      box-shadow: var(--shadow);
+    }
+
+    .shutdown-panel h1 {
+      margin: 0 0 0.75rem;
+      color: #ffffff;
+    }
+
+    .shutdown-panel p {
+      margin: 0;
+      font-family: "IBMPlexMono";
+      line-height: 1.5;
     }
 
     @media (max-width: 1024px) {
@@ -707,6 +770,7 @@
         <div class="badge muted" id="global-status-badge" title="Global config status">
           <span id="status-indicator">Idle</span>
         </div>
+        <button id="quit-app-btn" type="button">Quit</button>
       </div>
     </header>
 
@@ -893,6 +957,7 @@
     const fileBadge = document.getElementById("file-status");
     const overflowBadge = document.getElementById("overflow-status");
     const globalStatusBadge = document.getElementById("global-status-badge");
+    const quitAppBtn = document.getElementById("quit-app-btn");
     const bmsSelect = document.getElementById("bms_version");
     const availableVersionsInput = document.getElementById("bms_available_versions");
     const wineInput = document.getElementById("wine_prefix");
@@ -1157,6 +1222,18 @@
       }
     }
 
+    function showShutdownScreen() {
+      document.body.innerHTML = `
+        <div class="shutdown-screen">
+          <div class="shutdown-panel">
+            <h1>Application Stopped</h1>
+            <p>The HTML Briefing server has been shut down. You can close this tab.</p>
+          </div>
+        </div>
+      `;
+      document.title = "Application Stopped";
+    }
+
     function populateVersionSelect(available, current) {
       const opts = (available || "").split(",").map(v => v.trim()).filter(Boolean);
       bmsSelect.innerHTML = "";
@@ -1298,6 +1375,19 @@
         log(`Reload failed: ${err.message}`);
       }
     });
+
+    if (quitAppBtn) {
+      quitAppBtn.addEventListener("click", async () => {
+        quitAppBtn.disabled = true;
+        try {
+          await fetchJSON("/api/quit", { method: "POST" });
+          showShutdownScreen();
+        } catch (err) {
+          quitAppBtn.disabled = false;
+          log(`Quit failed: ${err.message}`);
+        }
+      });
+    }
 
     availableVersionsInput.addEventListener("blur", () => {
       populateVersionSelect(availableVersionsInput.value, bmsSelect.value);
