@@ -1010,6 +1010,18 @@ def _extract_unit_roster_state(
         return None
 
 
+def _extract_squadron_aircraft_count(record_blob: bytes) -> int | None:
+    # In 4.38 squadron-kind package slot records, the tail keeps four per-aircraft
+    # state bytes at [-43:-39]. Non-zero entries correspond to present airframes.
+    if len(record_blob) < 43:
+        return None
+    plane_state = record_blob[-43:-39]
+    count = sum(1 for value in plane_state if value != 0)
+    if 1 <= count <= 4:
+        return count
+    return None
+
+
 def _scan_unit_record_starts(
     data: bytes,
     ct_records: dict[int, dict[str, int]],
@@ -1349,6 +1361,9 @@ def _parse_uni(data: bytes, ctx: ParseContext) -> dict[str, Any]:
             squadron_mission = _extract_squadron_mission(record_blob, strings_by_id)
             if squadron_mission is not None:
                 record["squadron_mission"] = squadron_mission
+            count_value = _extract_squadron_aircraft_count(record_blob)
+            if isinstance(count_value, int):
+                record["aircraft_count"] = count_value
         elif kind == "flight":
             flight_mission = _extract_flight_mission(
                 record_blob,
