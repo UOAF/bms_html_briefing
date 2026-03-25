@@ -8,8 +8,9 @@
 - uvicorn
 - weasyprint
 - beautifulsoup4
+- pystray
 
-## Python dependency closure (29 packages discovered)
+## Python dependency closure (32 packages discovered)
 - annotated-doc==0.0.4
 - annotated-types==0.7.0
 - anyio==4.12.0
@@ -28,8 +29,11 @@
 - pydantic==2.12.5
 - pydantic-core==2.41.5
 - pydyf==0.12.1
+- pystray==0.19.5
 - pymupdf==1.26.6
+- python-xlib==0.33
 - pyphen==0.17.2
+- six==1.17.0
 - soupsieve==2.8
 - starlette==0.50.0
 - tinycss2==1.5.1
@@ -41,15 +45,10 @@
 - webencodings==0.5.1
 
 ## Python license files
-- files in `licenses/python/`: 35
+- files in `licenses/python/`: 38
 
 ## Bundled asset licenses
 - `ibm-plex-mono-OFL-1.1.txt`
 - `inter-OFL-1.1.txt`
 - `leaflet-LICENSE`
 - `viper-display-LICENSE`
-
-## PyMuPDF note
-- `pymupdf-1.26.6-COPYING` is the short upstream package notice (dual-license statement).
-- Full AGPL text is provided in `AGPL-3.0-only.txt`.
-- Source for AGPL text: `AGPL-3.0-only.SOURCE.txt`.
