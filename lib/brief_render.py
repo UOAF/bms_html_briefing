@@ -106,7 +106,7 @@ def _blank_support_rows() -> list[list[dict[str, str]]]:
     return rows
 
 def _format_datetime(d):
-    return str(d.hour) + ":" + str(d.minute) + "z"
+    return f"{d.hour:02d}:{d.minute:02d}z"
 
 def _default_moon_data() -> dict[str, str]:
     return {"rise": "", "set": "", "phase": ""}

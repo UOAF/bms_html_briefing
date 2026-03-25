@@ -478,6 +478,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             "pdf_pages": app.state.pdf_page_count,
             "brief_pages": app.state.brief_pages_ref,
             "pdf_overflow": app.state.pdf_overflow,
+            "cam_loaded": isinstance(app.state.last_brief_summary, dict),
+            "cam_output_file": app.state.last_brief_summary_path,
         }
         if bms:
             target_folder = ""
@@ -631,8 +633,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             logger.error("CAM parsing failed: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to parse CAM file: {exc}") from exc
 
-        safe_stem = "".join(c for c in source_path.stem if c.isalnum() or c in {"_", "-"}) or "campaign"
-        json_path = output_dir / f"{safe_stem}_cam.json"
+        json_path = output_dir / "summary.json"
         json_path.write_text(json.dumps(cam_data, indent=2), encoding="utf-8")
 
         app.state.last_brief_summary_path = str(json_path)
@@ -647,6 +648,13 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             "selected_package_index": app.state.last_selected_package_index,
             "summary": cam_data,
         }
+
+    @app.post("/api/cam/unload")
+    def unload_cam_local() -> Dict[str, Any]:
+        app.state.last_brief_summary_path = None
+        app.state.last_brief_summary = None
+        app.state.last_selected_package_index = None
+        return {"status": "ok"}
 
     @app.post("/api/generate")
     def generate(payload: PreviewRequest = None) -> Dict[str, str]:

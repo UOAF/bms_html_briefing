@@ -300,7 +300,7 @@
       justify-content: flex-end;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn) {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn) {
       position: relative;
       z-index: 1;
       min-width: 0;
@@ -325,27 +325,27 @@
       pointer-events: none;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):hover {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):hover {
       transform: none;
       color: var(--line);
       text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
       box-shadow: none;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):active:not(:disabled) {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):active:not(:disabled) {
       background: #ffffff;
       color: #000000;
       text-shadow: none;
       box-shadow: none;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):focus-visible {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):focus-visible {
       outline: 1px solid var(--line);
       outline-offset: 2px;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):disabled,
-    section.mfd-box :is(.mfd-anchor button, .mfd-bottom-btn):disabled:hover {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):disabled,
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):disabled:hover {
       opacity: 1;
       cursor: not-allowed;
       color: #000000;
@@ -371,6 +371,29 @@
 
     section.mfd-box.mfd-with-bottom-btn {
       padding-bottom: var(--mfd-bottom-reserve);
+    }
+
+    section.mfd-box .mfd-footer-anchor {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: var(--mfd-gap);
+      margin-top: 0.2rem;
+      padding: 0 0.6rem;
+      position: relative;
+      z-index: 2;
+      transform: translateY(1.6rem);
+    }
+
+    section.mfd-box .mfd-footer-anchor button::after {
+      content: "";
+      position: absolute;
+      left: calc(-1 * var(--mfd-cutout-x));
+      right: calc(-1 * var(--mfd-cutout-x));
+      bottom: calc(-0.5 * var(--mfd-cutout-bottom) + 0.04rem);
+      height: calc(0.5 * var(--mfd-cutout-bottom));
+      background: var(--bg);
+      pointer-events: none;
     }
 
     section.mfd-box .mfd-bottom-btn {
@@ -550,7 +573,7 @@
       position: absolute;
       left: auto !important;
       right: 0.85rem !important;
-      bottom: var(--mfd-bottom-offset);
+      bottom: calc(var(--mfd-bottom-offset) - 1.3rem);
       transform: none !important;
       z-index: 2;
     }
@@ -560,8 +583,8 @@
       position: absolute;
       left: calc(-1 * var(--mfd-cutout-x));
       right: calc(-1 * var(--mfd-cutout-x));
-      bottom: calc(-1 * var(--mfd-cutout-bottom) + 0.04rem);
-      height: var(--mfd-cutout-bottom);
+      bottom: calc(-0.5 * var(--mfd-cutout-bottom) + 0.04rem);
+      height: calc(0.5 * var(--mfd-cutout-bottom));
       background: var(--bg);
       pointer-events: none;
     }
@@ -901,21 +924,24 @@
           </form>
         </section>
 
-        <section class="mfd-box no-print">
+        <section class="mfd-box mfd-settings mfd-with-bottom-btn no-print">
+          <div class="mfd-anchor mfd-anchor-right no-print">
+            <button id="cam-load-btn" type="button" title="Load selected campaign save" disabled>Load</button>
+            <button id="cam-unload-btn" type="button" title="Unload current campaign save" disabled>Unload</button>
+          </div>
           <div class="panel-head">
             <h3 class="heading-zero">CAM</h3>
           </div>
-          <div class="grid two">
+          <div class="grid">
             <div>
               <label for="cam-save-select">Campaign save (.cam/.trn/.tac)</label>
               <select id="cam-save-select">
                 <option value="">No saves found</option>
               </select>
             </div>
-            <div style="display:flex; gap:8px; align-items:flex-end;">
-              <button id="cam-refresh-btn" type="button" title="Refresh campaign save list">Refresh saves</button>
-              <button id="cam-load-btn" type="button" title="Load selected campaign save" disabled>Load selected</button>
-            </div>
+          </div>
+          <div class="mfd-footer-anchor no-print">
+            <button id="cam-refresh-btn" type="button" title="Refresh campaign save list">Refresh</button>
           </div>
         </section>
 
@@ -969,6 +995,7 @@
     const camSaveSelect = document.getElementById("cam-save-select");
     const camRefreshBtn = document.getElementById("cam-refresh-btn");
     const camLoadBtn = document.getElementById("cam-load-btn");
+    const camUnloadBtn = document.getElementById("cam-unload-btn");
     const CAM_PREVIEW_PACKAGE_SELECT_ID = "cam-support-package-select";
     const CAM_PREVIEW_PACKAGE_QUERY_ID = "cam-support-package-query";
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
@@ -999,7 +1026,6 @@
     let autoExportPdfOnly = false;
     let copyToKtoEnabled = false;
     let lastCamData = null;
-    let camAutoLoadAttempted = false;
     const sectionLabels = {
       airbase: "Airbase",
       package: "Package",
@@ -1035,11 +1061,10 @@
     }
 
     function updateCamSummaryUi(camData, outputPath = null) {
-      if (!camData) return;
-      if (!outputPath) return;
       if (camSaveSelect) {
-        camSaveSelect.title = `CAM parsed: ${outputPath}`;
+        camSaveSelect.title = camData && outputPath ? `CAM parsed: ${outputPath}` : "";
       }
+      if (camUnloadBtn) camUnloadBtn.disabled = !camData;
     }
 
     function getSavedCamSupportPackageIndex() {
@@ -1287,6 +1312,8 @@
         document.getElementById("target-folder").title = data.target_folder || "–";
         document.getElementById("pdf-dir-status").textContent = data.pdf_output_dir || "–";
         document.getElementById("pdf-dir-status").title = data.pdf_output_dir || "–";
+        lastCamData = data.cam_loaded ? (lastCamData || {}) : null;
+        updateCamSummaryUi(data.cam_loaded ? {} : null, data.cam_output_file || null);
         const hasError = data.error || !data.base_dir;
       statusEl.textContent = hasError ? "BMS CONFIG MISSING" : "READY";
       if (globalStatusBadge) {
@@ -1303,7 +1330,6 @@
         renderPages();
         await loadTheater();
         await refreshCamSaveList(true);
-        await autoLoadSavedCamIfNeeded();
         if (!hasError && pages.length > 0) {
         await doPreview(currentOverrides());
       }
@@ -1367,6 +1393,7 @@
 
     document.getElementById("reload-btn").addEventListener("click", async () => {
       try {
+        await fetchJSON("/api/cam/unload", { method: "POST" });
         resetSavedCamSelection();
         await fetchJSON("/api/reload", { method: "POST" });
         log("Reloaded BMS config");
@@ -1591,34 +1618,47 @@
       }
     }
 
-    async function autoLoadSavedCamIfNeeded() {
-      if (camAutoLoadAttempted) return;
-      camAutoLoadAttempted = true;
-      if (lastCamData) return;
-      const selectedPath = typeof camSaveSelect?.value === "string" ? camSaveSelect.value.trim() : "";
-      if (!selectedPath) return;
-      try {
-        const storedPath = localStorage.getItem(CAM_LAST_SAVE_PATH_KEY) || "";
-        if (!storedPath || storedPath !== selectedPath) return;
-      } catch {
-        return;
-      }
-      await loadCamFromSelection({ silent: true });
-    }
-
-    function resetSavedCamSelection() {
-      try {
-        localStorage.removeItem(CAM_LAST_SAVE_PATH_KEY);
-      } catch {
-        // Keep behavior even if localStorage is unavailable.
+    function resetSavedCamSelection(options = {}) {
+      const clearStoredPath = options.clearStoredPath !== false;
+      const clearSelect = options.clearSelect !== false;
+      if (clearStoredPath) {
+        try {
+          localStorage.removeItem(CAM_LAST_SAVE_PATH_KEY);
+        } catch {
+          // Keep behavior even if localStorage is unavailable.
+        }
       }
       if (camSaveSelect) {
-        camSaveSelect.value = "";
+        if (clearSelect) {
+          camSaveSelect.value = "";
+        }
         camSaveSelect.title = "";
       }
       saveCamSupportPackageIndex(null);
-      camAutoLoadAttempted = false;
       lastCamData = null;
+      updateCamSummaryUi(null);
+    }
+
+    async function unloadCamSelection(options = {}) {
+      const silent = !!options.silent;
+      const refreshPreviewAfter = options.refreshPreview !== false;
+      try {
+        await fetchJSON("/api/cam/unload", { method: "POST" });
+        const query = getPreviewCamPackageQuery();
+        if (query) query.value = "";
+        const select = getPreviewCamPackageSelect();
+        if (select) select.value = "";
+        clearSavedCamRenderedValues({ clearBullseye: true, clearSupportPackage: true });
+        resetSavedCamSelection({ clearStoredPath: false, clearSelect: false });
+        if (refreshPreviewAfter) {
+          const overrides = currentOverrides();
+          overrides.selected_package_index = null;
+          await doPreview(overrides);
+        }
+        if (!silent) log("CAM unloaded");
+      } catch (err) {
+        if (!silent) log(`CAM unload failed: ${err.message}`);
+      }
     }
 
     function getSavedEdits() {
@@ -1842,6 +1882,11 @@
     if (camLoadBtn) {
       camLoadBtn.addEventListener("click", async () => {
         await loadCamFromSelection();
+      });
+    }
+    if (camUnloadBtn) {
+      camUnloadBtn.addEventListener("click", async () => {
+        await unloadCamSelection();
       });
     }
 

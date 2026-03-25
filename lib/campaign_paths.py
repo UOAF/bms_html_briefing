@@ -17,8 +17,7 @@ def campaign_dirs(
         return dirs
     base = Path(bms_base_dir).expanduser()
     data_dir = base / "Data"
-
-    dirs.append(data_dir / "Campaign")
+    default_campaign_dir = data_dir / "Campaign"
 
     if theater_target_folder:
         target = Path(theater_target_folder).expanduser()
@@ -31,16 +30,10 @@ def campaign_dirs(
         for idx, part in enumerate(resolved.parts):
             if part.lower().startswith("add-on"):
                 addon_root = Path(*resolved.parts[: idx + 1])
-                dirs.insert(0, addon_root / "Campaign")
+                dirs.append(addon_root / "Campaign")
                 break
-
-    if data_dir.is_dir():
-        try:
-            for add_on in data_dir.iterdir():
-                if add_on.is_dir() and add_on.name.lower().startswith("add-on"):
-                    dirs.append(add_on / "Campaign")
-        except Exception:
-            pass
+    if not dirs:
+        dirs.append(default_campaign_dir)
 
     deduped: list[Path] = []
     seen: set[Path] = set()
