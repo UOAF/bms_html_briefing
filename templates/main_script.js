@@ -204,6 +204,13 @@ function loadImages() {
     let imageDisplay1 = document.getElementById("tgt1Img");
     let imageDisplay2 = document.getElementById("tgt2Img");
     let imageDisplay3 = document.getElementById("tgt3Img");
+    imageRow.style.visibility = "collapse";
+    [imageDisplay1, imageDisplay2, imageDisplay3].forEach((imgEl) => {
+        if (!imgEl) {
+            return;
+        }
+        imgEl.removeAttribute("src");
+    });
     if (contentData["tgt1Img_src"]) {
         imageRow.style.visibility = "";
         imageDisplay1.src = contentData["tgt1Img_src"];
