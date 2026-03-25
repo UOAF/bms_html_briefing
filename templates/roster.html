@@ -7,18 +7,18 @@
 </table>
 <table width=100% id="roster" class="hidable">
         <colgroup>
-            {% if logo_present %}<col style="width:15%;">{% endif %}
-            <col style="width:30%;">
-            <col style="width:35%;">
-            <col style="width:10%;">
-            <col style="width:10%;">
+            {% if logo_present %}<col style="width:12%;">{% endif %}
+            <col style="width:{% if logo_present %}14%{% else %}16%{% endif %};">
+            <col style="width:{% if logo_present %}46%{% else %}54%{% endif %};">
+            <col style="width:{% if logo_present %}14%{% else %}15%{% endif %};">
+            <col style="width:{% if logo_present %}14%{% else %}15%{% endif %};">
         </colgroup>
         <tr>
-	    {% if logo_present %}<th rowspan="6" width="15%" style="vertical-align: middle; text-align: center;"> <img src="assets/logo.png" width="100%"></th>{% endif %}
-            <th width="15%"></th>
+	    {% if logo_present %}<th rowspan="6" style="vertical-align: middle; text-align: center;"> <img src="assets/logo.png" width="100%"></th>{% endif %}
+            <th></th>
             <th>Name</th>
-            <th width="10%">TCN <button class="refreshButton" onclick='restoreDefaultAtId("tcn")'>⟳</button></th>
-            <th width="10%">LSR</th>
+            <th>TCN <button class="refreshButton" onclick='restoreDefaultAtId("tcn")'>⟳</button></th>
+            <th>LSR</th>
         </tr>
       {% for i in range(package_size) %}
       {% if package[i].roster.own %}

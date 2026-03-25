@@ -41,14 +41,14 @@
 </table>
 <table width=100% id="package" class="hidable">
     <colgroup>
-        <col style="width:14%;">
-        <col style="width:8%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:8%;">
+        <col style="width:17%;">
+        <col style="width:7%;">
+        <col style="width:18%;">
+        <col style="width:17%;">
+        <col style="width:10%;">
+        <col style="width:9%;">
+        <col style="width:10%;">
+        <col style="width:12%;">
     </colgroup>
     <thead>
         <tr>
@@ -56,9 +56,9 @@
             <th>Flight #</th>
             <th>Role</th>
             <th>Aircraft</th>
-            <th>Takeoff</th>
-            <th>Push</th>
-            <th>TOT</th>
+            <th class="nowrap">Takeoff</th>
+            <th class="nowrap">Push</th>
+            <th class="nowrap">TOT</th>
             <th>L16</th>
         </tr>
     </thead>
@@ -69,9 +69,9 @@
 	<td>{{flight.flight}}</td>
 	<td>{{flight.role}}</td>
 	<td>{{flight.aircraft}}</td>
-	<td>{{flight.takeoff}}</td>
-	<td>{{flight.push}}</td>
-	<td>{{flight.tot}}</td>
+	<td class="nowrap">{{flight.takeoff}}</td>
+	<td class="nowrap">{{flight.push}}</td>
+	<td class="nowrap">{{flight.tot}}</td>
 	<td id="package_main_l16_{{loop.index}}">{{main_package_l16.get(flight.callsign|replace(' ', '')|lower, main_package_l16.get(flight.flight|string, flight.l16))}}</td>
       </tr>
       {% endfor %}
@@ -99,14 +99,14 @@
 </table>
 <table width=100% id="suppPackage" class="hidable">
     <colgroup>
-        <col style="width:14%;">
-        <col style="width:8%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:14%;">
-        <col style="width:8%;">
+        <col style="width:17%;">
+        <col style="width:7%;">
+        <col style="width:18%;">
+        <col style="width:17%;">
+        <col style="width:10%;">
+        <col style="width:9%;">
+        <col style="width:10%;">
+        <col style="width:12%;">
     </colgroup>
     <thead>
         <tr>
@@ -114,19 +114,19 @@
             <th>Flight #</th>
             <th>Role</th>
             <th>Aircraft</th>
-            <th>Takeoff</th>
-            <th>Push</th>
-            <th>TOT</th>
+            <th class="nowrap">Takeoff</th>
+            <th class="nowrap">Push</th>
+            <th class="nowrap">TOT</th>
             <th>L16</th>
         </tr>
     </thead>
-    {% for row in support_package_rows %}
     <tbody>
+    {% for row in support_package_rows %}
       <tr>
 	{% for cell in row %}
-	<td contenteditable="true" class="editable" id="{{cell.id}}">{{cell.value}}</td>
+	<td contenteditable="true" class="editable{% if loop.index0 in [4, 5, 6] %} nowrap{% endif %}" id="{{cell.id}}">{{cell.value}}</td>
 	{% endfor %}
       </tr>
-    </tbody>
     {% endfor %}
+    </tbody>
 </table>

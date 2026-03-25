@@ -1,8 +1,11 @@
 <style>
+		:root {
+		    --map-height: 1000px;
+		}
 		.leaflet-container {
 		    width: 100%;
-		    height: 800px;
-		    max-height: 800px;
+		    height: var(--map-height);
+		    max-height: var(--map-height);
 		    max-width: 100%;
 		}
 			.leaflet-tooltip-fp {
@@ -31,12 +34,12 @@
 </style>
 <table width="100%">
   <colgroup>
-    <col style="width:20%;">
-    <col style="width:80%;">
+    <col style="width:14%;">
+    <col style="width:86%;">
   </colgroup>
       <tr>
 <th class="header" height="1.7em"><input type="file" accept="image/*" id="mapInput" class="imageFileInput"></th>
-<th class="header clickable" onclick="toggleVisHeader(this)" id="map_header" width="80%"><span class="arrow">▼</span>Map</th>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="map_header"><span class="arrow">▼</span>Map</th>
   </tr>
 </table>
 <table width="100%" id="map" class="hidable">

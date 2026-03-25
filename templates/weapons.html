@@ -8,10 +8,10 @@
 {% set weapon_cols = own_flight.weapons[0]|length if own_flight.weapons and own_flight.weapons[0] is not none else 0 %}
 <table width=100% id="weapons" class="hidable">
     <colgroup>
-        <col style="width:5%;">
+        <col style="width:4%;">
         {% if weapon_cols > 0 %}
         {% for _ in range(weapon_cols) %}
-        <col style="width:{{ 90 / weapon_cols }}%;">
+        <col style="width:{{ 96 / weapon_cols }}%;">
         {% endfor %}
         {% endif %}
     </colgroup>
