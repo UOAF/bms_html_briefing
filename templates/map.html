@@ -1,6 +1,20 @@
 <style>
+		@font-face {
+		    font-family: "Map Overlay Mono";
+		    src: url("../assets/fonts/IBM_Plex_Mono/IBMPlexMono-Regular.ttf") format("truetype");
+		    font-weight: 400;
+		    font-style: normal;
+		    font-display: swap;
+		}
+		@font-face {
+		    font-family: "Map Overlay Mono";
+		    src: url("../assets/fonts/IBM_Plex_Mono/IBMPlexMono-Bold.ttf") format("truetype");
+		    font-weight: 700;
+		    font-style: normal;
+		    font-display: swap;
+		}
 		:root {
-		    --map-height: 1000px;
+		    --map-height: 1100px;
 		}
 		.leaflet-container {
 		    width: 100%;
@@ -19,16 +33,62 @@
 			    pointer-events: none;
 			    box-shadow: 0 0px 0px rgba(0,0,0,0.0);
 			}
+			.leaflet-tooltip-fp:before {
+			    display: none;
+			}
 		.leaflet-tooltip-threat {
 		    position: absolute;
 		    padding: 4px;
 		    background-color: rgba(0, 0, 0, 0.0);
 		    border: 0px solid #000;
-		    color: #fff;
+		    color: #ffffff;
 		    white-space: nowrap;
 		    user-select: none;
 		    pointer-events: none;
 		    box-shadow: 0 0px 0px rgba(0,0,0,0.0);
+		    text-shadow:
+		        1px 0 0 rgba(0,0,0,0.95),
+		        -1px 0 0 rgba(0,0,0,0.95),
+		        0 1px 0 rgba(0,0,0,0.95),
+		        0 -1px 0 rgba(0,0,0,0.95),
+		        1px 1px 0 rgba(0,0,0,0.75),
+		        -1px 1px 0 rgba(0,0,0,0.75),
+		        1px -1px 0 rgba(0,0,0,0.75),
+		        -1px -1px 0 rgba(0,0,0,0.75);
+		    -webkit-text-stroke: 0.35px rgba(0,0,0,0.95);
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-weight: 700;
+		}
+		.leaflet-tooltip-threat:before {
+		    display: none;
+		}
+		.leaflet-tooltip-anchor {
+		    position: absolute;
+		    padding: 4px;
+		    background-color: rgba(0, 0, 0, 0.0);
+		    border: 0px solid #000;
+		    color: #a9c7e6;
+		    white-space: nowrap;
+		    user-select: none;
+		    pointer-events: none;
+		    box-shadow: 0 0px 0px rgba(0,0,0,0.0);
+		    text-shadow:
+		        1px 0 0 rgba(0,0,0,0.95),
+		        -1px 0 0 rgba(0,0,0,0.95),
+		        0 1px 0 rgba(0,0,0,0.95),
+		        0 -1px 0 rgba(0,0,0,0.95),
+		        1px 1px 0 rgba(0,0,0,0.7),
+		        -1px 1px 0 rgba(0,0,0,0.7),
+		        1px -1px 0 rgba(0,0,0,0.7),
+		        -1px -1px 0 rgba(0,0,0,0.7);
+		    -webkit-text-stroke: 0.35px rgba(0,0,0,0.95);
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-weight: 700;
+		    font-size: 11px;
+		    line-height: 1;
+		}
+		.leaflet-tooltip-anchor:before {
+		    display: none;
 		}
 
 </style>
@@ -85,6 +145,103 @@ drawings = L.layerGroup();
 var fWidth = 3359580,
     fHeight = 3359580;
 
+const MAP_STYLE = {
+    flightPath: {
+        color: "white",
+        weight: 3,
+        lineJoin: "round",
+        haloColor: "rgba(0,0,0,0.55)",
+        haloWeight: 5
+    },
+    flightMarker: {
+        color: "white",
+        fillOpacity: 1,
+        radius: 8,
+        canvasFillStyle: "#ffffff",
+        canvasStrokeStyle: "#000000"
+    },
+    startMarker: {
+        radius: 4,
+        color: "#000000",
+        fillColor: "#ffffff",
+        fillOpacity: 1,
+        weight: 1.5
+    },
+    endMarker: {
+        radius: 10,
+        color: "#a9c7e6",
+        fillColor: "rgba(0,0,0,0)",
+        fillOpacity: 0,
+        weight: 2.2
+    },
+    penultimateMarker: {
+        radius: 11,
+        color: "#a9c7e6",
+        fillColor: "rgba(0,0,0,0)",
+        fillOpacity: 0,
+        weight: 2,
+        dashArray: "4 3",
+        dashPattern: [4, 3]
+    },
+    steerpointLine: { color: "black", weight: 2, dashArray: "6 4", dashPattern: [6, 4] },
+    threatCircle: {
+        color: "red",
+        fillColor: "red",
+        fillOpacity: 0.06,
+        opacity: 0.5,
+        canvasFillStyle: "rgba(255,0,0,0.08)",
+        weight: 2,
+        dashArray: "8 5",
+        dashPattern: [8, 5]
+    },
+    threatCenter: {
+        radius: 3,
+        color: "#ffffff",
+        strokeColor: "#000000",
+        strokeWidth: 1
+    },
+    anchorCenter: {
+        radius: 3,
+        color: "#a9c7e6",
+        strokeColor: "#000000",
+        strokeWidth: 1
+    },
+    flightPointText: {
+        color: "#000000",
+        font: '700 10px "Map Overlay Mono"',
+        offsetX: 0,
+        offsetY: 0,
+        textAlign: "center",
+        textBaseline: "middle"
+    },
+    anchorText: {
+        fillStyle: "#a9c7e6",
+        strokeStyle: "rgba(0,0,0,0.92)",
+        lineWidth: 1.2,
+        font: '700 11px "Map Overlay Mono"',
+        offsetX: 10,
+        offsetY: -10
+    },
+    threatText: {
+        fillStyle: "#ffffff",
+        strokeStyle: "rgba(0,0,0,0.72)",
+        lineWidth: 1.25,
+        font: '700 12px "Map Overlay Mono"',
+        textAlign: "center",
+        textBaseline: "middle",
+        offsetX: 0,
+        offsetY: 10
+    }
+};
+
+const MAP_EXPORT_SCALE = 2;
+
+const LEAFLET_TOOLTIP_OPTS = {
+    flightPoint: { direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp" },
+    threat: { direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat" },
+    alt: { direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-anchor" }
+};
+
 function convertScalar(iniScalar) {
     const num = parseFloat(iniScalar);
     if (!Number.isFinite(num)) return 0;
@@ -122,6 +279,322 @@ let stptLineIniCoords = [{% for line in stpt_lines %}
 
 stptLineMapCoords = [[],[],[],[]];
 
+function validLatLng(latlng) {
+    return Array.isArray(latlng) && latlng.length >= 2 && Number.isFinite(latlng[0]) && Number.isFinite(latlng[1]);
+}
+
+function rebuildMapCoords() {
+    stptMapCoords = stptIniCoords.map(convertCoord);
+    tstptMapCoords = tstptIniCoords.map((entry) => {
+        const radiusVal = parseFloat(entry[1]);
+        return [
+            convertCoord(entry[0]),
+            Number.isFinite(radiusVal) ? convertScalar(radiusVal) : 0,
+            entry[2] || ""
+        ];
+    });
+    stptLineMapCoords = stptLineIniCoords.map((line) => line.map(convertCoord));
+}
+
+function getFlightRouteCoords() {
+    return stptMapCoords.slice(0, -1).filter(validLatLng);
+}
+
+function getFlightPointEntries() {
+    return stptMapCoords
+        .map((latlng, index) => ({ latlng, index }))
+        .filter((entry) => entry.index > 0 && entry.index < stptMapCoords.length - 1 && validLatLng(entry.latlng));
+}
+
+function getEndpointEntries() {
+    const entries = [];
+    const startLatLng = stptMapCoords[0];
+    const endLatLng = stptMapCoords[stptMapCoords.length - 1];
+    if (validLatLng(startLatLng)) {
+        entries.push({ kind: "start", latlng: startLatLng });
+    }
+    if (validLatLng(endLatLng)) {
+        entries.push({ kind: "end", latlng: endLatLng });
+    }
+    return entries;
+}
+
+function getPenultimateEntry() {
+    if (stptMapCoords.length < 2) return null;
+    const latlng = stptMapCoords[stptMapCoords.length - 2];
+    if (!validLatLng(latlng)) return null;
+    return { latlng, index: stptMapCoords.length - 2 };
+}
+
+function getAnchorLabels() {
+    const labels = [];
+    const altLatLng = stptMapCoords[stptMapCoords.length - 1];
+    if (validLatLng(altLatLng)) {
+        labels.push({ text: "ALT", latlng: altLatLng, tooltipOptions: LEAFLET_TOOLTIP_OPTS.alt });
+    }
+    return labels;
+}
+
+function getThreatEntries() {
+    return tstptMapCoords
+        .map((entry) => ({
+            latlng: entry && entry[0],
+            radius: entry && Number.isFinite(entry[1]) ? entry[1] : 0,
+            label: entry && entry.length > 2 ? entry[2] : ""
+        }))
+        .filter((entry) => validLatLng(entry.latlng));
+}
+
+function getSteerpointLines() {
+    return stptLineMapCoords
+        .map((line) => line.filter(validLatLng))
+        .filter((line) => line.length > 0);
+}
+
+function addTooltipMarker(latlng, html, tooltipOptions) {
+    return L.marker(latlng, { icon: L.divIcon({ iconSize: 0 }) })
+        .setOpacity(0)
+        .addTo(drawings)
+        .bindTooltip(html, tooltipOptions)
+        .openTooltip();
+}
+
+function renderFlightPlanLeaflet() {
+    const routeCoords = getFlightRouteCoords();
+    getEndpointEntries().forEach((entry) => {
+        const style = entry.kind === "start" ? MAP_STYLE.startMarker : MAP_STYLE.endMarker;
+        L.circleMarker(entry.latlng, {
+            radius: style.radius,
+            color: style.color,
+            weight: style.weight,
+            fillColor: style.fillColor,
+            fillOpacity: style.fillOpacity
+        }).addTo(drawings);
+    });
+    const penultimateEntry = getPenultimateEntry();
+    if (penultimateEntry) {
+        L.circleMarker(penultimateEntry.latlng, {
+            radius: MAP_STYLE.penultimateMarker.radius,
+            color: MAP_STYLE.penultimateMarker.color,
+            weight: MAP_STYLE.penultimateMarker.weight,
+            fillColor: MAP_STYLE.penultimateMarker.fillColor,
+            fillOpacity: MAP_STYLE.penultimateMarker.fillOpacity,
+            dashArray: MAP_STYLE.penultimateMarker.dashArray
+        }).addTo(drawings);
+    }
+    getFlightPointEntries().forEach((entry) => {
+        L.circleMarker(entry.latlng, {
+            color: MAP_STYLE.flightMarker.color,
+            fillOpacity: MAP_STYLE.flightMarker.fillOpacity,
+            radius: MAP_STYLE.flightMarker.radius,
+            zIndexOffset: -entry.index
+        }).addTo(drawings).bindTooltip(
+            "<span style='color:#0a0a0a'>" + (entry.index + 1).toString() + "</span>",
+            LEAFLET_TOOLTIP_OPTS.flightPoint
+        ).openTooltip();
+    });
+    getAnchorLabels().forEach((entry) => {
+        L.circleMarker(entry.latlng, {
+            radius: MAP_STYLE.anchorCenter.radius,
+            color: MAP_STYLE.anchorCenter.strokeColor,
+            weight: MAP_STYLE.anchorCenter.strokeWidth,
+            fillColor: MAP_STYLE.anchorCenter.color,
+            fillOpacity: 1
+        }).addTo(drawings);
+        addTooltipMarker(entry.latlng, "<b>" + entry.text + "</b>", entry.tooltipOptions);
+    });
+    if (routeCoords.length > 0) {
+        L.polyline(routeCoords, MAP_STYLE.flightPath).addTo(drawings);
+    }
+}
+
+function renderThreatsLeaflet() {
+    getThreatEntries().forEach((entry) => {
+        addTooltipMarker(entry.latlng, "<b>" + entry.label + "</b>", LEAFLET_TOOLTIP_OPTS.threat);
+        L.circleMarker(entry.latlng, {
+            radius: MAP_STYLE.threatCenter.radius,
+            color: MAP_STYLE.threatCenter.strokeColor,
+            weight: MAP_STYLE.threatCenter.strokeWidth,
+            fillColor: MAP_STYLE.threatCenter.color,
+            fillOpacity: 1
+        }).addTo(drawings);
+        if (entry.radius > 0) {
+            L.circle(entry.latlng, {
+                radius: entry.radius,
+                color: MAP_STYLE.threatCircle.color,
+                fillColor: MAP_STYLE.threatCircle.fillColor,
+                fillOpacity: MAP_STYLE.threatCircle.fillOpacity,
+                opacity: MAP_STYLE.threatCircle.opacity,
+                weight: MAP_STYLE.threatCircle.weight,
+                dashArray: MAP_STYLE.threatCircle.dashArray
+            }).addTo(drawings);
+        }
+    });
+}
+
+function renderSteerpointLinesLeaflet() {
+    getSteerpointLines().forEach((line) => {
+        L.polyline(line, MAP_STYLE.steerpointLine).addTo(drawings);
+    });
+}
+
+function getOverlayDrawRect(overlay) {
+    const sw = overlay.getBounds().getSouthWest();
+    const ne = overlay.getBounds().getNorthEast();
+    const topLeft = map.latLngToContainerPoint(ne);
+    const bottomRight = map.latLngToContainerPoint(sw);
+    return {
+        x: topLeft.x,
+        y: topLeft.y,
+        width: bottomRight.x - topLeft.x,
+        height: bottomRight.y - topLeft.y
+    };
+}
+
+function latLngToCanvasPoint(latlng) {
+    return map.latLngToContainerPoint(latlng);
+}
+
+function getThreatRadiusPx(centerLatLng, radius) {
+    const center = latLngToCanvasPoint(centerLatLng);
+    const edge = latLngToCanvasPoint([centerLatLng[0] + radius, centerLatLng[1]]);
+    return Math.abs(edge.y - center.y);
+}
+
+function drawCanvasPolyline(ctx, latlngs, style) {
+    const validPoints = latlngs.filter(validLatLng);
+    if (validPoints.length === 0) return;
+    ctx.save();
+    const drawPath = () => {
+        ctx.beginPath();
+        validPoints.forEach((latlng, index) => {
+            const point = latLngToCanvasPoint(latlng);
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+        });
+    };
+    ctx.lineJoin = style.lineJoin || "miter";
+    ctx.setLineDash(Array.isArray(style.dashPattern) ? style.dashPattern : []);
+    if (style.haloColor && style.haloWeight) {
+        ctx.strokeStyle = style.haloColor;
+        ctx.lineWidth = style.haloWeight;
+        drawPath();
+        ctx.stroke();
+    }
+    ctx.strokeStyle = style.color;
+    ctx.lineWidth = style.weight;
+    drawPath();
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawCanvasCircle(ctx, point, radius, style) {
+    ctx.save();
+    ctx.setLineDash(Array.isArray(style.dashPattern) ? style.dashPattern : []);
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+    if (style.fillStyle) {
+        ctx.fillStyle = style.fillStyle;
+        ctx.fill();
+    }
+    if (style.strokeStyle) {
+        ctx.strokeStyle = style.strokeStyle;
+        ctx.lineWidth = style.lineWidth || 1;
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawCanvasText(ctx, text, point, style) {
+    ctx.save();
+    ctx.font = style.font;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.miterLimit = 1.5;
+    if (style.textAlign) ctx.textAlign = style.textAlign;
+    if (style.textBaseline) ctx.textBaseline = style.textBaseline;
+    const x = point.x + (style.offsetX || 0);
+    const y = point.y + (style.offsetY || 0);
+    if (style.strokeStyle) {
+        ctx.strokeStyle = style.strokeStyle;
+        ctx.lineWidth = style.lineWidth || 1;
+        ctx.strokeText(text, x, y);
+    }
+    if (style.fillStyle || style.color) {
+        ctx.fillStyle = style.fillStyle || style.color;
+        ctx.fillText(text, x, y);
+    }
+    ctx.restore();
+}
+
+function renderFlightPlanCanvas(ctx) {
+    drawCanvasPolyline(ctx, getFlightRouteCoords(), MAP_STYLE.flightPath);
+    getEndpointEntries().forEach((entry) => {
+        const point = latLngToCanvasPoint(entry.latlng);
+        const style = entry.kind === "start" ? MAP_STYLE.startMarker : MAP_STYLE.endMarker;
+        drawCanvasCircle(ctx, point, style.radius, {
+            fillStyle: style.fillOpacity > 0 ? style.fillColor : null,
+            strokeStyle: style.color,
+            lineWidth: style.weight
+        });
+    });
+    const penultimateEntry = getPenultimateEntry();
+    if (penultimateEntry) {
+        drawCanvasCircle(ctx, latLngToCanvasPoint(penultimateEntry.latlng), MAP_STYLE.penultimateMarker.radius, {
+            fillStyle: MAP_STYLE.penultimateMarker.fillOpacity > 0 ? MAP_STYLE.penultimateMarker.fillColor : null,
+            strokeStyle: MAP_STYLE.penultimateMarker.color,
+            lineWidth: MAP_STYLE.penultimateMarker.weight,
+            dashPattern: MAP_STYLE.penultimateMarker.dashPattern
+        });
+    }
+    getFlightPointEntries().forEach((entry) => {
+        const point = latLngToCanvasPoint(entry.latlng);
+        drawCanvasCircle(ctx, point, MAP_STYLE.flightMarker.radius, {
+            fillStyle: MAP_STYLE.flightMarker.canvasFillStyle,
+            strokeStyle: MAP_STYLE.flightMarker.canvasStrokeStyle,
+            lineWidth: 1
+        });
+        drawCanvasText(ctx, String(entry.index + 1), point, MAP_STYLE.flightPointText);
+    });
+    getAnchorLabels().forEach((entry) => {
+        const point = latLngToCanvasPoint(entry.latlng);
+        drawCanvasCircle(ctx, point, MAP_STYLE.anchorCenter.radius, {
+            fillStyle: MAP_STYLE.anchorCenter.color,
+            strokeStyle: MAP_STYLE.anchorCenter.strokeColor,
+            lineWidth: MAP_STYLE.anchorCenter.strokeWidth
+        });
+        drawCanvasText(ctx, entry.text, point, MAP_STYLE.anchorText);
+    });
+}
+
+function renderThreatsCanvas(ctx) {
+    getThreatEntries().forEach((entry) => {
+        const center = latLngToCanvasPoint(entry.latlng);
+        drawCanvasCircle(ctx, center, MAP_STYLE.threatCenter.radius, {
+            fillStyle: MAP_STYLE.threatCenter.color,
+            strokeStyle: MAP_STYLE.threatCenter.strokeColor,
+            lineWidth: MAP_STYLE.threatCenter.strokeWidth
+        });
+        if (entry.radius > 0) {
+            drawCanvasCircle(ctx, center, getThreatRadiusPx(entry.latlng, entry.radius), {
+                fillStyle: MAP_STYLE.threatCircle.canvasFillStyle,
+                strokeStyle: MAP_STYLE.threatCircle.color,
+                lineWidth: MAP_STYLE.threatCircle.weight,
+                dashPattern: MAP_STYLE.threatCircle.dashPattern
+            });
+        }
+        if (entry.label) {
+            drawCanvasText(ctx, entry.label, center, MAP_STYLE.threatText);
+        }
+    });
+}
+
+function renderSteerpointLinesCanvas(ctx) {
+    getSteerpointLines().forEach((line) => {
+        drawCanvasPolyline(ctx, line, MAP_STYLE.steerpointLine);
+    });
+}
+
 map.setView([-imageWidth/2, imageHeight/2], -2);
 const initialBullseye = {
     lat: {% if bullseye.lat is not none %}{{bullseye.lat}}{% else %}null{% endif %},
@@ -138,38 +611,10 @@ function drawMap(url) {
     mapBaseDataUrl = url;
     map_overlay.setUrl(url);
     drawings.clearLayers();
-
-    for (i = 0; i < stptIniCoords.length - 1; i ++) {
-	stptMapCoords[i] = convertCoord(stptIniCoords[i]);
-	if (i > 0) {
-	    L.circleMarker(stptMapCoords[i], {color: "white", fillOpacity: 1, radius: 7, zIndexOffset: -i}).addTo(drawings).bindTooltip("<span style='color:#0a0a0a'>"+(i+1).toString()+"</span>", {direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp"}).openTooltip();
-	}
-    }
-    if (stptIniCoords.length > 0) {
-    stptMapCoords[i] = convertCoord(stptIniCoords[i]);
-    L.marker(stptMapCoords[i], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>ALT</b>", {direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat"}).openTooltip();
-    L.marker(stptMapCoords[0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>DEP</b>", {direction: "center", permanent: true, opacity: 1, offset: L.point(1,14), className: "leaflet-tooltip-threat"}).openTooltip();
-
-    L.polyline(stptMapCoords.slice(0,-1), {color: 'white', weight: 2, lineJoin: "miter"}).addTo(drawings);
-    }	    
-    
-    for (i = 0; i < tstptIniCoords.length; i ++) {
-	const radiusVal = parseFloat(tstptIniCoords[i][1]);
-	const rScaled = Number.isFinite(radiusVal) ? convertScalar(radiusVal) : 0;
-	const nameVal = tstptIniCoords[i][2] || "";
-	tstptMapCoords[i] = [convertCoord(tstptIniCoords[i][0]), rScaled, nameVal];
-	L.marker(tstptMapCoords[i][0], {icon: L.divIcon({iconSize: 0})}).setOpacity(0).addTo(drawings).bindTooltip("<b>"+nameVal+"</b>", {direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat"}).openTooltip();
-	if (rScaled > 0) {
-	    L.circle(tstptMapCoords[i][0], {radius: rScaled, color: 'red', fillColor: 'red', fillOpacity: 0.1, opacity: 0.5, weight: 2}).addTo(drawings);
-	}
-    }
-
-    for (i = 0; i < stptLineIniCoords.length; i ++) {
-	for (j = 0; j < stptLineIniCoords[i].length; j++) {
-	stptLineMapCoords[i][j] = convertCoord(stptLineIniCoords[i][j]);
-	}
-	L.polyline(stptLineMapCoords[i], {color: 'black', weight: 2}).addTo(drawings);
-    }
+    rebuildMapCoords();
+    renderFlightPlanLeaflet();
+    renderThreatsLeaflet();
+    renderSteerpointLinesLeaflet();
     drawings.addTo(map);
     if (localStorage.getItem('onrefresh') == "reset") {
 			map.setView([-imageWidth/2, imageHeight/2], -2);
@@ -207,6 +652,14 @@ async function toDataUrl(url) {
     }
 }
 
+async function ensureMapFontsLoaded() {
+    if (!document.fonts || typeof document.fonts.load !== "function") return;
+    await Promise.all([
+        document.fonts.load('700 12px "Map Overlay Mono"'),
+        document.fonts.load('400 12px "Map Overlay Mono"')
+    ]);
+}
+
 async function exportMapImage() {
     try {
         window.exportMapLog = [];
@@ -232,12 +685,16 @@ async function exportMapImage() {
             window.exportMapLog.push(window.exportMapLastError);
             return null;
         }
+        await ensureMapFontsLoaded();
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const size = map.getSize();
         const canvas = document.createElement("canvas");
-        canvas.width = size.x;
-        canvas.height = size.y;
+        canvas.width = size.x * MAP_EXPORT_SCALE;
+        canvas.height = size.y * MAP_EXPORT_SCALE;
         const ctx = canvas.getContext("2d");
+        ctx.scale(MAP_EXPORT_SCALE, MAP_EXPORT_SCALE);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, size.x, size.y);
 
@@ -253,13 +710,8 @@ async function exportMapImage() {
                 rej(e);
             };
         });
-        const sw = map_overlay.getBounds().getSouthWest();
-        const ne = map_overlay.getBounds().getNorthEast();
-        const topLeft = map.latLngToContainerPoint(ne);
-        const bottomRight = map.latLngToContainerPoint(sw);
-        const drawWidth = bottomRight.x - topLeft.x;
-        const drawHeight = bottomRight.y - topLeft.y;
-        ctx.drawImage(baseImg, topLeft.x, topLeft.y, drawWidth, drawHeight);
+        const baseRect = getOverlayDrawRect(map_overlay);
+        ctx.drawImage(baseImg, baseRect.x, baseRect.y, baseRect.width, baseRect.height);
 
         // bullseye
         try {
@@ -279,114 +731,12 @@ async function exportMapImage() {
                     };
                 }
             });
-            const bsw = bullseye_overlay.getBounds().getSouthWest();
-            const bne = bullseye_overlay.getBounds().getNorthEast();
-            const btl = map.latLngToContainerPoint(bne);
-            const bbr = map.latLngToContainerPoint(bsw);
-            ctx.drawImage(bullImg, btl.x, btl.y, bbr.x - btl.x, bbr.y - btl.y);
+            const bullseyeRect = getOverlayDrawRect(bullseye_overlay);
+            ctx.drawImage(bullImg, bullseyeRect.x, bullseyeRect.y, bullseyeRect.width, bullseyeRect.height);
         } catch {}
-
-        function validLatLng(latlng) {
-            return Array.isArray(latlng) && latlng.length >= 2 && Number.isFinite(latlng[0]) && Number.isFinite(latlng[1]);
-        }
-
-        // flight plan polyline and markers
-        ctx.lineJoin = "miter";
-        if (Array.isArray(stptMapCoords) && stptMapCoords.length > 0) {
-            ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            stptMapCoords.slice(0, -1).forEach((latlng, idx) => {
-                if (!validLatLng(latlng)) return;
-                const p = map.latLngToContainerPoint(latlng);
-                if (idx === 0) ctx.moveTo(p.x, p.y);
-                else ctx.lineTo(p.x, p.y);
-            });
-            ctx.stroke();
-
-            ctx.fillStyle = "#ffffff";
-            ctx.strokeStyle = "#000000";
-            stptMapCoords.forEach((latlng, idx) => {
-                if (!validLatLng(latlng)) return;
-                const p = map.latLngToContainerPoint(latlng);
-                const radius = 7;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, radius, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.stroke();
-                ctx.fillStyle = "#000000";
-                ctx.font = "12px sans-serif";
-                if (idx > 0 && idx < stptMapCoords.length - 1) {
-                    ctx.fillText(String(idx + 1), p.x - 4, p.y + 4);
-                }
-                ctx.fillStyle = "#ffffff";
-            });
-            const altLatLng = stptMapCoords[stptMapCoords.length - 1];
-            const depLatLng = stptMapCoords[0];
-            if (validLatLng(altLatLng)) {
-                const altPt = map.latLngToContainerPoint(altLatLng);
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "12px sans-serif";
-                ctx.fillText("ALT", altPt.x + 10, altPt.y - 10);
-            }
-            if (validLatLng(depLatLng)) {
-                const depPt = map.latLngToContainerPoint(depLatLng);
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "12px sans-serif";
-                ctx.fillText("DEP", depPt.x + 10, depPt.y - 10);
-            }
-        }
-
-        // threat circles
-        if (Array.isArray(tstptMapCoords)) {
-            tstptMapCoords.forEach(entry => {
-                if (!entry || !validLatLng(entry[0])) return;
-                const centerLatLng = entry[0];
-                const r = Number.isFinite(entry[1]) ? entry[1] : 0;
-                const label = entry.length > 2 ? entry[2] : "";
-                const center = map.latLngToContainerPoint(centerLatLng);
-                if (r > 0) {
-                    ctx.strokeStyle = "red";
-                    ctx.fillStyle = "rgba(255,0,0,0.12)";
-                    ctx.lineWidth = 2;
-                    const edge = map.latLngToContainerPoint([centerLatLng[0] + r, centerLatLng[1]]);
-                    const radiusPx = Math.abs(edge.y - center.y);
-                    ctx.beginPath();
-                    ctx.arc(center.x, center.y, radiusPx, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.stroke();
-                }
-                if (label) {
-                    ctx.lineWidth = 3;
-                    ctx.strokeStyle = "#000000";
-                    ctx.fillStyle = "#ffffff";
-                    ctx.font = "12px sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
-                    const labelX = center.x;
-                    const labelY = center.y + 10;
-                    ctx.strokeText(label, labelX, labelY);
-                    ctx.fillText(label, labelX, labelY);
-                }
-            });
-        }
-
-        // steerpoint lines
-        if (Array.isArray(stptLineMapCoords)) {
-            ctx.strokeStyle = "#000000";
-            ctx.lineWidth = 2;
-            stptLineMapCoords.forEach(line => {
-                if (!line || line.length === 0) return;
-                ctx.beginPath();
-                line.forEach((latlng, idx) => {
-                    if (!validLatLng(latlng)) return;
-                    const p = map.latLngToContainerPoint(latlng);
-                    if (idx === 0) ctx.moveTo(p.x, p.y);
-                    else ctx.lineTo(p.x, p.y);
-                });
-                ctx.stroke();
-            });
-        }
+        renderFlightPlanCanvas(ctx);
+        renderThreatsCanvas(ctx);
+        renderSteerpointLinesCanvas(ctx);
 
         const dataUrl = canvas.toDataURL("image/png");
         window.exportMapLastError = "ok:" + (dataUrl ? dataUrl.length : 0);

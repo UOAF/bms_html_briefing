@@ -2,60 +2,111 @@
   tr.primary {
       font-weight: bold;
   }
+  .checklistSaveButton {
+      float: right;
+      margin-left: 0.5rem;
+  }
+  .checklistSaveStatus {
+      float: right;
+      font-size: 0.8em;
+      margin-top: 0.15rem;
+  }
+  @media print {
+      .checklistSaveStatus {
+          display: none;
+      }
+  }
 </style>
 <table width="100%">
-      <tr>
-<th class="header clickable" onclick="toggleVisHeader(this)" id="checklist_header"><span class="arrow">▼</span>Checklists</th>
-  </tr>
+<tr>
+<th class="header clickable" id="checklist_header" onclick="if (!event.target.closest('.checklistSaveButton')) toggleVisHeader(this)"><span class="arrow">▼</span>Checklists <button class="refreshButton checklistSaveButton" onclick="saveCustomChecklistTemplate(event)" type="button">Save HTML</button><span aria-live="polite" class="checklistSaveStatus" id="checklist_save_status"></span></th>
+</tr>
 </table>
-<table width=100% id="checklist" class="hidable">
-    <colgroup>
-        <col style="width:33.3%;">
-        <col style="width:33.3%;">
-        <col style="width:33.3%;">
-    </colgroup>
-    <thead>
-      <tr>
-	  <th class="header" width="33%">Checklist 1</th>
-	  <th class="header" width="33%">Checklist 2</th>
-	  <th class="header" width="33%">Checklist 3</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-	<td> 1. Item 1.1 </td>
-	<td> 1. Item 2.1 </td>
-	<td> 1. Item 3.1 </td>
-      </tr>
-      <tr>
-	<td> 1. Item 1.2 </td>
-	<td> 1. Item 2.2 </td>
-	<td> 1. Item 3.2 </td>
-      </tr>
-      <tr>
-	<td> 1. Item 1.3 </td>
-	<td> 1. Item 2.3 </td>
-	<td> 1. Item 3.3 </td>
-      </tr>
-      <tr>
-	<td> 1. Item 1.4 </td>
-	<td> 1. Item 2.4 </td>
-	<td> 1. Item 3.4 </td>
-      </tr>
-      <tr>
-	<td> 1. Item 1.5 </td>
-	<td> 1. Item 2.5 </td>
-	<td> 1. Item 3.5 </td>
-      </tr>
-      <tr>
-	<td> 1. Item 1.6 </td>
-	<td> 1. Item 2.6 </td>
-	<td> 1. Item 3.6 </td>
-      </tr>
-      <tr>
-	<td> 1. Item 1.7 </td>
-	<td> 1. Item 2.7 </td>
-	<td> 1. Item 3.7 </td>
-      </tr>
-    </tbody>
+<table class="hidable" id="checklist" width="100%">
+<colgroup>
+<col style="width:33.3%;"/>
+<col style="width:33.3%;"/>
+<col style="width:33.3%;"/>
+</colgroup>
+<thead>
+<tr>
+<th class="header editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_col_1" width="33%">IN THE PIT</th>
+<th class="header editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_col_2" width="33%">PRE T/O</th>
+<th class="header editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_col_3" width="33%">Checklist 3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r1_c1">VHF set</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r1_c2">GEAR check</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r1_c3"><br/></td>
+</tr>
+<tr>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r2_c1">UHF set</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r2_c2">TRIM check</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r2_c3"><br/></td>
+</tr>
+<tr>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r3_c1">TCN/ILS set</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r3_c2">NWS check</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r3_c3"><br/></td>
+</tr>
+<tr>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r4_c1">BINGO set</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r4_c2"><br/></td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r4_c3"><br/></td>
+</tr>
+<tr>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r5_c1">ALOW set</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r5_c2"><br/></td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r5_c3"><br/></td>
+</tr>
+<tr>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r6_c1">WPN set</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r6_c2"><br/></td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r6_c3"><br/></td>
+</tr>
+<tr>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r7_c1">RDR ALT ON</td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r7_c2"><br/></td>
+<td class="editable" contenteditable="true" data-checklist-editable="1" data-local-storage="ignore" id="custom_checklist_r7_c3"><br/></td>
+</tr>
+</tbody>
 </table>
+<script>
+async function saveCustomChecklistTemplate(event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const btn = document.querySelector(".checklistSaveButton");
+    const status = document.getElementById("checklist_save_status");
+    const editables = document.querySelectorAll("[data-checklist-editable='1'][id]");
+    const values = {};
+    editables.forEach((el) => {
+        values[el.id] = serializeEditableContent(el);
+    });
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = "Saving...";
+    try {
+        const response = await fetch("/api/custom-checklist/template", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ values })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.detail || "Failed to save custom checklist");
+        }
+        if (status) status.textContent = "Saved";
+        window.setTimeout(() => {
+            if (status && status.textContent === "Saved") status.textContent = "";
+        }, 2000);
+    } catch (error) {
+        if (status) status.textContent = "Save failed";
+        console.error(error);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+</script>

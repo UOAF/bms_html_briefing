@@ -108,6 +108,10 @@ class CamLoadLocalRequest(BaseModel):
     path: str
 
 
+class CustomChecklistSaveRequest(BaseModel):
+    values: Dict[str, Any]
+
+
 def build_default_config() -> configparser.ConfigParser:
     cfg = configparser.ConfigParser()
     cfg["system"] = {
@@ -143,6 +147,14 @@ def save_config(cfg: configparser.ConfigParser, config_path: Path) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as fp:
         cfg.write(fp)
+
+
+def append_sanitized_html(el: Any, raw: Any) -> None:
+    fragment = BeautifulSoup("" if raw is None else str(raw), "html.parser")
+    for node in list(fragment.contents):
+        if getattr(node, "name", None) in {"script", "style"}:
+            continue
+        el.append(node)
 
 
 def serialize_config(cfg: configparser.ConfigParser) -> Dict[str, Dict[str, str]]:
@@ -212,7 +224,9 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
         if map_container:
             img_tag = soup.new_tag("img", id="map-image-print")
             img_tag["src"] = content["map_image"]
-            img_tag["style"] = "width:100%;height:auto;"
+            img_tag["style"] = "display:block;width:100%;height:auto;"
+            map_container.attrs.pop("class", None)
+            map_container["style"] = "width:100%;height:auto;max-height:none;"
             map_container.clear()
             map_container.append(img_tag)
     # Inject target reference images if provided as data URLs
@@ -354,6 +368,38 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     def get_logs() -> JSONResponse:
         logs: List[Dict[str, str]] = list(app.state.ui_handler.buffer)
         return JSONResponse(content=logs)
+
+    @app.post("/api/custom-checklist/template")
+    def save_custom_checklist_template(payload: CustomChecklistSaveRequest) -> Dict[str, Any]:
+        values = payload.values or {}
+        if not values:
+            raise HTTPException(status_code=400, detail="No checklist values provided")
+        template_path = STATIC_ROOT / "templates" / "custom_checklist.html"
+        if not template_path.exists():
+            raise HTTPException(status_code=404, detail="Custom checklist template not found")
+        try:
+            soup = BeautifulSoup(template_path.read_text(encoding="utf-8"), "html.parser")
+            editable_nodes = soup.select("[data-checklist-editable='1'][id]")
+            editable_ids = {node.get("id") for node in editable_nodes if node.get("id")}
+            updated = 0
+            for key, value in values.items():
+                if key not in editable_ids:
+                    continue
+                el = soup.find(id=key)
+                if el is None or el.get("data-checklist-editable") != "1":
+                    continue
+                el.clear()
+                append_sanitized_html(el, value)
+                updated += 1
+            if updated == 0:
+                raise HTTPException(status_code=400, detail="No valid checklist fields provided")
+            template_path.write_text(str(soup), encoding="utf-8")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("Failed to save custom checklist template: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Failed to save custom checklist template: {exc}")
+        return {"status": "ok", "updated": updated, "path": str(template_path)}
 
     @app.post("/api/config")
     def update_config(payload: ConfigUpdate) -> Dict[str, Dict[str, str]]:

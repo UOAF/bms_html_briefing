@@ -1697,33 +1697,6 @@
       return pagesObj;
     }
 
-    let domToImagePromise = null;
-    async function ensureDomToImage() {
-      if (window.domtoimage) return window.domtoimage;
-      if (!domToImagePromise) {
-        domToImagePromise = new Promise((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "https://cdn.jsdelivr.net/npm/dom-to-image-more@2.9.0/src/dom-to-image-more.min.js";
-          script.onload = () => resolve(window.domtoimage);
-          script.onerror = (err) => reject(err);
-          document.head.appendChild(script);
-        });
-      }
-      return domToImagePromise;
-    }
-
-    async function loadImageFromElement(el) {
-      return new Promise((resolve, reject) => {
-        if (!el) reject(new Error("No image element"));
-        if (el.complete) {
-          resolve(el);
-        } else {
-          el.onload = () => resolve(el);
-          el.onerror = (e) => reject(e);
-        }
-      });
-    }
-
     async function captureMapImage() {
       const frame = document.getElementById("brief-frame");
       const cw = frame?.contentWindow;

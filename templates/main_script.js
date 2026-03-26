@@ -14,6 +14,10 @@ window.onload = function()
 	}
 }
 
+function getPersistentContenteditableElements() {
+    return document.querySelectorAll('[contenteditable="true"]:not([data-local-storage="ignore"])');
+}
+
 function insertNodeAtCursor(node, fallbackContainer) {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || !fallbackContainer.contains(selection.anchorNode)) {
@@ -101,7 +105,7 @@ function serializeEditableContent(el) {
 }
 
 function saveChangedData() {
-    const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
+    const contenteditableElements = getPersistentContenteditableElements();
     const contentData = {};
     contenteditableElements.forEach(el => {
         const key = el.id;
@@ -153,7 +157,7 @@ function saveChangedData() {
 }
 
 function saveContenteditablesDefaults() {
-    const contenteditableElements = document.querySelectorAll('[contenteditable="true"]');
+    const contenteditableElements = getPersistentContenteditableElements();
     const contentDataDef = {};
     contenteditableElements.forEach(el => {
         const key = el.id;
@@ -239,7 +243,7 @@ function loadContenteditables() {
     const contentData = JSON.parse(localStorage.getItem('contenteditables') || '{}');
     Object.keys(contentData).forEach(key => {
         const el = document.getElementById(key);
-        if (el) {
+        if (el && el.dataset.localStorage !== "ignore") {
             el.innerHTML = contentData[key];
 	}
         if (key.split("_").at(-1) == "display") {
