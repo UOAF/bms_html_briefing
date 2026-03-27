@@ -2,6 +2,37 @@
   tr.primary {
       font-weight: bold;
   }
+  .target-ref-browse {
+      margin-left: 0.35em;
+  }
+  .target-ref-input {
+      display: none;
+  }
+  .target-ref-cell {
+      min-height: 1em;
+      vertical-align: top;
+      background: #ffffff;
+      position: relative;
+  }
+  .target-ref-cell:empty::before {
+      content: "Paste image";
+      color: #666666;
+      font-style: italic;
+      display: block;
+      padding-top: 0.1em;
+  }
+  @media print {
+      .target-ref-cell:empty::before {
+          display: none;
+      }
+  }
+  .target-ref-cell img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      width: auto;
+      margin: 0 auto;
+  }
 </style>
 <table width=100%>
       <tr>
@@ -10,17 +41,17 @@
 </table>
 <table width=100% id="targets" class="hidable">
     <colgroup>
-        <col style="width:7%;">
-        <col style="width:31%;">
-        <col style="width:31%;">
-        <col style="width:31%;">
+        <col style="width:10%;">
+        <col style="width:30%;">
+        <col style="width:30%;">
+        <col style="width:30%;">
     </colgroup>
     <thead>
       <tr>
 	  <th class="header"></th>
-	  <th class="header">TGT 1:<br><input type="file" accept="image/*" id="tgt1Input" class="imageFileInput"></th>
-	  <th class="header">TGT 2:<br><input type="file" accept="image/*" id="tgt2Input" class="imageFileInput"></th>
-	  <th class="header">MISC:<br><input type="file" accept="image/*" id="tgt3Input" class="imageFileInput"></th>
+	  <th class="header">TGT 1: <button type="button" class="refreshButton target-ref-browse" onclick="event.stopPropagation(); document.getElementById('tgt1Input').click();">Browse</button><input type="file" accept="image/*" id="tgt1Input" class="imageFileInput target-ref-input"></th>
+	  <th class="header">TGT 2: <button type="button" class="refreshButton target-ref-browse" onclick="event.stopPropagation(); document.getElementById('tgt2Input').click();">Browse</button><input type="file" accept="image/*" id="tgt2Input" class="imageFileInput target-ref-input"></th>
+	  <th class="header">MISC: <button type="button" class="refreshButton target-ref-browse" onclick="event.stopPropagation(); document.getElementById('tgt3Input').click();">Browse</button><input type="file" accept="image/*" id="tgt3Input" class="imageFileInput target-ref-input"></th>
       </tr>
     </thead>
     <tbody>
@@ -36,58 +67,48 @@
 	<td contenteditable="true" class="editable" id="targets_5"></td>
 	<td contenteditable="true" class="editable" id="targets_6"></td>
       </tr>
-      <tr style="visibility: collapse" id="refImageRow">
+      <tr id="refImageRow">
 	<td class="header">REF. <button class="refreshButton" onclick='removeRefImg()'>⟳</button></td>
-	<td><img id="tgt1Img" style="max-width: 100%; height: auto; width: auto;"></td>
-	<td><img id="tgt2Img" style="max-width: 100%; height: auto; width: auto;"></td>
-	<td><img id="tgt3Img" style="max-width: 100%; height: auto; width: auto;"></td>
+	<td contenteditable="true" class="editable target-ref-cell" id="tgt1Ref"></td>
+	<td contenteditable="true" class="editable target-ref-cell" id="tgt2Ref"></td>
+	<td contenteditable="true" class="editable target-ref-cell" id="tgt3Ref"></td>
 	</tr>
     </tbody>
 </table>
 <script>
-document.getElementById('tgt1Input')
-    .addEventListener('change', function () {
-	let fr = new FileReader();
-	fr.onload = function () {
-	    let imageRow = document.getElementById("refImageRow");
-	    let imageDisplay = document.getElementById("tgt1Img");
-	    imageRow.style.visibility = "";
-	    imageDisplay.src = fr.result;
-	}
-	fr.readAsDataURL(this.files[0]);
-    })
+  function setTargetRefImage(cellId, dataUrl) {
+      const cell = document.getElementById(cellId);
+      if (!cell) return;
+      if (!dataUrl) {
+          cell.innerHTML = "";
+          return;
+      }
+      cell.innerHTML = '<img src="' + dataUrl + '" alt="">';
+  }
 
-document.getElementById('tgt2Input')
-    .addEventListener('change', function () {
-	let fr = new FileReader();
-	fr.onload = function () {
-	    let imageRow = document.getElementById("refImageRow");
-	    let imageDisplay = document.getElementById("tgt2Img");
-	    imageRow.style.visibility = "";
-	    imageDisplay.src = fr.result;
-	}
-	fr.readAsDataURL(this.files[0]);
-    })
+  function bindTargetRefInput(inputId, cellId) {
+      document.getElementById(inputId)
+          .addEventListener('change', function () {
+	      const file = this.files && this.files[0];
+	      if (!file) return;
+	      let fr = new FileReader();
+	      fr.onload = function () {
+	          setTargetRefImage(cellId, fr.result);
+	      };
+	      fr.readAsDataURL(file);
+          });
+  }
 
-document.getElementById('tgt3Input')
-    .addEventListener('change', function () {
-	let fr = new FileReader();
-	fr.onload = function () {
-	    let imageRow = document.getElementById("refImageRow");
-	    let imageDisplay = document.getElementById("tgt3Img");
-	    imageRow.style.visibility = "";
-	    imageDisplay.src = fr.result;
-	}
-	fr.readAsDataURL(this.files[0]);
-    })
+bindTargetRefInput('tgt1Input', 'tgt1Ref');
+bindTargetRefInput('tgt2Input', 'tgt2Ref');
+bindTargetRefInput('tgt3Input', 'tgt3Ref');
 
   function removeRefImg() {
 document.getElementById('tgt1Input').value="";
 document.getElementById('tgt2Input').value="";
 document.getElementById('tgt3Input').value="";
-document.getElementById('tgt1Img').removeAttribute("src");
-document.getElementById('tgt2Img').removeAttribute("src");
-document.getElementById('tgt3Img').removeAttribute("src");
-document.getElementById('refImageRow').style.visibility = "collapse";
+document.getElementById('tgt1Ref').innerHTML="";
+document.getElementById('tgt2Ref').innerHTML="";
+document.getElementById('tgt3Ref').innerHTML="";
   }
 </script>

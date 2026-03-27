@@ -132,26 +132,6 @@ function saveChangedData() {
 	}
 
     }
-    // persist target image data URLs so PDF generation can embed them
-    ["tgt1Img", "tgt2Img", "tgt3Img"].forEach((id) => {
-        const imgEl = document.getElementById(id);
-        if (imgEl && imgEl.src) {
-            if (imgEl.src.startsWith("data:")) {
-                contentData[id + "_src"] = imgEl.src;
-            } else {
-                try {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = imgEl.naturalWidth || imgEl.width || 1024;
-                    canvas.height = imgEl.naturalHeight || imgEl.height || 1024;
-                    const ctx = canvas.getContext("2d");
-                    ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
-                    contentData[id + "_src"] = canvas.toDataURL("image/png");
-                } catch (e) {
-                    console.error("Failed to serialize image", id, e);
-                }
-            }
-        }
-    });
     localStorage.setItem('contenteditables', JSON.stringify(contentData));
     return contentData;
 }
@@ -202,40 +182,24 @@ function loadImages() {
 	console.error(error);
     }
 
-
-    let imageRow = document.getElementById("refImageRow");
-
-    let imageDisplay1 = document.getElementById("tgt1Img");
-    let imageDisplay2 = document.getElementById("tgt2Img");
-    let imageDisplay3 = document.getElementById("tgt3Img");
-    imageRow.style.visibility = "collapse";
-    [imageDisplay1, imageDisplay2, imageDisplay3].forEach((imgEl) => {
-        if (!imgEl) {
+    const refCellMappings = [
+        { cellId: "tgt1Ref", legacySrcKey: "tgt1Img_src", legacyInputKey: "tgt1Input" },
+        { cellId: "tgt2Ref", legacySrcKey: "tgt2Img_src", legacyInputKey: "tgt2Input" },
+        { cellId: "tgt3Ref", legacySrcKey: "tgt3Img_src", legacyInputKey: "tgt3Input" },
+    ];
+    refCellMappings.forEach(({ cellId, legacySrcKey, legacyInputKey }) => {
+        const cell = document.getElementById(cellId);
+        if (!cell || (cell.innerHTML && cell.innerHTML.trim() !== "")) {
             return;
         }
-        imgEl.removeAttribute("src");
+        if (contentData[legacySrcKey]) {
+            cell.innerHTML = '<img src="' + contentData[legacySrcKey] + '" alt="" style="max-width: 100%; height: auto; width: auto; display: block; margin: 0 auto;">';
+            return;
+        }
+        if (typeof contentData[legacyInputKey] !== 'undefined' && contentData[legacyInputKey] !== "") {
+            cell.innerHTML = '<img src="assets/targets/' + contentData[legacyInputKey] + '" alt="" style="max-width: 100%; height: auto; width: auto; display: block; margin: 0 auto;">';
+        }
     });
-    if (contentData["tgt1Img_src"]) {
-        imageRow.style.visibility = "";
-        imageDisplay1.src = contentData["tgt1Img_src"];
-    } else if (typeof contentData["tgt1Input"] != 'undefined') {
-	imageRow.style.visibility = "";
-	imageDisplay1.src = "assets/targets/" + contentData["tgt1Input"];
-    }
-    if (contentData["tgt2Img_src"]) {
-        imageRow.style.visibility = "";
-        imageDisplay2.src = contentData["tgt2Img_src"];
-    } else if (typeof contentData["tgt2Input"] != 'undefined') {
-	imageRow.style.visibility = "";
-	imageDisplay2.src = "assets/targets/" + contentData["tgt2Input"];
-    }
-    if (contentData["tgt3Img_src"]) {
-        imageRow.style.visibility = "";
-        imageDisplay3.src = contentData["tgt3Img_src"];
-    } else if (typeof contentData["tgt3Input"] != 'undefined') {
-	imageRow.style.visibility = "";
-	imageDisplay3.src = "assets/targets/" + contentData["tgt3Input"];
-    }
 
 }
 
