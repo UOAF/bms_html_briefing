@@ -157,6 +157,11 @@ def append_sanitized_html(el: Any, raw: Any) -> None:
         el.append(node)
 
 
+def get_runtime_template_path(name: str) -> Path:
+    root = RUN_DIR if IS_FROZEN else Path(os.environ.get("BMS_BRIEF_HOME", str(STATIC_ROOT)))
+    return root / "templates" / name
+
+
 def serialize_config(cfg: configparser.ConfigParser) -> Dict[str, Dict[str, str]]:
     return {section: dict(cfg[section]) for section in cfg.sections()}
 
@@ -374,7 +379,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         values = payload.values or {}
         if not values:
             raise HTTPException(status_code=400, detail="No checklist values provided")
-        template_path = STATIC_ROOT / "templates" / "custom_checklist.html"
+        template_path = get_runtime_template_path("custom_checklist.html")
         if not template_path.exists():
             raise HTTPException(status_code=404, detail="Custom checklist template not found")
         try:

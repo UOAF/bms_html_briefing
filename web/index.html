@@ -1140,6 +1140,15 @@
       select.disabled = options.length === 0;
     }
 
+    async function applySelectedCamPackageFromPreview() {
+      const selected = getSelectedCamPackageIndex();
+      if (!Number.isFinite(selected)) return false;
+      clearSavedCamRenderedValues({ clearSupportPackage: true });
+      saveCamSupportPackageIndex(selected);
+      await doPreview(currentOverrides());
+      return true;
+    }
+
     function bindCamPackageSelectorInPreview() {
       const select = getPreviewCamPackageSelect();
       const query = getPreviewCamPackageQuery();
@@ -1154,22 +1163,21 @@
         }));
       select.dataset.camBound = "1";
       select.addEventListener("change", async () => {
-        const selected = getSelectedCamPackageIndex();
-        if (!Number.isFinite(selected)) return;
-        clearSavedCamRenderedValues({ clearSupportPackage: true });
-        saveCamSupportPackageIndex(selected);
-        await doPreview(currentOverrides());
+        await applySelectedCamPackageFromPreview();
       });
       if (query && query.dataset.camBound !== "1") {
         query.dataset.camBound = "1";
-        query.addEventListener("input", () => {
+        query.addEventListener("input", async () => {
           const sourceOptions = Array.isArray(select._camOptions) ? select._camOptions : [];
-          const selectedValue = select.value;
+          const previousValue = select.value;
           const queryText = (query.value || "").trim().toLowerCase();
           const visibleOptions = queryText
             ? sourceOptions.filter((option) => option.search.includes(queryText))
             : sourceOptions;
-          rebuildPreviewCamPackageOptions(select, visibleOptions, selectedValue, queryText);
+          rebuildPreviewCamPackageOptions(select, visibleOptions, previousValue, queryText);
+          if (queryText && visibleOptions.length === 1 && select.value !== previousValue) {
+            await applySelectedCamPackageFromPreview();
+          }
         });
       }
       return true;
