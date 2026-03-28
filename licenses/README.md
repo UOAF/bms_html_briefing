@@ -44,8 +44,12 @@
 - weasyprint==67.0
 - webencodings==0.5.1
 
+## Additional packaged Linux GI runtime dependencies
+- PyGObject==3.56.2
+- pycairo==1.29.0
+
 ## Python license files
-- files in `licenses/python/`: 38
+- files in `licenses/python/`: 40
 
 ## Bundled asset licenses
 - `ibm-plex-mono-OFL-1.1.txt`

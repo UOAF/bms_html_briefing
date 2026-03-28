@@ -940,20 +940,29 @@ def run_with_tray(app: FastAPI, host: str, port: int) -> None:
     server = ServerController(app, host, port)
     shutting_down = Event()
     app_url = getattr(app.state, "auto_open_url", None) or f"http://{host}:{port}"
+    logger.info(
+        "Tray backend initialized: module=%s HAS_MENU=%s HAS_DEFAULT_ACTION=%s",
+        getattr(pystray.Icon, "__module__", "unknown"),
+        getattr(pystray.Icon, "HAS_MENU", None),
+        getattr(pystray.Icon, "HAS_DEFAULT_ACTION", None),
+    )
 
     def request_shutdown(icon: Any) -> None:
         if shutting_down.is_set():
             return
         shutting_down.set()
+        logger.info("Tray quit requested")
         server.request_stop()
         icon.stop()
 
     def open_in_browser(icon: Any, item: Any) -> None:
         del icon, item
+        logger.info("Tray default action triggered; opening %s", app_url)
         Thread(target=webbrowser.open, args=(app_url,), daemon=True).start()
 
     def on_quit(icon: Any, item: Any) -> None:
         del item
+        logger.info("Tray menu action triggered: Quit")
         Thread(target=request_shutdown, args=(icon,), daemon=True).start()
 
     tray_icon = pystray.Icon(

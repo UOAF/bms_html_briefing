@@ -1026,6 +1026,10 @@
     let autoExportPdfOnly = false;
     let copyToKtoEnabled = false;
     let lastCamData = null;
+    let hasSeenStatusSuccess = false;
+    let shutdownScreenShown = false;
+    let logPollTimer = null;
+    let statusPollTimer = null;
     const sectionLabels = {
       airbase: "Airbase",
       package: "Package",
@@ -1256,6 +1260,16 @@
     }
 
     function showShutdownScreen() {
+      if (shutdownScreenShown) return;
+      shutdownScreenShown = true;
+      if (logPollTimer) {
+        clearInterval(logPollTimer);
+        logPollTimer = null;
+      }
+      if (statusPollTimer) {
+        clearInterval(statusPollTimer);
+        statusPollTimer = null;
+      }
       document.body.innerHTML = `
         <div class="shutdown-screen">
           <div class="shutdown-panel">
@@ -1310,6 +1324,7 @@
     async function loadStatus(allowRetry = true) {
       try {
         const data = await fetchJSON("/api/status");
+        hasSeenStatusSuccess = true;
         document.getElementById("config-path").textContent = data.config_path || "–";
         document.getElementById("config-path").title = data.config_path || "–";
         document.getElementById("base-dir").textContent = data.base_dir || "–";
@@ -1346,6 +1361,10 @@
         await loadStatus(false);
       }
       } catch (err) {
+        if (hasSeenStatusSuccess) {
+          showShutdownScreen();
+          return;
+        }
         log(`Failed to load status: ${err.message}`);
         if (allowRetry) {
           try {
@@ -1361,6 +1380,7 @@
     async function pollStatusBadges() {
       try {
         const data = await fetchJSON("/api/status");
+        hasSeenStatusSuccess = true;
         const hasError = data.error || !data.base_dir;
         statusEl.textContent = hasError ? "BMS CONFIG MISSING" : "READY";
         if (globalStatusBadge) {
@@ -1374,7 +1394,9 @@
         });
         await maybeAutoExportOnFileChange(data);
       } catch (err) {
-        // silent; will retry on next poll
+        if (hasSeenStatusSuccess) {
+          showShutdownScreen();
+        }
       }
     }
 
@@ -2206,8 +2228,8 @@
       refreshBrief();
       pollLogs();
       pollStatusBadges();
-      setInterval(pollLogs, 2500);
-      setInterval(pollStatusBadges, 5000);
+      logPollTimer = setInterval(pollLogs, 2500);
+      statusPollTimer = setInterval(pollStatusBadges, 5000);
     });
   </script>
 </body>
