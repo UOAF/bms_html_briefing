@@ -1,6 +1,7 @@
 test/
 venv/
 pyinstaller_venv/
+pyinstaller_dist/
 *__pycache__
 /*.html
 output/*
