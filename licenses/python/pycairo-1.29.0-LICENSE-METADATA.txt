@@ -1,0 +1,3 @@
+Package: pycairo
+Version: 1.29.0
+License(metadata): LGPL-2.1-only OR MPL-1.1
