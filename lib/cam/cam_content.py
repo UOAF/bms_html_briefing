@@ -134,6 +134,10 @@ def _read_u32_le(data: bytes, offset: int) -> int:
     return struct.unpack_from("<I", data, offset)[0]
 
 
+def _is_all_zero(data: bytes) -> bool:
+    return all(byte == 0 for byte in data)
+
+
 def _safe_int(text: str | None, *, default: int = 0) -> int:
     if text is None:
         return default
@@ -381,17 +385,26 @@ def _decode_compressed_entry(name: str, raw: bytes) -> DecodeResult:
 
         if compressed_size < 4:
             raise CamFormatError(f"{name}: invalid compressed size {compressed_size}")
-        if compressed_size + 4 != len(raw):
+        expected_length = compressed_size + 4
+        if expected_length > len(raw):
             raise CamFormatError(
-                f"{name}: compressed_size+4 ({compressed_size + 4}) != entry length ({len(raw)})"
+                f"{name}: compressed_size+4 ({expected_length}) != entry length ({len(raw)})"
             )
+        if expected_length < len(raw):
+            trailing = raw[expected_length:]
+            if not _is_all_zero(trailing):
+                raise CamFormatError(
+                    f"{name}: compressed_size+4 ({expected_length}) != entry length ({len(raw)})"
+                )
 
         payload = raw[8 : 8 + (compressed_size - 4)]
         output, consumed = lzss_expand(payload, uncompressed_size)
         if consumed != len(payload):
-            raise CamFormatError(
-                f"{name}: LZSS consumed {consumed} bytes, expected {len(payload)}"
-            )
+            remaining = payload[consumed:]
+            if not _is_all_zero(remaining):
+                raise CamFormatError(
+                    f"{name}: LZSS consumed {consumed} bytes, expected {len(payload)}"
+                )
 
         return DecodeResult(
             data=output,
@@ -412,10 +425,17 @@ def _decode_compressed_entry(name: str, raw: bytes) -> DecodeResult:
 
         if compressed_size < 6:
             raise CamFormatError(f"{name}: invalid compressed size {compressed_size}")
-        if compressed_size + 4 != len(raw):
+        expected_length = compressed_size + 4
+        if expected_length > len(raw):
             raise CamFormatError(
-                f"{name}: compressed_size+4 ({compressed_size + 4}) != entry length ({len(raw)})"
+                f"{name}: compressed_size+4 ({expected_length}) != entry length ({len(raw)})"
             )
+        if expected_length < len(raw):
+            trailing = raw[expected_length:]
+            if not _is_all_zero(trailing):
+                raise CamFormatError(
+                    f"{name}: compressed_size+4 ({expected_length}) != entry length ({len(raw)})"
+                )
 
         payload = raw[10 : 10 + (compressed_size - 6)]
         output, consumed = lzss_expand(payload, uncompressed_size)
