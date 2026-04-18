@@ -1,0 +1,132 @@
+<style>
+  tr.primary {
+      font-weight: bold;
+  }
+  .cam-package-picker {
+      float: right;
+      font-weight: normal;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35em;
+  }
+  .cam-package-picker input {
+      font: inherit;
+      width: 8.5em;
+      color: #111111;
+      background: #ffffff;
+      border: 1px solid #666666;
+      padding: 0.05em 0.3em;
+  }
+  .cam-package-picker select {
+      font: inherit;
+      max-width: 14em;
+      color: #111111;
+      background: #ffffff;
+      border: 1px solid #666666;
+      padding: 0.05em 0.3em;
+  }
+  .cam-package-picker label {
+      color: #111111;
+  }
+  @media print {
+      .cam-package-picker {
+          display: none !important;
+      }
+  }
+</style>
+<table width=100%>
+      <tr>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="package_header"><span class="arrow">▼</span>Package</th>
+  </tr>
+</table>
+<table width=100% id="package" class="hidable">
+    <colgroup>
+        <col style="width:17%;">
+        <col style="width:7%;">
+        <col style="width:11%;">
+        <col style="width:17%;">
+        <col style="width:12%;">
+        <col style="width:12%;">
+        <col style="width:12%;">
+        <col style="width:12%;">
+    </colgroup>
+    <thead>
+        <tr>
+            <th>Callsign</th>
+            <th>Flt #</th>
+            <th>Role</th>
+            <th>Aircraft</th>
+            <th class="nowrap">Takeoff</th>
+            <th class="nowrap">Push</th>
+            <th class="nowrap">TOT</th>
+            <th>L16</th>
+        </tr>
+    </thead>
+    <tbody>
+      {% for flight in package %}
+      <tr {% if flight.roster.own %} class="primary" {% endif %}>
+	<td>{{flight.callsign}}</td>
+	<td>{{flight.flight}}</td>
+	<td>{{flight.role}}</td>
+	<td>{{flight.aircraft}}</td>
+	<td class="nowrap">{{flight.takeoff}}</td>
+	<td class="nowrap">{{flight.push}}</td>
+	<td class="nowrap">{{flight.tot}}</td>
+	<td>{{main_package_l16.get(flight.callsign|replace(' ', '')|lower, main_package_l16.get(flight.flight|string, flight.l16))}}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>
+<table width=100%>
+      <tr>
+<th class="header clickable" onclick="toggleVisHeader(this)" id="suppPackage_header"><span class="arrow">▼</span>Supporting package
+  <span class="cam-package-picker" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">
+    <label for="cam-support-package-select">CAM</label>
+    <input id="cam-support-package-query" type="search" placeholder="# / role" title="Type to filter package list">
+    <select id="cam-support-package-select" title="CAM supporting package" {% if not package_options %}disabled{% endif %}>
+      {% if package_options %}
+      <option value="">Select package</option>
+      {% for option in package_options %}
+      <option value="{{option.index}}" data-search="{{option.search_text}}" {% if option.selected %}selected{% endif %}>{{option.label}}</option>
+      {% endfor %}
+      {% else %}
+      <option value="">No CAM package loaded</option>
+      {% endif %}
+    </select>
+  </span>
+</th>
+  </tr>
+</table>
+<table width=100% id="suppPackage" class="hidable">
+    <colgroup>
+        <col style="width:17%;">
+        <col style="width:7%;">
+        <col style="width:11%;">
+        <col style="width:17%;">
+        <col style="width:12%;">
+        <col style="width:12%;">
+        <col style="width:12%;">
+        <col style="width:12%;">
+    </colgroup>
+    <thead>
+        <tr>
+            <th>Callsign</th>
+            <th>Flt #</th>
+            <th>Role</th>
+            <th>Aircraft</th>
+            <th class="nowrap">Takeoff</th>
+            <th class="nowrap">Push</th>
+            <th class="nowrap">TOT</th>
+            <th>L16</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in support_package_rows %}
+      <tr>
+	{% for cell in row %}
+	<td class="{% if loop.index0 in [4, 5, 6] %}nowrap{% endif %}">{{cell.value}}</td>
+	{% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+</table>
