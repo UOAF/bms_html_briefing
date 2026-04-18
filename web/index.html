@@ -1000,6 +1000,7 @@
     const CAM_PREVIEW_PACKAGE_QUERY_ID = "cam-support-package-query";
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
     const CAM_LAST_SAVE_PATH_KEY = "cam_last_save_path";
+    const APP_INSTANCE_SEEN_KEY = "app_instance_id_seen";
     const CAM_SUPPORT_CELL_IDS = [
       "package_1", "package_2", "package_3", "package_4", "package_5", "package_6", "package_7", "package_30",
       "package_8", "package_9", "package_10", "package_11", "package_12", "package_13", "package_14", "package_31",
@@ -1069,6 +1070,37 @@
         camSaveSelect.title = camData && outputPath ? `CAM parsed: ${outputPath}` : "";
       }
       if (camUnloadBtn) camUnloadBtn.disabled = !camData;
+    }
+
+    function clearTransientAppStateOnInstanceChange(appInstanceId) {
+      if (typeof appInstanceId !== "string" || !appInstanceId) return;
+      let previousInstanceId = "";
+      try {
+        previousInstanceId = localStorage.getItem(APP_INSTANCE_SEEN_KEY) || "";
+      } catch {
+        previousInstanceId = "";
+      }
+      if (!previousInstanceId) {
+        try {
+          localStorage.setItem(APP_INSTANCE_SEEN_KEY, appInstanceId);
+        } catch {
+          // Keep behavior even if localStorage is unavailable.
+        }
+        return;
+      }
+      if (previousInstanceId === appInstanceId) {
+        return;
+      }
+      try {
+        localStorage.removeItem("contenteditables");
+        localStorage.removeItem("contenteditablesDef");
+        localStorage.removeItem("onrefresh");
+        localStorage.removeItem(CAM_SUPPORT_PACKAGE_SAVED_KEY);
+        localStorage.removeItem(CAM_LAST_SAVE_PATH_KEY);
+        localStorage.setItem(APP_INSTANCE_SEEN_KEY, appInstanceId);
+      } catch {
+        // Keep behavior even if localStorage is unavailable.
+      }
     }
 
     function getSavedCamSupportPackageIndex() {
@@ -1324,6 +1356,7 @@
     async function loadStatus(allowRetry = true) {
       try {
         const data = await fetchJSON("/api/status");
+        clearTransientAppStateOnInstanceChange(data.app_instance_id);
         hasSeenStatusSuccess = true;
         document.getElementById("config-path").textContent = data.config_path || "–";
         document.getElementById("config-path").title = data.config_path || "–";

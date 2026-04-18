@@ -12,6 +12,20 @@ logger_ui = logging.getLogger('ui_logger')
 def page_contents_ini_to_list(conf):
     return [[s.strip(' \n') for s in value.split(',') if s != ''] for key, value in conf['pages'].items()]
 
+
+def _page_contents_for_render(conf, brief_summary = None):
+    page_contents = page_contents_ini_to_list(conf)
+    if not isinstance(brief_summary, dict):
+        return page_contents
+    swapped_pages = []
+    for page in page_contents:
+        swapped_pages.append([
+            "package_cam" if section == "package" else section
+            for section in page
+        ])
+    return swapped_pages
+
+
 def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None, selected_package_index = None):
     if getattr(sys, 'frozen', False):
         script_dir = os.path.dirname(sys.executable)
@@ -67,7 +81,7 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
 
     templates_dir = os.path.join(script_dir, 'templates')
 
-    page_contents = page_contents_ini_to_list(conf)
+    page_contents = _page_contents_for_render(conf, brief_summary = brief_summary)
 
     try:
         with open(briefing_location, "r", encoding = "latin1") as briefing_file:

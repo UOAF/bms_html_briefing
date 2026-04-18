@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 from collections import deque
 from itertools import count
@@ -321,6 +322,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     app.state.last_brief_summary_path: Optional[str] = None
     app.state.last_brief_summary: Optional[Dict[str, Any]] = None
     app.state.last_selected_package_index: Optional[int] = None
+    app.state.instance_id = uuid.uuid4().hex
     app.state.shutdown_callback = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
@@ -522,6 +524,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         bms = app.state.bms_cfg
         cfg = app.state.cfg
         data: Dict[str, Any] = {
+            "app_instance_id": app.state.instance_id,
             "config_path": str(app.state.config_path),
             "output_dir": cfg["system"]["output_dir"],
             "pdf_output_dir": cfg["system"]["pdf_output_dir"],
