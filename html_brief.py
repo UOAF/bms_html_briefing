@@ -4,12 +4,13 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
 from collections import deque
 from itertools import count
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import webbrowser
@@ -74,6 +75,28 @@ class MemoryUIHandler(logging.Handler):
         except Exception:
             msg = record.getMessage()
         self.buffer.append({"id": next(self._ids), "level": record.levelname, "msg": msg})
+
+
+def _attach_handler_once(logger_obj: logging.Logger, handler: logging.Handler) -> None:
+    if any(existing is handler for existing in logger_obj.handlers):
+        return
+    logger_obj.addHandler(handler)
+
+
+def configure_weasyprint_logging(ui_handler: logging.Handler) -> None:
+    weasy_logger = logging.getLogger("weasyprint")
+    progress_logger = logging.getLogger("weasyprint.progress")
+
+    weasy_logger.setLevel(logging.INFO)
+    progress_logger.setLevel(logging.INFO)
+
+    # Let the root logger keep writing these messages to debug.log.
+    weasy_logger.propagate = True
+    progress_logger.propagate = True
+
+    # Mirror WeasyPrint and its progress messages in the in-app UI log.
+    _attach_handler_once(weasy_logger, ui_handler)
+    _attach_handler_once(progress_logger, ui_handler)
 
 
 class ConfigUpdate(BaseModel):
@@ -175,6 +198,41 @@ def ensure_dirs(cfg: configparser.ConfigParser) -> None:
     KNEEBOARDS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _content_payload_stats(content: Dict[str, Any] | None) -> Dict[str, Any]:
+    if not isinstance(content, dict):
+        return {
+            "keys": 0,
+            "map_image_len": 0,
+            "target_image_keys": 0,
+            "display_keys": 0,
+            "text_keys": 0,
+            "total_text_len": 0,
+        }
+    keys = len(content)
+    map_image = content.get("map_image")
+    map_image_len = len(map_image) if isinstance(map_image, str) else 0
+    target_image_keys = 0
+    display_keys = 0
+    text_keys = 0
+    total_text_len = 0
+    for key, value in content.items():
+        if key.endswith("_src") and isinstance(value, str):
+            target_image_keys += 1
+        elif key.endswith("_display"):
+            display_keys += 1
+        elif isinstance(value, str):
+            text_keys += 1
+            total_text_len += len(value)
+    return {
+        "keys": keys,
+        "map_image_len": map_image_len,
+        "target_image_keys": target_image_keys,
+        "display_keys": display_keys,
+        "text_keys": text_keys,
+        "total_text_len": total_text_len,
+    }
+
+
 def copy_config_with_overrides(cfg: configparser.ConfigParser, pages: Optional[Dict[str, str]] = None,
                                bms: Optional[Dict[str, str]] = None,
                                system: Optional[Dict[str, str]] = None) -> configparser.ConfigParser:
@@ -200,10 +258,22 @@ def copy_config_with_overrides(cfg: configparser.ConfigParser, pages: Optional[D
     return new_cfg
 
 
-def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
+def apply_content_edits(html_path: Path, content: Dict[str, Any], patched_path: Optional[Path] = None) -> Path:
     """Apply stored contenteditable values and hide states to generated HTML."""
     if not content:
         return html_path
+    started = time.perf_counter()
+    stats = _content_payload_stats(content)
+    logger.info(
+        "PDF apply_content_edits start: html=%s keys=%d map_image_len=%d target_image_keys=%d display_keys=%d text_keys=%d total_text_len=%d",
+        html_path,
+        stats["keys"],
+        stats["map_image_len"],
+        stats["target_image_keys"],
+        stats["display_keys"],
+        stats["text_keys"],
+        stats["total_text_len"],
+    )
     soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
     def normalize_text(val: Any) -> str:
@@ -268,8 +338,19 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any]) -> Path:
         el.clear()
         append_editable_content(el, value)
 
-    patched = html_path.parent / "index_print.html"
+    patched = patched_path or (html_path.parent / "index_print.html")
     patched.write_text(str(soup), encoding="utf-8")
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
+    try:
+        patched_size = patched.stat().st_size
+    except Exception:
+        patched_size = -1
+    logger.info(
+        "PDF apply_content_edits done: patched=%s size=%dB elapsed_ms=%.1f",
+        patched,
+        patched_size,
+        elapsed_ms,
+    )
     return patched
 
 
@@ -305,6 +386,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     ui_formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     ui_handler.setFormatter(ui_formatter)
     logger_ui.addHandler(ui_handler)
+    configure_weasyprint_logging(ui_handler)
 
     app.state.cfg = cfg
     app.state.bms_cfg = bms_cfg
@@ -323,6 +405,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     app.state.last_brief_summary: Optional[Dict[str, Any]] = None
     app.state.last_selected_package_index: Optional[int] = None
     app.state.instance_id = uuid.uuid4().hex
+    app.state.pdf_busy = False
+    app.state.pdf_lock = Lock()
     app.state.shutdown_callback = None
     app.state.brief_mtime_ref: Optional[float] = None
     app.state.callsign_mtime_ref: Optional[float] = None
@@ -532,6 +616,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             "pdf_pages": app.state.pdf_page_count,
             "brief_pages": app.state.brief_pages_ref,
             "pdf_overflow": app.state.pdf_overflow,
+            "pdf_busy": app.state.pdf_busy,
             "cam_loaded": isinstance(app.state.last_brief_summary, dict),
             "cam_output_file": app.state.last_brief_summary_path,
         }
@@ -781,48 +866,172 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
             raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
         if HTML is None:
             raise HTTPException(status_code=500, detail="weasyprint is not installed. Install it to enable PDF generation.")
+        pdf_trace = uuid.uuid4().hex[:8]
+        req_started = time.perf_counter()
+        output_file: Optional[Path] = None
+        patched_html: Optional[Path] = None
+        pdf_temp_path: Optional[Path] = None
+        pdf_path: Optional[Path] = None
+        payload_stats = _content_payload_stats(payload.content)
+        logger.info(
+            "PDF[%s] request start: selected_package_index=%r cam_loaded=%s payload_keys=%d map_image_len=%d target_image_keys=%d display_keys=%d text_keys=%d total_text_len=%d",
+            pdf_trace,
+            payload.selected_package_index,
+            isinstance(app.state.last_brief_summary, dict),
+            payload_stats["keys"],
+            payload_stats["map_image_len"],
+            payload_stats["target_image_keys"],
+            payload_stats["display_keys"],
+            payload_stats["text_keys"],
+            payload_stats["total_text_len"],
+        )
+        logger_ui.info(
+            "PDF[%s] start: selected_package_index=%r map_image_len=%d keys=%d",
+            pdf_trace,
+            payload.selected_package_index,
+            payload_stats["map_image_len"],
+            payload_stats["keys"],
+        )
         cfg_pdf = copy_config_with_overrides(app.state.cfg, pages=payload.pages, bms=payload.bms, system=payload.system)
         try:
             bms_cfg_pdf = BmsConfig(cfg_pdf, theater_ini_pattern=app.state.theater_ini_pattern)
         except Exception as exc:
             logger.error("Failed to build PDF BMS config: %s", exc)
             raise HTTPException(status_code=500, detail=f"PDF config error: {exc}")
+        pdf_lock = app.state.pdf_lock
+        if not pdf_lock.acquire(blocking=False):
+            raise HTTPException(status_code=429, detail="PDF generation already in progress. Wait for the current export to finish.")
+        app.state.pdf_busy = True
         ensure_dirs(cfg_pdf)
         try:
+            step_started = time.perf_counter()
             brief_summary, selected_package_index = _resolve_brief_render_state(payload.selected_package_index)
-            generate_html_file(
-                cfg_pdf,
-                bms_cfg_pdf,
-                "index",
-                brief_summary=brief_summary,
-                selected_package_index=selected_package_index,
+            logger.info(
+                "PDF[%s] render state resolved: selected_package_index=%r package_count=%d elapsed_ms=%.1f",
+                pdf_trace,
+                selected_package_index,
+                len(brief_summary.get("packages", [])) if isinstance(brief_summary, dict) and isinstance(brief_summary.get("packages"), list) else 0,
+                (time.perf_counter() - step_started) * 1000.0,
             )
-            output_file = resolve_path(cfg_pdf["system"]["output_dir"]) / "index.html"
-            app.state.last_brief_path = str(output_file)
-            try:
-                app.state.brief_mtime_ref = os.path.getmtime(Path(bms_cfg_pdf.base_dir) / "User" / "Briefings" / "briefing.txt")
-                app.state.callsign_mtime_ref = os.path.getmtime(Path(bms_cfg_pdf.base_dir) / "User" / "Config" / f"{bms_cfg_pdf.callsign}.ini")
-            except Exception:
-                pass
-            patched_html = apply_content_edits(output_file, payload.content or {})
+
             pdf_output_dir = resolve_path(cfg_pdf["system"]["pdf_output_dir"])
             pdf_output_dir.mkdir(parents=True, exist_ok=True)
-            pdf_path = pdf_output_dir / "kneeboard.pdf"
-            pdf_doc = HTML(filename=str(patched_html), base_url=str(STATIC_ROOT)).render()
-            app.state.pdf_page_count = len(pdf_doc.pages)
-            app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_pdf))
-            app.state.pdf_overflow = (
-                app.state.brief_pages_ref is not None
-                and app.state.pdf_page_count is not None
-                and app.state.pdf_page_count > app.state.brief_pages_ref
-            )
-            pdf_doc.write_pdf(str(pdf_path))
-            app.state.last_pdf_path = str(pdf_path)
+            with tempfile.TemporaryDirectory(
+                prefix=f"html_brief_pdf_{pdf_trace}_",
+                dir=str(pdf_output_dir),
+            ) as temp_dir_str:
+                temp_dir = Path(temp_dir_str)
+                cfg_pdf_render = copy_config_with_overrides(
+                    cfg_pdf,
+                    system={"output_dir": str(temp_dir)},
+                )
+
+                step_started = time.perf_counter()
+                render_name = f"index_pdf_{pdf_trace}"
+                generate_html_file(
+                    cfg_pdf_render,
+                    bms_cfg_pdf,
+                    render_name,
+                    brief_summary=brief_summary,
+                    selected_package_index=selected_package_index,
+                )
+                output_file = temp_dir / f"{render_name}.html"
+                try:
+                    output_size = output_file.stat().st_size
+                except Exception:
+                    output_size = -1
+                logger.info(
+                    "PDF[%s] html generated: file=%s size=%dB elapsed_ms=%.1f",
+                    pdf_trace,
+                    output_file,
+                    output_size,
+                    (time.perf_counter() - step_started) * 1000.0,
+                )
+                try:
+                    app.state.brief_mtime_ref = os.path.getmtime(Path(bms_cfg_pdf.base_dir) / "User" / "Briefings" / "briefing.txt")
+                    app.state.callsign_mtime_ref = os.path.getmtime(Path(bms_cfg_pdf.base_dir) / "User" / "Config" / f"{bms_cfg_pdf.callsign}.ini")
+                except Exception:
+                    pass
+
+                step_started = time.perf_counter()
+                patched_html = apply_content_edits(
+                    output_file,
+                    payload.content or {},
+                    patched_path=temp_dir / f"{render_name}_print.html",
+                )
+                try:
+                    patched_size = patched_html.stat().st_size
+                except Exception:
+                    patched_size = -1
+                logger.info(
+                    "PDF[%s] patched html ready: file=%s size=%dB elapsed_ms=%.1f",
+                    pdf_trace,
+                    patched_html,
+                    patched_size,
+                    (time.perf_counter() - step_started) * 1000.0,
+                )
+                pdf_path = pdf_output_dir / "kneeboard.pdf"
+                pdf_temp_path = temp_dir / f"kneeboard_{pdf_trace}.pdf"
+
+                step_started = time.perf_counter()
+                logger_ui.info("PDF[%s] WeasyPrint render start", pdf_trace)
+                pdf_doc = HTML(filename=str(patched_html), base_url=str(STATIC_ROOT)).render()
+                render_elapsed_ms = (time.perf_counter() - step_started) * 1000.0
+                app.state.pdf_page_count = len(pdf_doc.pages)
+                app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_pdf))
+                app.state.pdf_overflow = (
+                    app.state.brief_pages_ref is not None
+                    and app.state.pdf_page_count is not None
+                    and app.state.pdf_page_count > app.state.brief_pages_ref
+                )
+                logger.info(
+                    "PDF[%s] WeasyPrint render done: pages=%d brief_pages=%r overflow=%r elapsed_ms=%.1f",
+                    pdf_trace,
+                    app.state.pdf_page_count,
+                    app.state.brief_pages_ref,
+                    app.state.pdf_overflow,
+                    render_elapsed_ms,
+                )
+                logger_ui.info(
+                    "PDF[%s] render done: pages=%d elapsed_ms=%.1f",
+                    pdf_trace,
+                    app.state.pdf_page_count,
+                    render_elapsed_ms,
+                )
+
+                step_started = time.perf_counter()
+                logger_ui.info("PDF[%s] write_pdf start -> %s", pdf_trace, pdf_temp_path)
+                pdf_doc.write_pdf(str(pdf_temp_path))
+                os.replace(pdf_temp_path, pdf_path)
+                write_elapsed_ms = (time.perf_counter() - step_started) * 1000.0
+                app.state.last_pdf_path = str(pdf_path)
+                try:
+                    pdf_size = pdf_path.stat().st_size
+                except Exception:
+                    pdf_size = -1
+                logger.info(
+                    "PDF[%s] write_pdf done: path=%s size=%dB elapsed_ms=%.1f total_elapsed_ms=%.1f",
+                    pdf_trace,
+                    pdf_path,
+                    pdf_size,
+                    write_elapsed_ms,
+                    (time.perf_counter() - req_started) * 1000.0,
+                )
+                logger_ui.info(
+                    "PDF[%s] done: size=%dB total_elapsed_ms=%.1f",
+                    pdf_trace,
+                    pdf_size,
+                    (time.perf_counter() - req_started) * 1000.0,
+                )
         except HTTPException:
             raise
         except Exception as exc:
-            logger.error("Failed to generate PDF: %s", exc)
+            logger.exception("PDF[%s] failed after %.1fms", pdf_trace, (time.perf_counter() - req_started) * 1000.0)
+            logger_ui.error("PDF[%s] failed: %s", pdf_trace, exc)
             raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {exc}")
+        finally:
+            app.state.pdf_busy = False
+            pdf_lock.release()
         return {"status": "ok", "pdf_file": str(pdf_path)}
 
     @app.post("/api/export")

@@ -106,6 +106,8 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
             },
         )
 
+        logo_present = os.path.isfile(os.path.join(script_dir, "assets", "logo.png"))
+
         with open(os.path.join(conf['system']['output_dir'], name+".html"), "w", encoding = "utf-8") as index_output:
             index_output.write(index_tmpl.render(airbases = brf.airbases,
                                                  package_size = len(brf.package),
@@ -125,7 +127,7 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
                                                  brief_pages = page_contents,
                                                  cmds = ci.cmds,
                                                  num = page_num,
-                                                 logo_present = True,
+                                                 logo_present = logo_present,
                                                  brief_is_joined = True,
                                                  package_options = render_context["package_options"],
                                                  support_package_rows = render_context["support_package_rows"],

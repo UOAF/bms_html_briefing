@@ -212,6 +212,8 @@
       color: var(--text);
       font-family: "IBMPlexMono";
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
       overflow-y: auto;
       box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.08);
     }
@@ -230,7 +232,7 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 2fr 1fr;
+      grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
       gap: 1rem;
       align-items: start;
     }
@@ -252,6 +254,11 @@
     .main-column section:first-child,
     .side-column section:first-child {
       margin-top: 0;
+    }
+
+    .main-column,
+    .side-column {
+      min-width: 0;
     }
 
     .button-row {
@@ -991,7 +998,10 @@
     const toggleToolbarBtn = document.getElementById("toggle-toolbar");
     const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
     const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
+    const pdfBtn = document.getElementById("pdf-btn");
     const exportBtn = document.getElementById("export-btn");
+    const openPdfBtn = document.getElementById("open-pdf-btn");
+    const generateBriefBtns = Array.from(document.querySelectorAll(".generate-brief-btn"));
     const camSaveSelect = document.getElementById("cam-save-select");
     const camRefreshBtn = document.getElementById("cam-refresh-btn");
     const camLoadBtn = document.getElementById("cam-load-btn");
@@ -1368,6 +1378,7 @@
         document.getElementById("target-folder").title = data.target_folder || "–";
         document.getElementById("pdf-dir-status").textContent = data.pdf_output_dir || "–";
         document.getElementById("pdf-dir-status").title = data.pdf_output_dir || "–";
+        setPdfBusy(!!data.pdf_busy);
         lastCamData = data.cam_loaded ? (lastCamData || {}) : null;
         updateCamSummaryUi(data.cam_loaded ? {} : null, data.cam_output_file || null);
         const hasError = data.error || !data.base_dir;
@@ -1425,6 +1436,7 @@
           callsignChanged: data.callsign_changed,
           pdfOverflow: data.pdf_overflow
         });
+        setPdfBusy(!!data.pdf_busy);
         await maybeAutoExportOnFileChange(data);
       } catch (err) {
         if (hasSeenStatusSuccess) {
@@ -1545,6 +1557,10 @@
     }
 
     async function doGenerate(overrides = null) {
+      if (pdfBusy || exportBusy) {
+        log("Generate skipped: PDF pipeline is busy");
+        return;
+      }
       try {
         const res = await fetchJSON("/api/generate", { method: "POST", body: overrides ? JSON.stringify(overrides) : null });
         log(`HTML generated at ${res.output_file}`);
@@ -1556,6 +1572,10 @@
     }
 
     async function doPreview(overrides = null) {
+      if (pdfBusy || exportBusy) {
+        log("Preview skipped: PDF pipeline is busy");
+        return;
+      }
       try {
         const payload = overrides || currentOverrides();
         const res = await fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(payload) });
@@ -1593,6 +1613,7 @@
         camSaveSelect.appendChild(option);
         camSaveSelect.disabled = true;
         if (camLoadBtn) camLoadBtn.disabled = true;
+        updateBusyUi();
         return;
       }
 
@@ -1613,6 +1634,7 @@
         camSaveSelect.appendChild(option);
         camSaveSelect.disabled = true;
         if (camLoadBtn) camLoadBtn.disabled = true;
+        updateBusyUi();
         return;
       }
 
@@ -1627,6 +1649,7 @@
       } else {
         camSaveSelect.selectedIndex = 0;
       }
+      updateBusyUi();
     }
 
     async function refreshCamSaveList(silent = true) {
@@ -1644,6 +1667,10 @@
 
     async function loadCamFromSelection(options = {}) {
       const silent = !!options.silent;
+      if (pdfBusy || exportBusy) {
+        if (!silent) log("CAM load skipped: PDF pipeline is busy");
+        return;
+      }
       const selectedPath = typeof camSaveSelect?.value === "string" ? camSaveSelect.value.trim() : "";
       if (!selectedPath) {
         if (!silent) log("Select a campaign save first");
@@ -1705,6 +1732,10 @@
     async function unloadCamSelection(options = {}) {
       const silent = !!options.silent;
       const refreshPreviewAfter = options.refreshPreview !== false;
+      if (pdfBusy || exportBusy) {
+        if (!silent) log("CAM unload skipped: PDF pipeline is busy");
+        return;
+      }
       try {
         await fetchJSON("/api/cam/unload", { method: "POST" });
         const query = getPreviewCamPackageQuery();
@@ -1733,6 +1764,7 @@
     }
 
     function getLatestEdits() {
+      const started = performance.now();
       let dataFromFrame = null;
       const cw = briefFrame?.contentWindow;
       if (cw && typeof cw.saveChangedData === "function") {
@@ -1746,10 +1778,18 @@
         }
       }
       const saved = getSavedEdits();
+      const merged = dataFromFrame && typeof dataFromFrame === "object"
+        ? { ...saved, ...dataFromFrame }
+        : saved;
+      try {
+        const keys = merged && typeof merged === "object" ? Object.keys(merged) : [];
+        const mapImage = merged && typeof merged.map_image === "string" ? merged.map_image : "";
+        log(`PDF prep: getLatestEdits keys=${keys.length} map_image_len=${mapImage.length} elapsed_ms=${(performance.now() - started).toFixed(1)}`);
+      } catch {}
       if (dataFromFrame && typeof dataFromFrame === "object") {
-        return { ...saved, ...dataFromFrame };
+        return merged;
       }
-      return saved;
+      return merged;
     }
 
     function buildPagesObj() {
@@ -1764,42 +1804,73 @@
       const frame = document.getElementById("brief-frame");
       const cw = frame?.contentWindow;
       if (!cw || typeof cw.exportMapImage !== "function") return null;
+      const started = performance.now();
+      log("PDF prep: map capture start");
       try {
         const dataUrl = await cw.exportMapImage();
         if (!dataUrl) {
           const err = cw.exportMapLastError || "unknown";
           const logTrail = Array.isArray(cw.exportMapLog) ? cw.exportMapLog.join(" | ") : "";
           log(`Map capture returned empty. Details: ${err}. Trace: ${logTrail}`);
+        } else {
+          log(`PDF prep: map capture done len=${dataUrl.length} elapsed_ms=${(performance.now() - started).toFixed(1)}`);
         }
         return dataUrl || null;
       } catch (err) {
-        log(`Map capture failed: ${err && err.message ? err.message : err}`);
+        log(`Map capture failed after ${(performance.now() - started).toFixed(1)}ms: ${err && err.message ? err.message : err}`);
         return null;
+      }
+    }
+
+    function updateBusyUi() {
+      const pipelineBusy = pdfBusy || exportBusy;
+      if (pdfBtn) {
+        pdfBtn.disabled = pipelineBusy;
+        pdfBtn.title = pipelineBusy ? "PDF generation in progress" : "";
+      }
+      if (exportBtn) {
+        exportBtn.disabled = pipelineBusy;
+        exportBtn.title = exportBusy
+          ? "Kneeboard export in progress"
+          : (pdfBusy ? "PDF generation in progress" : "");
+      }
+      if (openPdfBtn) {
+        openPdfBtn.disabled = pipelineBusy;
+        openPdfBtn.title = pipelineBusy ? "PDF generation in progress" : "";
+      }
+      generateBriefBtns.forEach((btn) => {
+        btn.disabled = pipelineBusy;
+        btn.title = pipelineBusy ? "PDF generation in progress" : "";
+      });
+      if (camLoadBtn) {
+        camLoadBtn.disabled = pipelineBusy || !camSaveSelect || camSaveSelect.disabled;
+        camLoadBtn.title = pipelineBusy ? "PDF generation in progress" : "";
+      }
+      if (camUnloadBtn) {
+        camUnloadBtn.disabled = pipelineBusy;
+        camUnloadBtn.title = pipelineBusy ? "PDF generation in progress" : "";
+      }
+      if (camRefreshBtn) {
+        camRefreshBtn.disabled = pipelineBusy;
+        camRefreshBtn.title = pipelineBusy ? "PDF generation in progress" : "";
       }
     }
 
     function setPdfBusy(busy) {
       pdfBusy = !!busy;
-      const openPdfBtn = document.getElementById("open-pdf-btn");
-      if (openPdfBtn) {
-        openPdfBtn.disabled = pdfBusy;
-        openPdfBtn.title = pdfBusy ? "PDF generation in progress" : "";
-      }
+      updateBusyUi();
     }
 
     function setExportBusy(busy) {
       exportBusy = !!busy;
-      if (exportBtn) {
-        exportBtn.disabled = exportBusy;
-        exportBtn.textContent = exportBusy ? "Export" : "Export";
-        exportBtn.title = exportBusy ? "Kneeboard export in progress" : "";
-      }
+      updateBusyUi();
     }
 
     async function runExportFlow(source = "manual") {
       if (pdfBusy || exportBusy) return;
       setPdfBusy(true);
       setExportBusy(true);
+      const started = performance.now();
       try {
         const overrides = currentOverrides();
         const pdfOnlyAuto = source === "auto" && autoExportPdfOnly;
@@ -1822,7 +1893,15 @@
         payload.theater = {
           copy_to_kto: copyToKtoEnabled
         };
+        try {
+          const payloadSize = JSON.stringify(payload).length;
+          log(`PDF request: source=${source} selected_package_index=${payload.selected_package_index} payload_size=${payloadSize} map_image_len=${typeof payload.content?.map_image === "string" ? payload.content.map_image.length : 0}`);
+        } catch (err) {
+          log(`PDF request: failed to measure payload size: ${err.message}`);
+        }
+        log("PDF request: POST /api/pdf start");
         const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
+        log(`PDF request: POST /api/pdf done elapsed_ms=${(performance.now() - started).toFixed(1)}`);
         log(`PDF generated at ${pdfRes.pdf_file}`);
         if (!pdfOnlyAuto) {
           const expRes = await fetchJSON("/api/export", { method: "POST", body: JSON.stringify({ ...overrides, theater: payload.theater }) });
@@ -1839,7 +1918,7 @@
         await pollStatusBadges();
       } catch (err) {
         const prefix = source === "auto" ? "Auto-export failed" : "Export failed";
-        log(`${prefix}: ${err.message}`);
+        log(`${prefix} after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);
       } finally {
         setExportBusy(false);
         setPdfBusy(false);
@@ -1877,19 +1956,28 @@
     }
 
     document.getElementById("pdf-btn").addEventListener("click", async () => {
-      if (pdfBusy) return;
+      if (pdfBusy || exportBusy) return;
       setPdfBusy(true);
+      const started = performance.now();
       try {
         const payload = { content: getLatestEdits(), ...currentOverrides() };
         const mapImage = await captureMapImage();
         if (mapImage) {
           payload.content.map_image = mapImage;
         }
+        try {
+          const payloadSize = JSON.stringify(payload).length;
+          log(`PDF request: manual selected_package_index=${payload.selected_package_index} payload_size=${payloadSize} map_image_len=${typeof payload.content?.map_image === "string" ? payload.content.map_image.length : 0}`);
+        } catch (err) {
+          log(`PDF request: failed to measure payload size: ${err.message}`);
+        }
+        log("PDF request: POST /api/pdf start");
         const res = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
+        log(`PDF request: POST /api/pdf done elapsed_ms=${(performance.now() - started).toFixed(1)}`);
         log(`PDF generated at ${res.pdf_file}`);
         await pollStatusBadges();
       } catch (err) {
-        log(`PDF generation failed: ${err.message}`);
+        log(`PDF generation failed after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);
       } finally {
         setPdfBusy(false);
       }
