@@ -1,16 +1,5 @@
-"""Public library API for CAM parsing."""
+"""Public library API for CAM summary extraction."""
 
-from .cam_content import CamEntryData, ParsedCamData, parse_cam_file
-from .types import ParsedCmpData, ParsedUniData
-from lib.parsers.parse_cmp import parse_cmp
-from lib.parsers.parse_uni import parse_uni
+from .summary import extract_cam_brief_data
 
-__all__ = [
-    "CamEntryData",
-    "ParsedCmpData",
-    "ParsedCamData",
-    "ParsedUniData",
-    "parse_cmp",
-    "parse_cam_file",
-    "parse_uni",
-]
+__all__ = ["extract_cam_brief_data"]

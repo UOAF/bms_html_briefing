@@ -4,12 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
-from lib.cam.types import ParsedCmpData, ParsedUniData, SummaryInput
-from lib.parsers.parse_cmp import parse_cmp
-from lib.parsers.parse_l16 import load_parsed_l16_for_save
-from lib.parsers.parse_summary import parse_summary
-from lib.parsers.parse_twx import load_parsed_twx_for_cam_path, load_parsed_twx_for_save
-from lib.parsers.parse_uni import parse_uni
+from lib.cam.opencam.cam_container import CamContainer
+from lib.cam.summary import extract_cam_brief_data
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -21,32 +17,42 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--bms-base-dir",
         type=Path,
         default=None,
-        help="Optional BMS base directory (for Strings.txt, TWX, Link16, and objects_cf XML files)",
+        help="Optional BMS base directory for support files, TWX, and Link16",
+    )
+    parser.add_argument(
+        "--theater-target-folder",
+        type=Path,
+        default=None,
+        help="Optional theater target folder used to infer support files",
+    )
+    parser.add_argument(
+        "--theater-name",
+        type=str,
+        default=None,
+        help="Optional runtime theater name",
     )
     parser.add_argument(
         "--packages",
         type=int,
         nargs="+",
         default=None,
-        help="Optional package numbers to include (default: player-linked packages or all detected)",
+        help="Optional package numbers to include (default: all detected packages)",
     )
     parser.add_argument(
         "--best-effort",
         action="store_true",
-        help="Keep raw entry payload when decompression fails",
+        help="Accepted for CLI compatibility; opencam parsing does not fall back to old parser behavior",
     )
     parser.add_argument(
         "--extract-to",
         type=Path,
         default=None,
-        help="Optional output directory to write decoded entries and parsed sidecar JSON",
+        help="Optional output directory to write decoded entries and manifest JSON",
     )
     return parser
 
 
 def main() -> int:
-    from lib.cam.cam_content import extract_container, parse_cam_file
-
     parser = build_arg_parser()
     args = parser.parse_args()
 
@@ -54,69 +60,65 @@ def main() -> int:
     if not input_path.is_file():
         parser.error(f"input file does not exist: {input_path}")
 
-    support_base_dir = args.bms_base_dir.resolve() if isinstance(args.bms_base_dir, Path) else None
-
     if isinstance(args.extract_to, Path):
-        manifest = extract_container(
-            input_path,
-            args.extract_to.resolve(),
-            best_effort=bool(args.best_effort),
-            parse_data=True,
-            support_base_dir=support_base_dir,
-        )
+        manifest = extract_container(input_path, args.extract_to.resolve())
         manifest_path = args.extract_to.resolve() / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    parsed_cam = parse_cam_file(
+    summary = extract_cam_brief_data(
         input_path,
-        bms_base_dir=support_base_dir,
-        parse_entries=False,
-        best_effort=bool(args.best_effort),
-    )
-    cmp_entry = parsed_cam.get_entry_by_ext(".cmp")
-    uni_entry = parsed_cam.get_entry_by_ext(".uni")
-
-    twx_data = load_parsed_twx_for_cam_path(input_path)
-    if not twx_data.current_date:
-        twx_data = load_parsed_twx_for_save(
-            bms_base_dir=support_base_dir,
-            save_stem=input_path.stem,
-        )
-    l16_data = load_parsed_l16_for_save(
-        bms_base_dir=support_base_dir,
+        bms_base_dir=args.bms_base_dir,
+        theater_target_folder=args.theater_target_folder,
+        theater_name=args.theater_name,
         save_stem=input_path.stem,
     )
+    if args.packages:
+        wanted = set(args.packages)
+        packages = [
+            package
+            for package in summary.get("packages", [])
+            if isinstance(package, dict) and package.get("package_number") in wanted
+        ]
+        summary["packages"] = packages
+        summary["package_count"] = len(packages)
 
-    summary_input = SummaryInput(
-        source_path=input_path,
-        support_base_dir=support_base_dir,
-        container_version=parsed_cam.container_version,
-        cmp=(
-            parse_cmp(
-                cmp_entry.data,
-                container_version=parsed_cam.container_version,
-                support_base_dir=support_base_dir,
-                decode_metadata=cmp_entry.decode_metadata,
-            )
-            if cmp_entry is not None
-            else ParsedCmpData.from_dict(None)
-        ),
-        uni=(
-            parse_uni(
-                uni_entry.data,
-                container_version=parsed_cam.container_version,
-                support_base_dir=support_base_dir,
-                decode_metadata=uni_entry.decode_metadata,
-            )
-            if uni_entry is not None
-            else ParsedUniData.from_dict(None)
-        ),
-        twx=twx_data,
-        l16=l16_data,
-    )
-    summary = parse_summary(summary_input, package_numbers=args.packages)
-    print(json.dumps(summary.to_dict(), indent=2))
+    print(json.dumps(summary, indent=2))
     return 0
+
+
+def extract_container(input_path: Path, output_dir: Path) -> list[dict[str, object]]:
+    container = CamContainer.from_path(input_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest: list[dict[str, object]] = []
+    for entry in container.entries:
+        output_path = _safe_output_path(output_dir, entry.name)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(entry.decoded)
+        item: dict[str, object] = {
+            "name": entry.name,
+            "offset": entry.offset,
+            "length": entry.length,
+            "output_path": str(output_path),
+            "output_size": len(entry.decoded),
+            "decompressed": entry.is_compressed,
+        }
+        item.update(entry.metadata)
+        manifest.append(item)
+    return manifest
+
+
+def _safe_output_path(base_dir: Path, entry_name: str) -> Path:
+    normalized = entry_name.replace("\\", "/")
+    candidate = (base_dir / normalized).resolve()
+    base_resolved = base_dir.resolve()
+    if candidate == base_resolved:
+        raise ValueError(f"invalid output entry name {entry_name!r}")
+    try:
+        candidate.relative_to(base_resolved)
+    except ValueError as exc:
+        raise ValueError(f"unsafe output entry name {entry_name!r}") from exc
+    return candidate
 
 
 if __name__ == "__main__":
