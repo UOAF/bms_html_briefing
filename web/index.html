@@ -1075,6 +1075,12 @@
       logEl.textContent = logLines.join("\n");
     }
 
+    function debugLog(message) {
+      if (typeof console !== "undefined" && typeof console.debug === "function") {
+        console.debug(message);
+      }
+    }
+
     function updateCamSummaryUi(camData, outputPath = null) {
       if (camSaveSelect) {
         camSaveSelect.title = camData && outputPath ? `CAM parsed: ${outputPath}` : "";
@@ -1784,7 +1790,7 @@
       try {
         const keys = merged && typeof merged === "object" ? Object.keys(merged) : [];
         const mapImage = merged && typeof merged.map_image === "string" ? merged.map_image : "";
-        log(`PDF prep: getLatestEdits keys=${keys.length} map_image_len=${mapImage.length} elapsed_ms=${(performance.now() - started).toFixed(1)}`);
+        debugLog(`PDF prep: getLatestEdits keys=${keys.length} map_image_len=${mapImage.length} elapsed_ms=${(performance.now() - started).toFixed(1)}`);
       } catch {}
       if (dataFromFrame && typeof dataFromFrame === "object") {
         return merged;
@@ -1805,7 +1811,7 @@
       const cw = frame?.contentWindow;
       if (!cw || typeof cw.exportMapImage !== "function") return null;
       const started = performance.now();
-      log("PDF prep: map capture start");
+      debugLog("PDF prep: map capture start");
       try {
         const dataUrl = await cw.exportMapImage();
         if (!dataUrl) {
@@ -1813,7 +1819,7 @@
           const logTrail = Array.isArray(cw.exportMapLog) ? cw.exportMapLog.join(" | ") : "";
           log(`Map capture returned empty. Details: ${err}. Trace: ${logTrail}`);
         } else {
-          log(`PDF prep: map capture done len=${dataUrl.length} elapsed_ms=${(performance.now() - started).toFixed(1)}`);
+          debugLog(`PDF prep: map capture done len=${dataUrl.length} elapsed_ms=${(performance.now() - started).toFixed(1)}`);
         }
         return dataUrl || null;
       } catch (err) {
@@ -1866,6 +1872,31 @@
       updateBusyUi();
     }
 
+    async function runPdfGeneration({ source = "manual", overrides = null, includeTheater = false, started = performance.now() } = {}) {
+      const activeOverrides = overrides || currentOverrides();
+      const payload = { content: getLatestEdits(), ...activeOverrides };
+      const mapImage = await captureMapImage();
+      if (mapImage) {
+        payload.content.map_image = mapImage;
+      }
+      if (includeTheater) {
+        payload.theater = {
+          copy_to_kto: copyToKtoEnabled
+        };
+      }
+      try {
+        const payloadSize = JSON.stringify(payload).length;
+        debugLog(`PDF request: source=${source} selected_package_index=${payload.selected_package_index} payload_size=${payloadSize} map_image_len=${typeof payload.content?.map_image === "string" ? payload.content.map_image.length : 0}`);
+      } catch (err) {
+        debugLog(`PDF request: failed to measure payload size: ${err.message}`);
+      }
+      debugLog("PDF request: POST /api/pdf start");
+      const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
+      debugLog(`PDF request: POST /api/pdf done elapsed_ms=${(performance.now() - started).toFixed(1)}`);
+      log(`PDF generated at ${pdfRes.pdf_file}`);
+      return { pdfRes, payload, overrides: activeOverrides };
+    }
+
     async function runExportFlow(source = "manual") {
       if (pdfBusy || exportBusy) return;
       setPdfBusy(true);
@@ -1874,7 +1905,6 @@
       try {
         const overrides = currentOverrides();
         const pdfOnlyAuto = source === "auto" && autoExportPdfOnly;
-        const latestEdits = getLatestEdits();
         if (source === "auto") {
           try {
             const prevRes = await fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(overrides) });
@@ -1884,25 +1914,12 @@
             log(`Auto-export preview refresh failed: ${err.message}`);
           }
         }
-        const payload = { content: latestEdits, ...overrides };
-        const mapImage = await captureMapImage();
-        if (mapImage) {
-          payload.content.map_image = mapImage;
-        }
-        // pass theater overrides without persisting to disk
-        payload.theater = {
-          copy_to_kto: copyToKtoEnabled
-        };
-        try {
-          const payloadSize = JSON.stringify(payload).length;
-          log(`PDF request: source=${source} selected_package_index=${payload.selected_package_index} payload_size=${payloadSize} map_image_len=${typeof payload.content?.map_image === "string" ? payload.content.map_image.length : 0}`);
-        } catch (err) {
-          log(`PDF request: failed to measure payload size: ${err.message}`);
-        }
-        log("PDF request: POST /api/pdf start");
-        const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
-        log(`PDF request: POST /api/pdf done elapsed_ms=${(performance.now() - started).toFixed(1)}`);
-        log(`PDF generated at ${pdfRes.pdf_file}`);
+        const { payload } = await runPdfGeneration({
+          source,
+          overrides,
+          includeTheater: true,
+          started
+        });
         if (!pdfOnlyAuto) {
           const expRes = await fetchJSON("/api/export", { method: "POST", body: JSON.stringify({ ...overrides, theater: payload.theater }) });
           log(`Exported kneeboards to ${expRes.target_folder}`);
@@ -1960,21 +1977,11 @@
       setPdfBusy(true);
       const started = performance.now();
       try {
-        const payload = { content: getLatestEdits(), ...currentOverrides() };
-        const mapImage = await captureMapImage();
-        if (mapImage) {
-          payload.content.map_image = mapImage;
-        }
-        try {
-          const payloadSize = JSON.stringify(payload).length;
-          log(`PDF request: manual selected_package_index=${payload.selected_package_index} payload_size=${payloadSize} map_image_len=${typeof payload.content?.map_image === "string" ? payload.content.map_image.length : 0}`);
-        } catch (err) {
-          log(`PDF request: failed to measure payload size: ${err.message}`);
-        }
-        log("PDF request: POST /api/pdf start");
-        const res = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
-        log(`PDF request: POST /api/pdf done elapsed_ms=${(performance.now() - started).toFixed(1)}`);
-        log(`PDF generated at ${res.pdf_file}`);
+        await runPdfGeneration({
+          source: "manual",
+          overrides: currentOverrides(),
+          started
+        });
         await pollStatusBadges();
       } catch (err) {
         log(`PDF generation failed after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);

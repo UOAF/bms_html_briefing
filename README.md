@@ -56,6 +56,7 @@ pdf_output_dir = kneeboards
 wine_prefix =
 auto_export_on_change = False
 auto_export_pdf_only = False
+debug_log = False
 
 [bms]
 bms_version = 4.38
