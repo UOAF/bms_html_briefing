@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 import uuid
+import multiprocessing
 from contextlib import asynccontextmanager
 from collections import deque
 from itertools import count
@@ -44,7 +45,7 @@ logger = logging.getLogger("html_brief_log")
 logger_ui = logging.getLogger("ui_logger")
 logging.basicConfig(
     filename="debug.log",
-    filemode="w",
+    filemode="w" if multiprocessing.current_process().name == "MainProcess" else "a",
     encoding="utf-8",
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)-8s %(message)s",
@@ -57,6 +58,8 @@ RUN_DIR = Path(sys.executable).resolve().parent if IS_FROZEN else BUNDLE_DIR  # 
 STATIC_ROOT = BUNDLE_DIR if (BUNDLE_DIR / "assets").exists() else RUN_DIR
 
 os.environ.setdefault("BMS_BRIEF_HOME", str(STATIC_ROOT))
+
+PDF_RENDER_TIMEOUT_SECONDS = int(os.environ.get("BMS_HTML_BRIEF_PDF_TIMEOUT", "240"))
 
 DEFAULT_CONFIG_PATH = RUN_DIR / "config.ini"
 WEB_DIR = STATIC_ROOT / "web"
@@ -181,6 +184,61 @@ def append_sanitized_html(el: Any, raw: Any) -> None:
         el.append(node)
 
 
+def _render_pdf_worker(html_filename: str, base_url: str, pdf_filename: str, result_queue: Any) -> None:
+    """Run WeasyPrint in a child process so a native Windows layout hang is killable."""
+    try:
+        from weasyprint import HTML as WorkerHTML
+
+        started = time.perf_counter()
+        pdf_doc = WorkerHTML(filename=html_filename, base_url=base_url).render()
+        render_elapsed_ms = (time.perf_counter() - started) * 1000.0
+        page_count = len(pdf_doc.pages)
+        started = time.perf_counter()
+        pdf_doc.write_pdf(pdf_filename)
+        write_elapsed_ms = (time.perf_counter() - started) * 1000.0
+        result_queue.put(
+            {
+                "ok": True,
+                "pages": page_count,
+                "render_elapsed_ms": render_elapsed_ms,
+                "write_elapsed_ms": write_elapsed_ms,
+            }
+        )
+    except Exception as exc:
+        try:
+            result_queue.put({"ok": False, "error": repr(exc)})
+        except Exception:
+            pass
+
+
+def render_pdf_isolated(html_path: Path, base_url: Path, pdf_path: Path, timeout_seconds: int) -> Dict[str, Any]:
+    ctx = multiprocessing.get_context("spawn")
+    result_queue = ctx.Queue(maxsize=1)
+    process = ctx.Process(
+        target=_render_pdf_worker,
+        args=(str(html_path), str(base_url), str(pdf_path), result_queue),
+        name="html-brief-weasyprint",
+    )
+    process.start()
+    process.join(timeout_seconds)
+    if process.is_alive():
+        process.terminate()
+        process.join(10)
+        if process.is_alive():
+            process.kill()
+            process.join(5)
+        raise TimeoutError(f"WeasyPrint did not finish within {timeout_seconds}s")
+    if process.exitcode not in (0, None) and result_queue.empty():
+        raise RuntimeError(f"WeasyPrint worker exited with code {process.exitcode}")
+    try:
+        result = result_queue.get_nowait()
+    except Exception as exc:
+        raise RuntimeError("WeasyPrint worker finished without a result") from exc
+    if not result.get("ok"):
+        raise RuntimeError(result.get("error") or "WeasyPrint worker failed")
+    return result
+
+
 def get_runtime_template_path(name: str) -> Path:
     root = RUN_DIR if IS_FROZEN else Path(os.environ.get("BMS_BRIEF_HOME", str(STATIC_ROOT)))
     return root / "templates" / name
@@ -260,8 +318,6 @@ def copy_config_with_overrides(cfg: configparser.ConfigParser, pages: Optional[D
 
 def apply_content_edits(html_path: Path, content: Dict[str, Any], patched_path: Optional[Path] = None) -> Path:
     """Apply stored contenteditable values and hide states to generated HTML."""
-    if not content:
-        return html_path
     started = time.perf_counter()
     stats = _content_payload_stats(content)
     logger.info(
@@ -300,9 +356,9 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any], patched_path: 
         if map_container:
             img_tag = soup.new_tag("img", id="map-image-print")
             img_tag["src"] = content["map_image"]
-            img_tag["style"] = "display:block;width:100%;height:auto;"
+            img_tag["style"] = "display:block;max-width:100%;width:auto;max-height:960px;height:auto;margin:0 auto;"
             map_container.attrs.pop("class", None)
-            map_container["style"] = "width:100%;height:auto;max-height:none;"
+            map_container["style"] = "width:100%;height:auto;max-height:960px;text-align:center;overflow:hidden;"
             map_container.clear()
             map_container.append(img_tag)
     # Inject target reference images if provided as data URLs
@@ -323,8 +379,13 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any], patched_path: 
             if el:
                 style = el.get("style", "")
                 rules = [r.strip() for r in style.split(";") if r.strip() and not r.strip().startswith("display")]
-                rules.append(f"display:{value}")
-                el["style"] = ";".join(rules)
+                display_value = str(value).strip().lower()
+                if display_value in {"none", "block", "inline", "inline-block", "table", "table-row", "table-cell", "flex"}:
+                    rules.append(f"display:{display_value}")
+                if rules:
+                    el["style"] = ";".join(rules)
+                else:
+                    el.attrs.pop("style", None)
             header = soup.find(id=f"{target_id}_header")
             if header:
                 arrow = header.find(class_="arrow")
@@ -337,6 +398,26 @@ def apply_content_edits(html_path: Path, content: Dict[str, Any], patched_path: 
             continue
         el.clear()
         append_editable_content(el, value)
+
+    for script in soup.find_all("script"):
+        script.decompose()
+    for link in soup.find_all("link"):
+        href = str(link.get("href", ""))
+        media = str(link.get("media", "")).strip().lower()
+        rel = " ".join(link.get("rel", []) if isinstance(link.get("rel"), list) else [str(link.get("rel", ""))]).lower()
+        if "stylesheet" not in rel or media == "screen" or "leaflet" in href:
+            # BeautifulSoup's html.parser can treat self-closing <link /> tags as
+            # containers. Preserve any following inline style/script nodes that
+            # were accidentally parsed as children.
+            link.unwrap()
+    for style_tag in soup.find_all("style"):
+        style_text = style_tag.get_text()
+        if "leaflet-" in style_text or "Map Overlay Mono" in style_text:
+            style_tag.decompose()
+    for tag in soup.find_all(True):
+        for attr in list(tag.attrs):
+            if attr.lower().startswith("on"):
+                del tag.attrs[attr]
 
     patched = patched_path or (html_path.parent / "index_print.html")
     patched.write_text(str(soup), encoding="utf-8")
@@ -973,11 +1054,22 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
                 pdf_path = pdf_output_dir / "kneeboard.pdf"
                 pdf_temp_path = temp_dir / f"kneeboard_{pdf_trace}.pdf"
 
-                step_started = time.perf_counter()
                 logger_ui.info("PDF[%s] WeasyPrint render start", pdf_trace)
-                pdf_doc = HTML(filename=str(patched_html), base_url=str(STATIC_ROOT)).render()
-                render_elapsed_ms = (time.perf_counter() - step_started) * 1000.0
-                app.state.pdf_page_count = len(pdf_doc.pages)
+                logger.info(
+                    "PDF[%s] WeasyPrint worker start: timeout_s=%d output=%s",
+                    pdf_trace,
+                    PDF_RENDER_TIMEOUT_SECONDS,
+                    pdf_temp_path,
+                )
+                worker_result = render_pdf_isolated(
+                    patched_html,
+                    STATIC_ROOT,
+                    pdf_temp_path,
+                    PDF_RENDER_TIMEOUT_SECONDS,
+                )
+                render_elapsed_ms = float(worker_result.get("render_elapsed_ms", 0.0))
+                write_elapsed_ms = float(worker_result.get("write_elapsed_ms", 0.0))
+                app.state.pdf_page_count = int(worker_result["pages"])
                 app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_pdf))
                 app.state.pdf_overflow = (
                     app.state.brief_pages_ref is not None
@@ -1000,10 +1092,8 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
                 )
 
                 step_started = time.perf_counter()
-                logger_ui.info("PDF[%s] write_pdf start -> %s", pdf_trace, pdf_temp_path)
-                pdf_doc.write_pdf(str(pdf_temp_path))
                 os.replace(pdf_temp_path, pdf_path)
-                write_elapsed_ms = (time.perf_counter() - step_started) * 1000.0
+                replace_elapsed_ms = (time.perf_counter() - step_started) * 1000.0
                 app.state.last_pdf_path = str(pdf_path)
                 try:
                     pdf_size = pdf_path.stat().st_size
@@ -1016,6 +1106,11 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
                     pdf_size,
                     write_elapsed_ms,
                     (time.perf_counter() - req_started) * 1000.0,
+                )
+                logger.info(
+                    "PDF[%s] replace done: elapsed_ms=%.1f",
+                    pdf_trace,
+                    replace_elapsed_ms,
                 )
                 logger_ui.info(
                     "PDF[%s] done: size=%dB total_elapsed_ms=%.1f",
@@ -1202,6 +1297,7 @@ def run_with_tray(app: FastAPI, host: str, port: int) -> None:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     parser = argparse.ArgumentParser(description="Run the BMS briefing server")
     parser.add_argument(
         "-c",

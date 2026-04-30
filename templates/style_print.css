@@ -50,6 +50,12 @@ table {
     font-size: 14px;
 }
 
+.page,
+.page-break {
+    break-after: page;
+    page-break-after: always;
+}
+
 th {
     background-color: var(--print-header-bg);
 }
@@ -57,6 +63,7 @@ th {
 td {
     background-color: var(--print-row-odd-bg);
     color: var(--print-text);
+    height: 1.7em;
 }
 
 th,
@@ -75,6 +82,7 @@ tbody tr:nth-child(even) td {
 
     th, td {
         min-width: 18px;
+        height: 1.7em;
         padding: 2px 3px;
         line-height: 1.2;
         font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
