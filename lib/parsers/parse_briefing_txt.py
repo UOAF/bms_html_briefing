@@ -344,12 +344,12 @@ class Briefing:
                 for j in range(4):
                     try:
                         s[j].append(fl_weapon_list[i].strip("\t \n").split("\t")[j])
-                    except Exception as e:
+                    except Exception:
                         logger.warning(f"Error reading weapon list for flight member {j+1}")
 
         except Exception as e:
-            return s
             logger.warning(f"Error reading weapon list for {clsgn}: {e}")
+            return s
         return s
 
     def fill_package(self, brf, file_contents = None):

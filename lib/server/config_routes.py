@@ -15,6 +15,33 @@ from lib.html_gen import page_contents_ini_to_list
 
 logger = logging.getLogger("html_brief_log")
 
+CHECKLIST_ALLOWED_TAGS = {"br", "b", "strong", "i", "em", "u", "span", "img"}
+CHECKLIST_DROP_TAGS = {
+    "script",
+    "style",
+    "iframe",
+    "object",
+    "embed",
+    "link",
+    "meta",
+    "base",
+    "form",
+    "input",
+    "button",
+    "textarea",
+    "select",
+    "option",
+    "svg",
+    "math",
+}
+CHECKLIST_IMAGE_SRC_PREFIXES = (
+    "data:image/png;base64,",
+    "data:image/jpeg;base64,",
+    "data:image/jpg;base64,",
+    "data:image/gif;base64,",
+    "data:image/webp;base64,",
+)
+
 
 class ConfigUpdate(BaseModel):
     system: Optional[Dict[str, str]] = None
@@ -254,10 +281,38 @@ def _serialize_config(cfg: configparser.ConfigParser) -> Dict[str, Dict[str, str
 
 def _append_sanitized_html(el: Any, raw: Any) -> None:
     fragment = BeautifulSoup("" if raw is None else str(raw), "html.parser")
+    _sanitize_checklist_fragment(fragment)
     for node in list(fragment.contents):
-        if getattr(node, "name", None) in {"script", "style"}:
-            continue
         el.append(node)
+
+
+def _sanitize_checklist_fragment(fragment: BeautifulSoup) -> None:
+    for tag in list(fragment.find_all(True)):
+        name = str(tag.name or "").lower()
+        if name in CHECKLIST_DROP_TAGS:
+            tag.decompose()
+            continue
+        if name == "a":
+            tag.unwrap()
+            continue
+        if name not in CHECKLIST_ALLOWED_TAGS:
+            tag.unwrap()
+            continue
+
+        if name == "img":
+            src = str(tag.get("src", "")).strip()
+            if not src.lower().startswith(CHECKLIST_IMAGE_SRC_PREFIXES):
+                tag.decompose()
+                continue
+            alt = str(tag.get("alt", ""))
+            tag.attrs = {
+                "src": src,
+                "alt": alt,
+                "style": "max-width:100%;height:auto;",
+            }
+            continue
+
+        tag.attrs = {}
 
 
 __all__ = ["register_config_routes"]

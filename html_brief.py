@@ -8,10 +8,12 @@ from contextlib import asynccontextmanager
 from threading import Thread
 from pathlib import Path
 from typing import Dict, Optional
+from urllib.parse import urlparse
 import webbrowser
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Request
+from fastapi.responses import Response
 
 from lib.bms_config import BmsConfig
 from lib.server.cam_routes import register_cam_routes
@@ -108,6 +110,44 @@ def resolve_path(path_str: str) -> Path:
     return path
 
 
+def is_protected_request_path(path: str) -> bool:
+    return (
+        path == "/api"
+        or path.startswith("/api/")
+        or path in {"/brief", "/pdf"}
+        or path.startswith("/kneeboards/")
+    )
+
+
+def is_same_origin_url(url_value: str, request: Request) -> bool:
+    try:
+        parsed = urlparse(url_value)
+    except Exception:
+        return False
+    if not parsed.scheme or not parsed.netloc:
+        return False
+    return (
+        parsed.scheme.lower() == request.url.scheme.lower()
+        and parsed.netloc.lower() == request.headers.get("host", "").lower()
+    )
+
+
+def is_cross_origin_browser_request(request: Request) -> bool:
+    fetch_site = request.headers.get("sec-fetch-site", "").strip().lower()
+    if fetch_site in {"cross-site", "same-site"}:
+        return True
+
+    origin = request.headers.get("origin")
+    if origin and not is_same_origin_url(origin, request):
+        return True
+
+    referer = request.headers.get("referer")
+    if referer and not is_same_origin_url(referer, request):
+        return True
+
+    return False
+
+
 def load_config(config_path: Path) -> configparser.ConfigParser:
     cfg = build_default_config()
     cfg.read(config_path)
@@ -179,13 +219,12 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         yield
 
     app = FastAPI(title="BMS Briefing Server", lifespan=lifespan)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    @app.middleware("http")
+    async def reject_cross_origin_browser_requests(request: Request, call_next) -> Response:
+        if is_protected_request_path(request.url.path) and is_cross_origin_browser_request(request):
+            logger.warning("Rejected cross-origin browser request: %s %s", request.method, request.url.path)
+            return Response(status_code=403, content="Cross-origin requests are not allowed")
+        return await call_next(request)
 
     initialize_app_state(
         app,
