@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from lib.cam.opencam.cam_container import CamContainer
-from lib.cam.summary import extract_cam_brief_data
+from lib.cam.extract import extract_cam_brief_data
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

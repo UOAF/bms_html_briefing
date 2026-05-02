@@ -1019,7 +1019,6 @@
       "package_34", "package_35", "package_36", "package_37", "package_38", "package_39", "package_40", "package_41"
     ];
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
-    window.layoutDirty = false;
     let lastLogId = 0;
     const LOG_MAX_LINES = 300;
     const logLines = [];
@@ -1029,6 +1028,8 @@
     let draggingEl = null;
     let draggingFrom = null;
     let pdfBusy = false;
+    let localPdfBusy = false;
+    let serverPdfBusy = false;
     let exportBusy = false;
     let filesChangedState = false;
     let pendingAutoExport = false;
@@ -1036,7 +1037,6 @@
     let autoExportOnChange = false;
     let autoExportPdfOnly = false;
     let copyToKtoEnabled = false;
-    let lastCamData = null;
     let hasSeenStatusSuccess = false;
     let shutdownScreenShown = false;
     let logPollTimer = null;
@@ -1063,8 +1063,6 @@
       custom_checklist: "Custom checklist",
     };
     const allSections = Object.keys(sectionLabels);
-    let theater = { theater: "", target_folder: "", map_file: "", copy_to_kto: false };
-
     function log(message) {
       const ts = new Date().toLocaleTimeString();
       if (!logEl) return;
@@ -1369,25 +1367,22 @@
       }
     }
 
-    async function loadStatus(allowRetry = true) {
-      try {
-        const data = await fetchJSON("/api/status");
-        clearTransientAppStateOnInstanceChange(data.app_instance_id);
-        hasSeenStatusSuccess = true;
-        document.getElementById("config-path").textContent = data.config_path || "–";
-        document.getElementById("config-path").title = data.config_path || "–";
-        document.getElementById("base-dir").textContent = data.base_dir || "–";
-        document.getElementById("base-dir").title = data.base_dir || "–";
-        document.getElementById("theater").textContent = data.theater || "–";
-        document.getElementById("callsign").textContent = data.callsign || "–";
-        document.getElementById("target-folder").textContent = data.target_folder || "–";
-        document.getElementById("target-folder").title = data.target_folder || "–";
-        document.getElementById("pdf-dir-status").textContent = data.pdf_output_dir || "–";
-        document.getElementById("pdf-dir-status").title = data.pdf_output_dir || "–";
-        setPdfBusy(!!data.pdf_busy);
-        lastCamData = data.cam_loaded ? (lastCamData || {}) : null;
-        updateCamSummaryUi(data.cam_loaded ? {} : null, data.cam_output_file || null);
-        const hasError = data.error || !data.base_dir;
+    function applyStatusData(data) {
+      clearTransientAppStateOnInstanceChange(data.app_instance_id);
+      hasSeenStatusSuccess = true;
+      document.getElementById("config-path").textContent = data.config_path || "–";
+      document.getElementById("config-path").title = data.config_path || "–";
+      document.getElementById("base-dir").textContent = data.base_dir || "–";
+      document.getElementById("base-dir").title = data.base_dir || "–";
+      document.getElementById("theater").textContent = data.theater || "–";
+      document.getElementById("callsign").textContent = data.callsign || "–";
+      document.getElementById("target-folder").textContent = data.target_folder || "–";
+      document.getElementById("target-folder").title = data.target_folder || "–";
+      document.getElementById("pdf-dir-status").textContent = data.pdf_output_dir || "–";
+      document.getElementById("pdf-dir-status").title = data.pdf_output_dir || "–";
+      setServerPdfBusy(!!data.pdf_busy);
+      updateCamSummaryUi(data.cam_loaded ? {} : null, data.cam_output_file || null);
+      const hasError = data.error || !data.base_dir;
       statusEl.textContent = hasError ? "BMS CONFIG MISSING" : "READY";
       if (globalStatusBadge) {
         globalStatusBadge.classList.remove("ok", "error", "warn", "muted");
@@ -1398,18 +1393,25 @@
         callsignChanged: data.callsign_changed,
         pdfOverflow: data.pdf_overflow
       });
+      return { hasError };
+    }
+
+    async function loadStatus(allowRetry = true) {
+      try {
+        const data = await fetchJSON("/api/status");
+        const { hasError } = applyStatusData(data);
         await maybeAutoExportOnFileChange(data);
         pages = Array.isArray(data.pages) ? data.pages : [];
         renderPages();
         await loadTheater();
         await refreshCamSaveList(true);
         if (!hasError && pages.length > 0) {
-        await doPreview(currentOverrides());
-      }
-      if (hasError && allowRetry) {
-        await fetchJSON("/api/reload", { method: "POST" });
-        await loadStatus(false);
-      }
+          await doPreview(currentOverrides());
+        }
+        if (hasError && allowRetry) {
+          await fetchJSON("/api/reload", { method: "POST" });
+          await loadStatus(false);
+        }
       } catch (err) {
         if (hasSeenStatusSuccess) {
           showShutdownScreen();
@@ -1430,19 +1432,7 @@
     async function pollStatusBadges() {
       try {
         const data = await fetchJSON("/api/status");
-        hasSeenStatusSuccess = true;
-        const hasError = data.error || !data.base_dir;
-        statusEl.textContent = hasError ? "BMS CONFIG MISSING" : "READY";
-        if (globalStatusBadge) {
-          globalStatusBadge.classList.remove("ok", "error", "warn", "muted");
-          globalStatusBadge.classList.add(hasError ? "error" : "ok");
-        }
-        updateBadges({
-          briefChanged: data.brief_changed,
-          callsignChanged: data.callsign_changed,
-          pdfOverflow: data.pdf_overflow
-        });
-        setPdfBusy(!!data.pdf_busy);
+        applyStatusData(data);
         await maybeAutoExportOnFileChange(data);
       } catch (err) {
         if (hasSeenStatusSuccess) {
@@ -1464,7 +1454,6 @@
       payload.system.auto_export_pdf_only = autoExportPdfOnly ? "True" : "False";
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
-        window.layoutDirty = false;
         log("Config saved");
         await loadStatus();
       } catch (err) {
@@ -1687,7 +1676,7 @@
           method: "POST",
           body: JSON.stringify({ path: selectedPath })
         });
-        lastCamData = response.summary || null;
+        const camData = response.summary || null;
         if (camSaveSelect && typeof response.source_file === "string" && response.source_file) {
           camSaveSelect.value = response.source_file;
         }
@@ -1696,12 +1685,12 @@
         } catch {
           // Keep behavior even if localStorage is unavailable.
         }
-        updateCamSummaryUi(lastCamData, response.output_file || "–");
+        updateCamSummaryUi(camData, response.output_file || "–");
         if (!silent) {
           log(`CAM loaded from ${response.source_file || selectedPath}; JSON written to ${response.output_file}`);
         }
-        if (lastCamData && Array.isArray(lastCamData.warnings) && lastCamData.warnings.length) {
-          if (!silent) log(`CAM warnings: ${lastCamData.warnings.join(" | ")}`);
+        if (camData && Array.isArray(camData.warnings) && camData.warnings.length) {
+          if (!silent) log(`CAM warnings: ${camData.warnings.join(" | ")}`);
         }
         const selectedIndex = Number.isFinite(response.selected_package_index) ? response.selected_package_index : 0;
         clearSavedCamRenderedValues({ clearBullseye: true, clearSupportPackage: true });
@@ -1731,7 +1720,6 @@
         camSaveSelect.title = "";
       }
       saveCamSupportPackageIndex(null);
-      lastCamData = null;
       updateCamSummaryUi(null);
     }
 
@@ -1862,9 +1850,19 @@
       }
     }
 
-    function setPdfBusy(busy) {
-      pdfBusy = !!busy;
+    function refreshPdfBusy() {
+      pdfBusy = !!(localPdfBusy || serverPdfBusy);
       updateBusyUi();
+    }
+
+    function setPdfBusy(busy) {
+      localPdfBusy = !!busy;
+      refreshPdfBusy();
+    }
+
+    function setServerPdfBusy(busy) {
+      serverPdfBusy = !!busy;
+      refreshPdfBusy();
     }
 
     function setExportBusy(busy) {
@@ -2130,7 +2128,6 @@
     async function loadTheater(runPreview = false) {
       try {
         const data = await fetchJSON("/api/theater");
-        theater = data;
         const tName = document.getElementById("theater_name");
         const tTarget = document.getElementById("target_folder_field");
         const tMap = document.getElementById("map_file_field");
@@ -2292,10 +2289,7 @@
       if (!list) return;
       const newOrder = Array.from(list.children).map((li) => li.dataset.section);
       pages[currentPageIndex] = newOrder;
-      const pagesObj = {};
-      pages.forEach((p, idx) => {
-        pagesObj[`page${idx + 1}`] = (p || []).join(", ");
-      });
+      const pagesObj = buildPagesObj();
       if (autoGenerate) {
         const overrides = currentOverrides();
         overrides.pages = pagesObj;
@@ -2315,7 +2309,6 @@
     if (saveLayoutBtn) {
       saveLayoutBtn.addEventListener("click", async () => {
         await persistPages(false);
-        window.layoutDirty = false;
       });
     }
 
@@ -2351,14 +2344,16 @@
       });
     }
 
-    loadConfig().then(() => {
-      loadStatus();
-      refreshBrief();
-      pollLogs();
-      pollStatusBadges();
+    async function initializeUi() {
+      await loadConfig();
+      await loadStatus();
+      await pollLogs();
+      await pollStatusBadges();
       logPollTimer = setInterval(pollLogs, 2500);
       statusPollTimer = setInterval(pollStatusBadges, 5000);
-    });
+    }
+
+    initializeUi();
   </script>
 </body>
 </html>
