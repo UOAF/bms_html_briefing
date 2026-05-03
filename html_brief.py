@@ -93,6 +93,7 @@ def build_default_config() -> configparser.ConfigParser:
         "auto_export_on_change": "False",
         "auto_export_pdf_only": "False",
         "debug_log": "False",
+        "map_base_mode": "local_tiles",
     }
     cfg["bms"] = {
         "bms_version": "4.38",

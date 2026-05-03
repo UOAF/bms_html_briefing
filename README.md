@@ -83,6 +83,8 @@ The app will try to find the default map for some theaters (official ones and 4.
 
 The map can be dragged with the mouse and zoomed with the mouse wheel. Double-click sets the bullseye.
 
+The default map mode uses local theater map tiles. The experimental web map mode uses Esri World Imagery as the basemap and converts Falcon BMS theater coordinates to WGS84 for Leaflet. It computes the theater projection from Theater.txt center coordinates and `Theater size in KM`, falling back to 1024 km and built-in Korea, Balkans, Israel, and Hellas center points based on the Falcon BMS theater PROJ definitions used by the [falcon-bms-tacview-converter](https://github.com/oakdesign/falcon-bms-tacview-converter/).
+
 The map images usually come with the theater install. For example (all folders are relative to the Falcon BMS install path):
 * KTO has several 4K map images to choose from in ```Docs/05 Maps/``` folder
 * ITO similarly has those in ```Data/Add-On Israel/Docs/02 Maps``` folder,

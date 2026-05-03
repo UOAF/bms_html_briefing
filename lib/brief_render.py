@@ -299,6 +299,10 @@ def _build_summary_render_context(
         "support_package_rows": support_rows,
         "main_package_l16": main_package_l16,
         "bullseye": {
+            "x": bullseye.get("x") if isinstance(bullseye.get("x"), (int, float)) else None,
+            "y": bullseye.get("y") if isinstance(bullseye.get("y"), (int, float)) else None,
+            "map_grid_size_x": bullseye.get("map_grid_size_x") if isinstance(bullseye.get("map_grid_size_x"), (int, float)) else None,
+            "map_grid_size_y": bullseye.get("map_grid_size_y") if isinstance(bullseye.get("map_grid_size_y"), (int, float)) else None,
             "lat": lat if isinstance(lat, (int, float)) else None,
             "lng": lng if isinstance(lng, (int, float)) else None,
         },

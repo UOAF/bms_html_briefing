@@ -10,6 +10,7 @@ logger = logging.getLogger("html_brief_log")
 _CENTER_PATTERNS = {
     "center_latitude": re.compile(r"^\s*center\s+latitude\s*=\s*(-?\d+(?:\.\d+)?)", re.IGNORECASE),
     "center_longitude": re.compile(r"^\s*center\s+longitude\s*=\s*(-?\d+(?:\.\d+)?)", re.IGNORECASE),
+    "theater_size_km": re.compile(r"^\s*theater\s+size\s+in\s+km\s*=\s*(\d+(?:\.\d+)?)", re.IGNORECASE),
 }
 
 
@@ -147,12 +148,26 @@ def read_theater_center(
     base_dir: str | Path | None,
     theater_name: str | None,
 ) -> tuple[float | None, float | None, Path | None]:
+    info = read_theater_map_info(base_dir, theater_name)
+    return info["center_latitude"], info["center_longitude"], info["source_path"]
+
+
+def read_theater_map_info(
+    base_dir: str | Path | None,
+    theater_name: str | None,
+) -> dict[str, float | Path | None]:
     theater_txt_path = resolve_theater_txt_path(base_dir, theater_name)
     if theater_txt_path is None:
-        return None, None, None
+        return {
+            "center_latitude": None,
+            "center_longitude": None,
+            "theater_size_km": None,
+            "source_path": None,
+        }
 
     center_latitude: float | None = None
     center_longitude: float | None = None
+    theater_size_km: float | None = None
     for raw_line in _read_lines(theater_txt_path):
         if center_latitude is None:
             match = _CENTER_PATTERNS["center_latitude"].match(raw_line)
@@ -162,21 +177,32 @@ def read_theater_center(
             match = _CENTER_PATTERNS["center_longitude"].match(raw_line)
             if match:
                 center_longitude = float(match.group(1))
-        if center_latitude is not None and center_longitude is not None:
+        if theater_size_km is None:
+            match = _CENTER_PATTERNS["theater_size_km"].match(raw_line)
+            if match:
+                theater_size_km = float(match.group(1))
+        if center_latitude is not None and center_longitude is not None and theater_size_km is not None:
             break
 
     logger.debug(
-        "Parsed theater center for %s: lat=%r lng=%r file=%s",
+        "Parsed theater map info for %s: lat=%r lng=%r size_km=%r file=%s",
         theater_name,
         center_latitude,
         center_longitude,
+        theater_size_km,
         theater_txt_path,
     )
-    return center_latitude, center_longitude, theater_txt_path
+    return {
+        "center_latitude": center_latitude,
+        "center_longitude": center_longitude,
+        "theater_size_km": theater_size_km,
+        "source_path": theater_txt_path,
+    }
 
 
 __all__ = [
     "read_theater_center",
+    "read_theater_map_info",
     "read_theater_list",
     "read_tdf_value",
     "resolve_target_folder_from_theater",

@@ -17,6 +17,7 @@ MAP_TILE_MIN_ZOOM = -3
 MAP_TILE_MAX_NATIVE_ZOOM_CAP = 2
 MAP_TILE_MANIFEST = "manifest.txt"
 MAP_MAX_SOURCE_PIXELS = MAP_LOGICAL_SIZE[0] * MAP_LOGICAL_SIZE[1] * (2 ** MAP_TILE_MAX_NATIVE_ZOOM_CAP) ** 2
+WEB_TILE_URL_TEMPLATE = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 Image.MAX_IMAGE_PIXELS = max(Image.MAX_IMAGE_PIXELS or 0, MAP_MAX_SOURCE_PIXELS)
 
@@ -53,6 +54,17 @@ def _map_cache_slug(name):
     slug = re.sub(r"[^a-z0-9._-]+", "-", (name or "default").strip().lower())
     slug = slug.strip(".-")
     return slug or "default"
+
+
+def _map_base_mode(conf):
+    try:
+        raw = conf["system"].get("map_base_mode", "local_tiles")
+    except Exception:
+        raw = "local_tiles"
+    mode = str(raw).strip().lower().replace("-", "_")
+    if mode in {"web", "web_tiles", "online", "online_tiles"}:
+        return "web"
+    return "local_tiles"
 
 
 def _map_tile_info(map_path):
@@ -201,6 +213,12 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
         logger.error(e)
         logger_ui.error(f"Couldn't create the map folder: {e}")
 
+    map_base_mode = _map_base_mode(conf)
+    try:
+        web_tile_url_template = conf["system"].get("web_tile_url_template", WEB_TILE_URL_TEMPLATE)
+    except Exception:
+        web_tile_url_template = WEB_TILE_URL_TEMPLATE
+
     # load map location
     map_file = ''
     if bms_conf.theater_config.has_option(bms_conf.theater, 'map_file'):
@@ -223,7 +241,9 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
     map_cache_output_path = os.path.join(map_cache_dir, "map.png")
     map_tile_url_template = f"assets/maps/theaters/{map_cache_slug}/tiles/{{z}}/{{x}}/{{y}}.png"
     map_tile_max_native_zoom = 0
-    if os.path.isfile(map_file):
+    if map_base_mode == "web":
+        logger_ui.info("Using web map tiles; local map tile generation skipped.")
+    elif os.path.isfile(map_file):
         try:
             source_digest = _map_digest(map_file)
             cache_map_exists = (
@@ -259,7 +279,7 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
         except Exception as e:
             logger.error(e)
             logger_ui.error(f"Couldn't prepare the map file: {e}")
-    else:
+    elif map_base_mode != "web":
         logger_ui.error(f"Couldn't find the map file: {map_file}")
 
     templates_dir = os.path.join(script_dir, 'templates')
@@ -312,6 +332,12 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
                                                  num = page_num,
                                                  logo_present = logo_present,
                                                  brief_is_joined = True,
+                                                 map_base_mode = map_base_mode,
+                                                 theater_name = bms_conf.theater,
+                                                 theater_center_latitude = getattr(bms_conf, "theater_center_latitude", None),
+                                                 theater_center_longitude = getattr(bms_conf, "theater_center_longitude", None),
+                                                 theater_size_km = getattr(bms_conf, "theater_size_km", None),
+                                                 web_tile_url_template = web_tile_url_template,
                                                  map_tile_max_native_zoom = map_tile_max_native_zoom,
                                                  map_tile_url_template = map_tile_url_template,
                                                  package_options = render_context["package_options"],

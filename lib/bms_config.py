@@ -1,5 +1,5 @@
 import os, sys, logging, configparser
-from lib.theater_paths import read_theater_center, resolve_target_folder_from_theater
+from lib.theater_paths import read_theater_map_info, resolve_target_folder_from_theater
 
 logger = logging.getLogger('html_brief_log')
 logger_ui = logging.getLogger('ui_logger')
@@ -13,6 +13,7 @@ class BmsConfig:
     kto_target_folder = ""
     theater_center_latitude = None
     theater_center_longitude = None
+    theater_size_km = None
     theater_center_source = ""
 
     def __init__(self, cfg, theater_ini_pattern = None):
@@ -57,6 +58,7 @@ class BmsConfig:
         self.kto_target_folder = os.path.join(self.base_dir, 'Data', 'TerrData', 'Objects', 'KoreaObj')
         self.theater_center_latitude = None
         self.theater_center_longitude = None
+        self.theater_size_km = None
         self.theater_center_source = ""
 
         if getattr(sys, 'frozen', False):
@@ -108,9 +110,11 @@ class BmsConfig:
                 self.target_folder_failed = True
 
         try:
-            center_latitude, center_longitude, center_source = read_theater_center(self.base_dir, self.theater)
-            self.theater_center_latitude = center_latitude
-            self.theater_center_longitude = center_longitude
+            theater_map_info = read_theater_map_info(self.base_dir, self.theater)
+            self.theater_center_latitude = theater_map_info["center_latitude"]
+            self.theater_center_longitude = theater_map_info["center_longitude"]
+            self.theater_size_km = theater_map_info["theater_size_km"]
+            center_source = theater_map_info["source_path"]
             self.theater_center_source = str(center_source) if center_source is not None else ""
         except Exception as e:
             logger.warning(f"Couldn't resolve theater center for {self.theater}: {e}")

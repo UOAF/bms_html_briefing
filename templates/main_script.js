@@ -118,6 +118,7 @@ function saveChangedData() {
     });
 
     if (typeof map != 'undefined') {
+	contentData["mapBaseMode"] = typeof MAP_BASE_MODE != 'undefined' ? MAP_BASE_MODE : "local_tiles";
 	contentData["mapZoom"] = map.getZoom();
 	contentData["mapCenter"] = map.getCenter();
 	contentData['bullseyePos'] = bullseye_overlay.getCenter();
@@ -145,6 +146,7 @@ function saveContenteditablesDefaults() {
     });
     try {
 	contentDataDef["mapInput"] = "map.png";
+	contentDataDef["mapBaseMode"] = typeof MAP_BASE_MODE != 'undefined' ? MAP_BASE_MODE : "local_tiles";
 	contentDataDef["mapZoom"] = map.getZoom();
 	contentDataDef["mapCenter"] = map.getCenter();
 	contentDataDef['bullseyePos'] = bullseye_overlay.getCenter();
@@ -175,8 +177,12 @@ function loadImages() {
 	drawMap("assets/maps/" + contentData["mapInput"]);
     }
     try {
-	map.setView(contentData["mapCenter"], contentData["mapZoom"]);
-	setBullseye(contentData['bullseyePos']);
+	const currentMapBaseMode = typeof MAP_BASE_MODE != 'undefined' ? MAP_BASE_MODE : "local_tiles";
+	const savedMapBaseMode = contentData["mapBaseMode"] || "local_tiles";
+	if (savedMapBaseMode === currentMapBaseMode) {
+	    map.setView(contentData["mapCenter"], contentData["mapZoom"]);
+	    setBullseye(contentData['bullseyePos']);
+	}
     }
     catch (error) {
 	console.error(error);
