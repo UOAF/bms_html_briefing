@@ -134,6 +134,8 @@ map.setMaxBounds([southWest, northEast]);
 let mapBaseDataUrl = null;
 map_overlay = L.imageOverlay("", bounds, { crossOrigin: true }).addTo(map);
 bullseye_overlay = L.imageOverlay("assets/bullseye.png", bounds).addTo(map);
+let map_tile_layer = null;
+let mapBaseMode = "image";
 
 function setBullseye(latlng) {
     bullseye_overlay.setBounds([[southWest.lat + latlng.lat + imageWidth/2, southWest.lng + latlng.lng - imageHeight/2], [northEast.lat + latlng.lat + imageWidth/2, northEast.lng + latlng.lng - imageHeight/2]]);
@@ -608,7 +610,15 @@ if (Number.isFinite(initialBullseye.lat) && Number.isFinite(initialBullseye.lng)
 
 function drawMap(url) {
 // dimensions of the image
+    mapBaseMode = "image";
     mapBaseDataUrl = url;
+    if (map_tile_layer) {
+        map.removeLayer(map_tile_layer);
+        map_tile_layer = null;
+    }
+    if (!map.hasLayer(map_overlay)) {
+        map_overlay.addTo(map);
+    }
     map_overlay.setUrl(url);
     drawings.clearLayers();
     rebuildMapCoords();
@@ -621,7 +631,37 @@ function drawMap(url) {
 			}
 }
 
-drawMap("assets/maps/map.png?v=" + Date.now());
+function drawTiledMap(urlTemplate) {
+    mapBaseMode = "tiles";
+    mapBaseDataUrl = null;
+    if (map.hasLayer(map_overlay)) {
+        map.removeLayer(map_overlay);
+    }
+    if (map_tile_layer) {
+        map.removeLayer(map_tile_layer);
+    }
+    map_tile_layer = L.tileLayer(urlTemplate, {
+        minZoom: -3,
+        maxZoom: 5,
+        minNativeZoom: -3,
+        maxNativeZoom: {% if map_tile_max_native_zoom is defined %}{{ map_tile_max_native_zoom }}{% else %}0{% endif %},
+        tileSize: 256,
+        bounds: bounds,
+        noWrap: true,
+        updateWhenIdle: true
+    }).addTo(map);
+    drawings.clearLayers();
+    rebuildMapCoords();
+    renderFlightPlanLeaflet();
+    renderThreatsLeaflet();
+    renderSteerpointLinesLeaflet();
+    drawings.addTo(map);
+    if (localStorage.getItem('onrefresh') == "reset") {
+			map.setView([-imageWidth/2, imageHeight/2], -2);
+			}
+}
+
+drawTiledMap("{% if map_tile_url_template is defined %}{{ map_tile_url_template }}{% else %}assets/maps/tiles/{z}/{x}/{y}.png{% endif %}?v=" + Date.now());
 
 map.on("dblclick", function(ev) {
     setBullseye(ev.latlng);
@@ -660,6 +700,49 @@ async function ensureMapFontsLoaded() {
     ]);
 }
 
+function waitForVisibleTiles() {
+    if (mapBaseMode !== "tiles" || !map_tile_layer) return Promise.resolve();
+    return new Promise((resolve) => {
+        let settled = false;
+        const done = () => {
+            if (settled) return;
+            settled = true;
+            map_tile_layer.off("load", done);
+            setTimeout(resolve, 0);
+        };
+        map_tile_layer.on("load", done);
+        setTimeout(done, 1500);
+        map_tile_layer.redraw();
+    });
+}
+
+async function waitForImageElement(img) {
+    if (!img || img.complete) return;
+    await new Promise((resolve) => {
+        img.addEventListener("load", resolve, { once: true });
+        img.addEventListener("error", resolve, { once: true });
+    });
+}
+
+async function drawVisibleMapTiles(ctx) {
+    await waitForVisibleTiles();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const containerRect = map.getContainer().getBoundingClientRect();
+    const tileImgs = Array.from(map.getContainer().querySelectorAll("img.leaflet-tile"));
+    await Promise.all(tileImgs.map(waitForImageElement));
+    tileImgs.forEach((img) => {
+        if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
+        const rect = img.getBoundingClientRect();
+        ctx.drawImage(
+            img,
+            rect.left - containerRect.left,
+            rect.top - containerRect.top,
+            rect.width,
+            rect.height
+        );
+    });
+}
+
 async function exportMapImage() {
     try {
         window.exportMapLog = [];
@@ -668,22 +751,24 @@ async function exportMapImage() {
             window.exportMapLastError = "No map element";
             return null;
         }
-        const baseData = await toDataUrl(mapBaseDataUrl || "assets/maps/map.png");
-        if (baseData) {
-            if (mapBaseDataUrl !== baseData) {
-                mapBaseDataUrl = baseData;
-                window.exportMapLog.push("Loaded base map data URL, length " + baseData.length);
-                await new Promise((res) => {
-                    const imgEl = map_overlay.getElement();
-                    const onload = () => { res(); imgEl.removeEventListener("load", onload); };
-                    imgEl.addEventListener("load", onload);
-                    map_overlay.setUrl(baseData);
-                });
+        if (mapBaseMode !== "tiles") {
+            const baseData = await toDataUrl(mapBaseDataUrl || "assets/maps/map.png");
+            if (baseData) {
+                if (mapBaseDataUrl !== baseData) {
+                    mapBaseDataUrl = baseData;
+                    window.exportMapLog.push("Loaded base map data URL, length " + baseData.length);
+                    await new Promise((res) => {
+                        const imgEl = map_overlay.getElement();
+                        const onload = () => { res(); imgEl.removeEventListener("load", onload); };
+                        imgEl.addEventListener("load", onload);
+                        map_overlay.setUrl(baseData);
+                    });
+                }
+            } else {
+                window.exportMapLastError = "Base map toDataUrl failed";
+                window.exportMapLog.push(window.exportMapLastError);
+                return null;
             }
-        } else {
-            window.exportMapLastError = "Base map toDataUrl failed";
-            window.exportMapLog.push(window.exportMapLastError);
-            return null;
         }
         await ensureMapFontsLoaded();
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -699,19 +784,23 @@ async function exportMapImage() {
         ctx.fillRect(0, 0, size.x, size.y);
 
         // base map
-        const baseImg = new Image();
-        baseImg.crossOrigin = "anonymous";
-        baseImg.src = mapBaseDataUrl;
-        await new Promise((res, rej) => {
-            baseImg.onload = res;
-            baseImg.onerror = (e) => {
-                window.exportMapLastError = "Base image load failed";
-                window.exportMapLog.push(window.exportMapLastError);
-                rej(e);
-            };
-        });
-        const baseRect = getOverlayDrawRect(map_overlay);
-        ctx.drawImage(baseImg, baseRect.x, baseRect.y, baseRect.width, baseRect.height);
+        if (mapBaseMode === "tiles") {
+            await drawVisibleMapTiles(ctx);
+        } else {
+            const baseImg = new Image();
+            baseImg.crossOrigin = "anonymous";
+            baseImg.src = mapBaseDataUrl;
+            await new Promise((res, rej) => {
+                baseImg.onload = res;
+                baseImg.onerror = (e) => {
+                    window.exportMapLastError = "Base image load failed";
+                    window.exportMapLog.push(window.exportMapLastError);
+                    rej(e);
+                };
+            });
+            const baseRect = getOverlayDrawRect(map_overlay);
+            ctx.drawImage(baseImg, baseRect.x, baseRect.y, baseRect.width, baseRect.height);
+        }
 
         // bullseye
         try {

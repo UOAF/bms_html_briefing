@@ -1079,6 +1079,20 @@
       }
     }
 
+    async function withActiveLogPolling(taskPromise) {
+      let done = false;
+      const activePoll = setInterval(() => {
+        if (!done) pollLogs();
+      }, 750);
+      try {
+        return await taskPromise;
+      } finally {
+        done = true;
+        clearInterval(activePoll);
+        await pollLogs();
+      }
+    }
+
     function updateCamSummaryUi(camData, outputPath = null) {
       if (camSaveSelect) {
         camSaveSelect.title = camData && outputPath ? `CAM parsed: ${outputPath}` : "";
@@ -1557,7 +1571,10 @@
         return;
       }
       try {
-        const res = await fetchJSON("/api/generate", { method: "POST", body: overrides ? JSON.stringify(overrides) : null });
+        log("Generating HTML preview assets...");
+        const res = await withActiveLogPolling(
+          fetchJSON("/api/generate", { method: "POST", body: overrides ? JSON.stringify(overrides) : null })
+        );
         log(`HTML generated at ${res.output_file}`);
         refreshBrief();
         await pollStatusBadges();
@@ -1573,7 +1590,10 @@
       }
       try {
         const payload = overrides || currentOverrides();
-        const res = await fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(payload) });
+        log("Preparing preview. Map tiles may be generated if the theater map changed.");
+        const res = await withActiveLogPolling(
+          fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(payload) })
+        );
         log(`Preview generated at ${res.output_file}`);
         refreshBrief();
         await pollStatusBadges();
@@ -2345,10 +2365,14 @@
     }
 
     async function initializeUi() {
+      log("Loading configuration...");
+      logPollTimer = setInterval(pollLogs, 1000);
       await loadConfig();
+      log("Loading status and generating initial preview if needed...");
       await loadStatus();
       await pollLogs();
       await pollStatusBadges();
+      clearInterval(logPollTimer);
       logPollTimer = setInterval(pollLogs, 2500);
       statusPollTimer = setInterval(pollStatusBadges, 5000);
     }
