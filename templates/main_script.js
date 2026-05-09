@@ -176,17 +176,7 @@ function loadImages() {
     if (contentData["mapInput"] !== "" && typeof contentData["mapInput"] !== 'undefined') {
 	drawMap("assets/maps/" + contentData["mapInput"]);
     }
-    try {
-	const currentMapBaseMode = typeof MAP_BASE_MODE != 'undefined' ? MAP_BASE_MODE : "local_tiles";
-	const savedMapBaseMode = contentData["mapBaseMode"] || "local_tiles";
-	if (savedMapBaseMode === currentMapBaseMode) {
-	    map.setView(contentData["mapCenter"], contentData["mapZoom"]);
-	    setBullseye(contentData['bullseyePos']);
-	}
-    }
-    catch (error) {
-	console.error(error);
-    }
+    restoreMapView(contentData);
 
     const refCellMappings = [
         { cellId: "tgt1Ref", legacySrcKey: "tgt1Img_src", legacyInputKey: "tgt1Input" },
@@ -207,6 +197,20 @@ function loadImages() {
         }
     });
 
+}
+
+function restoreMapView(contentData) {
+    try {
+	const currentMapBaseMode = typeof MAP_BASE_MODE != 'undefined' ? MAP_BASE_MODE : "local_tiles";
+	const savedMapBaseMode = contentData["mapBaseMode"] || "local_tiles";
+	if (savedMapBaseMode === currentMapBaseMode) {
+	    map.setView(contentData["mapCenter"], contentData["mapZoom"]);
+	    setBullseye(contentData['bullseyePos']);
+	}
+    }
+    catch (error) {
+	console.error(error);
+    }
 }
 
 function loadContenteditables() {
