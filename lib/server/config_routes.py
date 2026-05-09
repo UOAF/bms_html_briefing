@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from lib.bms_config import BmsConfig
 from lib.html_gen import page_contents_ini_to_list
+from lib.map_sources import REPLACED_MAP_SYSTEM_KEYS, map_source_options
 
 logger = logging.getLogger("html_brief_log")
 
@@ -41,15 +42,6 @@ CHECKLIST_IMAGE_SRC_PREFIXES = (
     "data:image/gif;base64,",
     "data:image/webp;base64,",
 )
-REPLACED_MAP_SYSTEM_KEYS = {
-    "map_base_mode",
-    "web_tile_url_template",
-    "web_tile_attribution",
-    "web_tile_filter",
-    "web_tile_layers",
-}
-
-
 class ConfigUpdate(BaseModel):
     system: Optional[Dict[str, str]] = None
     bms: Optional[Dict[str, str]] = None
@@ -103,6 +95,10 @@ def register_config_routes(
     @app.get("/api/config")
     def get_config() -> Dict[str, Dict[str, str]]:
         return _serialize_config(app.state.cfg)
+
+    @app.get("/api/map-sources")
+    def get_map_sources() -> Dict[str, Any]:
+        return {"sources": map_source_options()}
 
     @app.post("/api/custom-checklist/template")
     def save_custom_checklist_template(payload: CustomChecklistSaveRequest) -> Dict[str, Any]:

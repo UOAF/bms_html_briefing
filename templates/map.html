@@ -146,8 +146,9 @@
       <tr>
 	<th class="header" height="1.7em">
 	  <select id="mapSourceSelect" class="map-source-select" title="Map source">
-	    <option value="local"{% if map_id|default("local") == "local" %} selected{% endif %}>BMS local</option>
-	    <option value="esri_imagery_hybrid"{% if map_id|default("local") == "esri_imagery_hybrid" %} selected{% endif %}>Web satelite</option>
+	    {% for source in map_source_options|default([{"id": "local", "label": "BMS local"}]) %}
+	    <option value="{{ source.id }}"{% if map_id|default("local") == source.id %} selected{% endif %}>{{ source.label }}</option>
+	    {% endfor %}
 	  </select>
 	</th>
 <th class="header clickable" onclick="toggleVisHeader(this)" id="map_header"><span class="arrow">▼</span>Map</th>
@@ -1010,7 +1011,14 @@ function getWebTileLayerDefs() {
 
 function layerDefValue(layerDef, camelName, snakeName) {
     if (!layerDef) return "";
-    return layerDef[camelName] || layerDef[snakeName] || "";
+    if (Object.prototype.hasOwnProperty.call(layerDef, camelName)) return layerDef[camelName];
+    if (Object.prototype.hasOwnProperty.call(layerDef, snakeName)) return layerDef[snakeName];
+    return "";
+}
+
+function layerDefNumber(layerDef, camelName, snakeName, fallback) {
+    const value = Number(layerDefValue(layerDef, camelName, snakeName));
+    return Number.isFinite(value) ? value : fallback;
 }
 
 function drawMap(url) {
@@ -1076,12 +1084,15 @@ function drawWebMap() {
             map.createPane(paneName);
         }
         const pane = map.getPane(paneName);
-        pane.style.zIndex = String(200 + index);
+        pane.style.zIndex = String(layerDefNumber(layerDef, "zIndex", "z_index", 200 + index));
         pane.style.filter = layerDefValue(layerDef, "filter", "filter") || "";
+        pane.style.mixBlendMode = layerDefValue(layerDef, "blendMode", "blend_mode") || "normal";
+        const layerOpacity = layerDefNumber(layerDef, "opacity", "opacity", 1);
         const tileLayer = L.tileLayer(layerUrlTemplate, {
             minZoom: 2,
             maxZoom: WEB_TILE_MAX_ZOOM,
-            maxNativeZoom: Number(layerDefValue(layerDef, "maxNativeZoom", "max_native_zoom")) || WEB_TILE_MAX_ZOOM,
+            maxNativeZoom: layerDefNumber(layerDef, "maxNativeZoom", "max_native_zoom", WEB_TILE_MAX_ZOOM),
+            opacity: layerOpacity,
             tileSize: 256,
             keepBuffer: 4,
             pane: paneName,
@@ -1217,11 +1228,16 @@ async function drawVisibleMapTiles(ctx) {
         if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
         const rect = img.getBoundingClientRect();
         const pane = img.closest(".leaflet-pane");
-        const paneFilter = pane ? window.getComputedStyle(pane).filter : "";
+        const paneStyle = pane ? window.getComputedStyle(pane) : null;
+        const imgStyle = window.getComputedStyle(img);
+        const paneFilter = paneStyle ? paneStyle.filter : "";
+        const paneOpacity = paneStyle ? Number(paneStyle.opacity) : 1;
+        const imgOpacity = Number(imgStyle.opacity);
         ctx.save();
         if (paneFilter && paneFilter !== "none") {
             ctx.filter = paneFilter;
         }
+        ctx.globalAlpha = (Number.isFinite(paneOpacity) ? paneOpacity : 1) * (Number.isFinite(imgOpacity) ? imgOpacity : 1);
         ctx.drawImage(
             img,
             rect.left - containerRect.left,

@@ -1019,22 +1019,13 @@
       "package_34", "package_35", "package_36", "package_37", "package_38", "package_39", "package_40", "package_41"
     ];
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
-    const MAP_SOURCES = [
-      {
-        id: "local",
-        label: "BMS local"
-      },
-      {
-        id: "esri_imagery_hybrid",
-        label: "Web satelite"
-      }
-    ];
     let lastLogId = 0;
     const LOG_MAX_LINES = 300;
     const logLines = [];
     let pages = [];
     let currentPageIndex = 0;
     let dndAttached = false;
+    let mapSources = [{ id: "local", label: "BMS local" }];
     let selectedMapSourceId = "local";
     let draggingEl = null;
     let draggingFrom = null;
@@ -1372,7 +1363,7 @@
     }
 
     function getMapSourceById(id) {
-      return MAP_SOURCES.find((source) => source.id === id) || MAP_SOURCES[0];
+      return mapSources.find((source) => source.id === id) || mapSources[0];
     }
 
     function detectMapSource(sys) {
@@ -1387,6 +1378,25 @@
     function selectedMapSystemOverrides() {
       const selected = getMapSourceById(selectedMapSourceId);
       return { map: selected.id };
+    }
+
+    async function loadMapSources() {
+      try {
+        const data = await fetchJSON("/api/map-sources");
+        const sources = Array.isArray(data.sources) ? data.sources : [];
+        mapSources = sources
+          .map((source) => ({
+            id: String(source.id || "").trim(),
+            label: String(source.label || source.id || "").trim()
+          }))
+          .filter((source) => source.id);
+        if (mapSources.length === 0) {
+          mapSources = [{ id: "local", label: "BMS local" }];
+        }
+        setSelectedMapSource(selectedMapSourceId);
+      } catch (err) {
+        log(`Failed to load map sources: ${err.message}`);
+      }
     }
 
     async function loadConfig() {
@@ -2416,6 +2426,7 @@
     async function initializeUi() {
       log("Loading configuration...");
       logPollTimer = setInterval(pollLogs, 1000);
+      await loadMapSources();
       await loadConfig();
       log("Loading status and generating initial preview if needed...");
       await loadStatus();
