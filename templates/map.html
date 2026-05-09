@@ -62,6 +62,42 @@
 		.leaflet-tooltip-threat:before {
 		    display: none;
 		}
+		.target-stpt-icon {
+		    width: 18px !important;
+		    height: 18px !important;
+		    margin-left: -9px !important;
+		    margin-top: -9px !important;
+		    border-radius: 50%;
+		    border: 1px solid #000000;
+		    background: #ffd166;
+		    color: #000000;
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-size: 10px;
+		    font-weight: 700;
+		    line-height: 1;
+		    text-align: center;
+		    display: flex;
+		    align-items: center;
+		    justify-content: center;
+		    box-sizing: border-box;
+		    cursor: pointer;
+		    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+		}
+		.target-stpt-popup .leaflet-popup-content-wrapper {
+		    padding: 2px 4px;
+		    border-radius: 4px;
+		}
+		.target-stpt-popup .leaflet-popup-content {
+		    margin: 2px 4px;
+		    color: #000000;
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-size: 11px;
+		    line-height: 1.2;
+		}
+		.target-stpt-popup .leaflet-popup-tip {
+		    width: 10px;
+		    height: 10px;
+		}
 		.leaflet-tooltip-anchor {
 		    position: absolute;
 		    padding: 4px;
@@ -90,18 +126,30 @@
 		.leaflet-tooltip-anchor:before {
 		    display: none;
 		}
-		.web-map-basemap-pane {
-		    filter: brightness(1.5) saturate(0.7) contrast(0.92);
+		.map-source-select {
+		    width: 100%;
+		    height: 1.7em;
+		    margin: 0;
+		    border: 1px solid #111111;
+		    background: #f2f2f2;
+		    color: #111111;
+		    font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+		    font-size: 0.9rem;
+		    font-weight: 700;
 		}
-
-</style>
+	</style>
 <table width="100%">
   <colgroup>
     <col style="width:14%;">
     <col style="width:86%;">
   </colgroup>
       <tr>
-<th class="header" height="1.7em"><input type="file" accept="image/*" id="mapInput" class="imageFileInput"></th>
+	<th class="header" height="1.7em">
+	  <select id="mapSourceSelect" class="map-source-select" title="Map source">
+	    <option value="local"{% if map_id|default("local") == "local" %} selected{% endif %}>BMS local</option>
+	    <option value="esri_imagery_hybrid"{% if map_id|default("local") == "esri_imagery_hybrid" %} selected{% endif %}>Web satelite</option>
+	  </select>
+	</th>
 <th class="header clickable" onclick="toggleVisHeader(this)" id="map_header"><span class="arrow">▼</span>Map</th>
   </tr>
 </table>
@@ -119,11 +167,13 @@ const MAP_BASE_MODE = {{ map_base_mode|default("local_tiles")|tojson }};
 const IS_WEB_MAP = MAP_BASE_MODE === "web";
 const THEATER_NAME = {{ theater_name|default("")|tojson }};
 const WEB_TILE_URL_TEMPLATE = {{ web_tile_url_template|tojson }};
-const WEB_TILE_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
-const BULLSEYE_RING_NM = [25, 50, 75, 100];
-const BULLSEYE_OUTER_NM = BULLSEYE_RING_NM[BULLSEYE_RING_NM.length - 1];
-const BULLSEYE_STROKE = "#ffffff";
-const BULLSEYE_HALO = "#000000";
+const WEB_TILE_ATTRIBUTION = {{ web_tile_attribution|default("Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community")|tojson }};
+const WEB_TILE_FILTER = {{ web_tile_filter|default("")|tojson }};
+const WEB_TILE_LAYERS = {{ web_tile_layers|default([])|tojson }};
+const WEB_TILE_MAX_ZOOM = {{ web_tile_max_zoom|default(19)|tojson }};
+const BULLSEYE_RING_NM = Array.from({ length: 20 }, (_, index) => (index + 1) * 25);
+const BULLSEYE_STROKE = "#009900";
+const NM_TO_FEET = 6076.12;
 
 const mapOptions = {
 	zoomControl: false,
@@ -131,7 +181,7 @@ const mapOptions = {
 };
 if (IS_WEB_MAP) {
 	mapOptions.minZoom = 2;
-	mapOptions.maxZoom = 19;
+	mapOptions.maxZoom = WEB_TILE_MAX_ZOOM;
 	mapOptions.zoom = 7;
 } else {
 	mapOptions.minZoom = -3;
@@ -156,91 +206,66 @@ if (!IS_WEB_MAP) {
     map.setMaxBounds([southWest, northEast]);
 } else {
     map.createPane("webBasemap");
-    map.getPane("webBasemap").classList.add("web-map-basemap-pane");
-    map.getPane("webBasemap").style.zIndex = 200;
+    const webBasemapPane = map.getPane("webBasemap");
+    webBasemapPane.style.zIndex = 200;
 }
 
 let mapBaseDataUrl = null;
 map_overlay = IS_WEB_MAP ? null : L.imageOverlay("", bounds, { crossOrigin: true }).addTo(map);
 let bullseyeLatLng = null;
-if (IS_WEB_MAP) {
-    bullseye_overlay = L.layerGroup().addTo(map);
-    bullseye_overlay.getCenter = function() {
-        return bullseyeLatLng || map.getCenter();
-    };
-} else {
-    bullseye_overlay = L.imageOverlay("assets/bullseye.png", bounds).addTo(map);
-}
-let map_tile_layer = null;
+bullseye_overlay = L.layerGroup().addTo(map);
+bullseye_overlay.getCenter = function() {
+    return bullseyeLatLng || map.getCenter();
+};
+let map_tile_layers = [];
 let mapBaseMode = IS_WEB_MAP ? "web" : "image";
 
-function destinationLatLng(center, bearingDegrees, distanceMeters) {
-    const earthRadiusMeters = 6371008.8;
-    const lat1 = center.lat * Math.PI / 180;
-    const lon1 = center.lng * Math.PI / 180;
-    const bearing = bearingDegrees * Math.PI / 180;
-    const angularDistance = distanceMeters / earthRadiusMeters;
-    const lat2 = Math.asin(
-        Math.sin(lat1) * Math.cos(angularDistance)
-        + Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing)
-    );
-    const lon2 = lon1 + Math.atan2(
-        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
-        Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
-    );
-    return L.latLng(lat2 * 180 / Math.PI, lon2 * 180 / Math.PI);
+function getBullseyeSpokeLatLngs(centerLatLng, bearingDegrees) {
+    const centerPoint = map.latLngToLayerPoint(centerLatLng);
+    const size = map.getSize();
+    const length = Math.max(size.x, size.y) * 8;
+    const angle = bearingDegrees * Math.PI / 180;
+    const dx = Math.sin(angle) * length;
+    const dy = -Math.cos(angle) * length;
+    return [
+        map.layerPointToLatLng(L.point(centerPoint.x - dx, centerPoint.y - dy)),
+        centerLatLng,
+        map.layerPointToLatLng(L.point(centerPoint.x + dx, centerPoint.y + dy))
+    ];
+}
+
+function getBullseyeRadius(radiusNm) {
+    return IS_WEB_MAP ? radiusNm * 1852 : convertScalar(radiusNm * NM_TO_FEET);
 }
 
 function setBullseye(latlng) {
     bullseyeLatLng = L.latLng(latlng);
-    if (IS_WEB_MAP) {
-        bullseye_overlay.clearLayers();
-        L.circleMarker(bullseyeLatLng, {
-            radius: 5,
-            color: BULLSEYE_HALO,
-            weight: 3,
-            fillColor: "#ffffff",
-            fillOpacity: 0.8
-        }).addTo(bullseye_overlay);
-        L.circleMarker(bullseyeLatLng, {
-            radius: 5,
+    bullseye_overlay.clearLayers();
+    L.circleMarker(bullseyeLatLng, {
+        radius: 5,
+        color: BULLSEYE_STROKE,
+        weight: 1,
+        fillColor: BULLSEYE_STROKE,
+        fillOpacity: 0.85,
+        opacity: 0.85
+    }).addTo(bullseye_overlay);
+    BULLSEYE_RING_NM.forEach((radiusNm) => {
+        L.circle(bullseyeLatLng, {
+            radius: getBullseyeRadius(radiusNm),
             color: BULLSEYE_STROKE,
-            weight: 1.5,
-            fillColor: "#ffffff",
-            fillOpacity: 0.8
+            weight: 1,
+            opacity: 0.72,
+            fillOpacity: 0
         }).addTo(bullseye_overlay);
-        BULLSEYE_RING_NM.forEach((radiusNm) => {
-            L.circle(bullseyeLatLng, {
-                radius: radiusNm * 1852,
-                color: BULLSEYE_HALO,
-                weight: 2.2,
-                opacity: 0.55,
-                fillOpacity: 0
-            }).addTo(bullseye_overlay);
-            L.circle(bullseyeLatLng, {
-                radius: radiusNm * 1852,
-                color: BULLSEYE_STROKE,
-                weight: 1,
-                opacity: 0.78,
-                fillOpacity: 0
-            }).addTo(bullseye_overlay);
-        });
-        for (let bearing = 0; bearing < 360; bearing += 45) {
-            L.polyline([bullseyeLatLng, destinationLatLng(bullseyeLatLng, bearing, BULLSEYE_OUTER_NM * 1852)], {
-                color: BULLSEYE_HALO,
-                weight: bearing % 90 === 0 ? 3 : 2.2,
-                opacity: 0.55
-            }).addTo(bullseye_overlay);
-            L.polyline([bullseyeLatLng, destinationLatLng(bullseyeLatLng, bearing, BULLSEYE_OUTER_NM * 1852)], {
-                color: BULLSEYE_STROKE,
-                weight: bearing % 90 === 0 ? 1.3 : 1,
-                opacity: bearing % 90 === 0 ? 0.82 : 0.68
-            }).addTo(bullseye_overlay);
-        }
-        return;
+    });
+    for (let bearing = 0; bearing < 360; bearing += 45) {
+        L.polyline(getBullseyeSpokeLatLngs(bullseyeLatLng, bearing), {
+            color: BULLSEYE_STROKE,
+            weight: 1,
+            opacity: 0.72
+        }).addTo(bullseye_overlay);
     }
-    bullseye_overlay.setBounds([[southWest.lat + bullseyeLatLng.lat + imageWidth/2, southWest.lng + bullseyeLatLng.lng - imageHeight/2], [northEast.lat + bullseyeLatLng.lat + imageWidth/2, northEast.lng + bullseyeLatLng.lng - imageHeight/2]]);
-  }
+}
  
 drawings = L.layerGroup();
 
@@ -250,14 +275,14 @@ var fWidth = 3359580,
 
 const MAP_STYLE = {
     flightPath: {
-        color: "white",
-        weight: 3,
+        color: "yellow",
+        weight: 2,
         lineJoin: "round",
         haloColor: "rgba(0,0,0,0.55)",
         haloWeight: 5
     },
     flightMarker: {
-        color: "white",
+        color: "yellow",
         fillOpacity: 1,
         radius: 8,
         canvasFillStyle: "#ffffff",
@@ -286,7 +311,17 @@ const MAP_STYLE = {
         dashArray: "4 3",
         dashPattern: [4, 3]
     },
-    steerpointLine: { color: "black", weight: 2, dashArray: "6 4", dashPattern: [6, 4] },
+    steerpointLine: { color: "blue", weight: 2, dashArray: "6 4", dashPattern: [6, 4] },
+    targetSteerpoint: {
+        radius: 8.8,
+        color: "#ffd166",
+        weight: 1,
+        fillColor: "#ffd166",
+        fillOpacity: 1,
+        canvasFillStyle: "#ffd166",
+        canvasStrokeStyle: "#000000",
+        canvasTextStyle: "#000000"
+    },
     threatCircle: {
         color: "red",
         fillColor: "red",
@@ -495,6 +530,11 @@ let tstptIniCoords = [{% for point in tstpt_coords %}
 		       {% endfor %}]
 tstptMapCoords = [];
 
+let tgtStptIniCoords = [{% for point in tgtsteerpoints %}
+              [ [{{point.coord_x}}, {{point.coord_y}}], {{point.number}}, {{point.name|tojson}} ],
+               {% endfor %}]
+tgtStptMapCoords = [];
+
 let stptLineIniCoords = [{% for line in stpt_lines %}
 			 [{% for point in line %}
 		       [{{point.coord_x}}, {{point.coord_y}}],
@@ -517,6 +557,11 @@ function rebuildMapCoords() {
             entry[2] || ""
         ];
     });
+    tgtStptMapCoords = tgtStptIniCoords.map((entry) => [
+        convertCoord(entry[0]),
+        entry[1],
+        entry[2] || ""
+    ]);
     stptLineMapCoords = stptLineIniCoords.map((line) => line.map(convertCoord));
 }
 
@@ -569,10 +614,29 @@ function getThreatEntries() {
         .filter((entry) => validLatLng(entry.latlng));
 }
 
+function getTargetSteerpointEntries() {
+    return tgtStptMapCoords
+        .map((entry) => ({
+            latlng: entry && entry[0],
+            number: entry && entry.length > 1 ? entry[1] : "",
+            name: entry && entry.length > 2 ? entry[2] : ""
+        }))
+        .filter((entry) => validLatLng(entry.latlng));
+}
+
 function getSteerpointLines() {
     return stptLineMapCoords
         .map((line) => line.filter(validLatLng))
         .filter((line) => line.length > 0);
+}
+
+function escapeHtml(text) {
+    return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 function addTooltipMarker(latlng, html, tooltipOptions) {
@@ -656,6 +720,27 @@ function renderThreatsLeaflet() {
     });
 }
 
+function renderTargetSteerpointsLeaflet() {
+    getTargetSteerpointEntries().forEach((entry) => {
+        const label = "T" + String(entry.number || "");
+        const marker = L.marker(entry.latlng, {
+            icon: L.divIcon({
+                className: "target-stpt-icon",
+                html: escapeHtml(String(entry.number || "")),
+                iconSize: [18, 18],
+                iconAnchor: [9, 9]
+            }),
+            keyboard: true,
+            title: entry.name || label
+        }).addTo(drawings);
+        if (entry.name) {
+            marker.bindPopup("<b>" + label + "</b> " + escapeHtml(entry.name), {
+                className: "target-stpt-popup"
+            });
+        }
+    });
+}
+
 function renderSteerpointLinesLeaflet() {
     getSteerpointLines().forEach((line) => {
         L.polyline(line, MAP_STYLE.steerpointLine).addTo(drawings);
@@ -723,6 +808,26 @@ function drawCanvasCircle(ctx, point, radius, style) {
     ctx.setLineDash(Array.isArray(style.dashPattern) ? style.dashPattern : []);
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+    if (style.fillStyle) {
+        ctx.fillStyle = style.fillStyle;
+        ctx.fill();
+    }
+    if (style.strokeStyle) {
+        ctx.strokeStyle = style.strokeStyle;
+        ctx.lineWidth = style.lineWidth || 1;
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawCanvasDiamond(ctx, point, radius, style) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y - radius);
+    ctx.lineTo(point.x + radius, point.y);
+    ctx.lineTo(point.x, point.y + radius);
+    ctx.lineTo(point.x - radius, point.y);
+    ctx.closePath();
     if (style.fillStyle) {
         ctx.fillStyle = style.fillStyle;
         ctx.fill();
@@ -819,6 +924,25 @@ function renderThreatsCanvas(ctx) {
     });
 }
 
+function renderTargetSteerpointsCanvas(ctx) {
+    getTargetSteerpointEntries().forEach((entry) => {
+        const point = latLngToCanvasPoint(entry.latlng);
+        drawCanvasCircle(ctx, point, MAP_STYLE.targetSteerpoint.radius, {
+            fillStyle: MAP_STYLE.targetSteerpoint.canvasFillStyle,
+            strokeStyle: MAP_STYLE.targetSteerpoint.canvasStrokeStyle,
+            lineWidth: MAP_STYLE.targetSteerpoint.weight
+        });
+        drawCanvasText(ctx, String(entry.number || ""), point, {
+            fillStyle: MAP_STYLE.targetSteerpoint.canvasTextStyle,
+            font: '700 10px "Map Overlay Mono"',
+            textAlign: "center",
+            textBaseline: "middle",
+            offsetX: 0,
+            offsetY: 0
+        });
+    });
+}
+
 function renderSteerpointLinesCanvas(ctx) {
     getSteerpointLines().forEach((line) => {
         drawCanvasPolyline(ctx, line, MAP_STYLE.steerpointLine);
@@ -863,15 +987,38 @@ if (IS_WEB_MAP && Number.isFinite(initialBullseye.x) && Number.isFinite(initialB
     setBullseye(map.getCenter());
 }
 
+function removeMapTileLayers() {
+    map_tile_layers.forEach((layer) => {
+        if (layer && map.hasLayer(layer)) {
+            map.removeLayer(layer);
+        }
+    });
+    map_tile_layers = [];
+}
+
+function getWebTileLayerDefs() {
+    if (Array.isArray(WEB_TILE_LAYERS) && WEB_TILE_LAYERS.length > 0) {
+        return WEB_TILE_LAYERS;
+    }
+    if (!WEB_TILE_URL_TEMPLATE) return [];
+    return [{
+        url_template: WEB_TILE_URL_TEMPLATE,
+        attribution: WEB_TILE_ATTRIBUTION,
+        filter: WEB_TILE_FILTER
+    }];
+}
+
+function layerDefValue(layerDef, camelName, snakeName) {
+    if (!layerDef) return "";
+    return layerDef[camelName] || layerDef[snakeName] || "";
+}
+
 function drawMap(url) {
     if (IS_WEB_MAP) return;
 // dimensions of the image
     mapBaseMode = "image";
     mapBaseDataUrl = url;
-    if (map_tile_layer) {
-        map.removeLayer(map_tile_layer);
-        map_tile_layer = null;
-    }
+    removeMapTileLayers();
     if (!map.hasLayer(map_overlay)) {
         map_overlay.addTo(map);
     }
@@ -879,6 +1026,7 @@ function drawMap(url) {
     drawings.clearLayers();
     rebuildMapCoords();
     renderFlightPlanLeaflet();
+    renderTargetSteerpointsLeaflet();
     renderThreatsLeaflet();
     renderSteerpointLinesLeaflet();
     drawings.addTo(map);
@@ -891,10 +1039,8 @@ function drawTiledMap(urlTemplate) {
     if (map.hasLayer(map_overlay)) {
         map.removeLayer(map_overlay);
     }
-    if (map_tile_layer) {
-        map.removeLayer(map_tile_layer);
-    }
-    map_tile_layer = L.tileLayer(urlTemplate, {
+    removeMapTileLayers();
+    const tileLayer = L.tileLayer(urlTemplate, {
         minZoom: -3,
         maxZoom: 5,
         minNativeZoom: -3,
@@ -904,36 +1050,52 @@ function drawTiledMap(urlTemplate) {
         noWrap: true,
         updateWhenIdle: true
     }).addTo(map);
+    map_tile_layers = [tileLayer];
     drawings.clearLayers();
     rebuildMapCoords();
     renderFlightPlanLeaflet();
+    renderTargetSteerpointsLeaflet();
     renderThreatsLeaflet();
     renderSteerpointLinesLeaflet();
     drawings.addTo(map);
     resetMapView(false);
 }
 
-function drawWebMap(urlTemplate) {
+function drawWebMap() {
     mapBaseMode = "web";
     mapBaseDataUrl = null;
     if (map_overlay && map.hasLayer(map_overlay)) {
         map.removeLayer(map_overlay);
     }
-    if (map_tile_layer) {
-        map.removeLayer(map_tile_layer);
-    }
-    map_tile_layer = L.tileLayer(urlTemplate, {
-        minZoom: 2,
-        maxZoom: 19,
-        tileSize: 256,
-        pane: "webBasemap",
-        crossOrigin: "anonymous",
-        attribution: WEB_TILE_ATTRIBUTION,
-        updateWhenIdle: true
-    }).addTo(map);
+    removeMapTileLayers();
+    getWebTileLayerDefs().forEach((layerDef, index) => {
+        const layerUrlTemplate = layerDefValue(layerDef, "urlTemplate", "url_template");
+        if (!layerUrlTemplate) return;
+        const paneName = index === 0 ? "webBasemap" : "webBasemap" + index;
+        if (!map.getPane(paneName)) {
+            map.createPane(paneName);
+        }
+        const pane = map.getPane(paneName);
+        pane.style.zIndex = String(200 + index);
+        pane.style.filter = layerDefValue(layerDef, "filter", "filter") || "";
+        const tileLayer = L.tileLayer(layerUrlTemplate, {
+            minZoom: 2,
+            maxZoom: WEB_TILE_MAX_ZOOM,
+            maxNativeZoom: Number(layerDefValue(layerDef, "maxNativeZoom", "max_native_zoom")) || WEB_TILE_MAX_ZOOM,
+            tileSize: 256,
+            keepBuffer: 4,
+            pane: paneName,
+            crossOrigin: "anonymous",
+            attribution: layerDefValue(layerDef, "attribution", "attribution"),
+            updateWhenIdle: false,
+            updateWhenZooming: false
+        }).addTo(map);
+        map_tile_layers.push(tileLayer);
+    });
     drawings.clearLayers();
     rebuildMapCoords();
     renderFlightPlanLeaflet();
+    renderTargetSteerpointsLeaflet();
     renderThreatsLeaflet();
     renderSteerpointLinesLeaflet();
     drawings.addTo(map);
@@ -941,23 +1103,31 @@ function drawWebMap(urlTemplate) {
 }
 
 if (IS_WEB_MAP) {
-    drawWebMap(WEB_TILE_URL_TEMPLATE);
+    drawWebMap();
 } else {
     drawTiledMap("{% if map_tile_url_template is defined %}{{ map_tile_url_template }}{% else %}assets/maps/tiles/{z}/{x}/{y}.png{% endif %}?v=" + Date.now());
 }
+
+map.on("zoomend", function() {
+    if (bullseyeLatLng) setBullseye(bullseyeLatLng);
+    drawings.eachLayer((layer) => {
+        if (layer && typeof layer.redraw === "function") layer.redraw();
+    });
+});
 
 map.on("dblclick", function(ev) {
     setBullseye(ev.latlng);
 });
 
-document.getElementById('mapInput')
-    .addEventListener('change', function () {
-	let fr = new FileReader();
-	fr.onload = function () {
-	    drawMap(fr.result);
-	}
-	fr.readAsDataURL(this.files[0]);
-    })
+const mapSourceSelect = document.getElementById("mapSourceSelect");
+if (mapSourceSelect) {
+    mapSourceSelect.addEventListener("change", function() {
+        window.parent?.postMessage({
+            type: "html_brief_map_source_change",
+            map: this.value
+        }, window.location.origin);
+    });
+}
 
 async function toDataUrl(url) {
     if (!url || url.startsWith("data:")) return url;
@@ -984,54 +1154,48 @@ async function ensureMapFontsLoaded() {
 }
 
 function waitForVisibleTiles() {
-    if ((mapBaseMode !== "tiles" && mapBaseMode !== "web") || !map_tile_layer) return Promise.resolve();
-    return new Promise((resolve) => {
+    if ((mapBaseMode !== "tiles" && mapBaseMode !== "web") || map_tile_layers.length === 0) return Promise.resolve();
+    return Promise.all(map_tile_layers.map((tileLayer) => new Promise((resolve) => {
         let settled = false;
         const done = () => {
             if (settled) return;
             settled = true;
-            map_tile_layer.off("load", done);
+            tileLayer.off("load", done);
             setTimeout(resolve, 0);
         };
-        map_tile_layer.on("load", done);
+        tileLayer.on("load", done);
         setTimeout(done, 1500);
-        map_tile_layer.redraw();
-    });
+        tileLayer.redraw();
+    }))).then(() => undefined);
 }
 
 function renderBullseyeCanvas(ctx) {
     if (!bullseyeLatLng) return;
     const center = latLngToCanvasPoint(bullseyeLatLng);
+    const spokeLength = Math.hypot(ctx.canvas.width, ctx.canvas.height);
     for (let bearing = 0; bearing < 360; bearing += 45) {
-        const edgeLatLng = destinationLatLng(bullseyeLatLng, bearing, BULLSEYE_OUTER_NM * 1852);
-        drawCanvasPolyline(ctx, [[bullseyeLatLng.lat, bullseyeLatLng.lng], [edgeLatLng.lat, edgeLatLng.lng]], {
-            color: BULLSEYE_HALO,
-            weight: bearing % 90 === 0 ? 3 : 2.2
-        });
-        drawCanvasPolyline(ctx, [[bullseyeLatLng.lat, bullseyeLatLng.lng], [edgeLatLng.lat, edgeLatLng.lng]], {
-            color: BULLSEYE_STROKE,
-            weight: bearing % 90 === 0 ? 1.3 : 1
-        });
+        const angle = bearing * Math.PI / 180;
+        const dx = Math.sin(angle) * spokeLength;
+        const dy = -Math.cos(angle) * spokeLength;
+        ctx.save();
+        ctx.strokeStyle = BULLSEYE_STROKE;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(center.x - dx, center.y - dy);
+        ctx.lineTo(center.x + dx, center.y + dy);
+        ctx.stroke();
+        ctx.restore();
     }
     BULLSEYE_RING_NM.slice().reverse().forEach((radiusNm) => {
-        drawCanvasCircle(ctx, center, getThreatRadiusPx(bullseyeLatLng, radiusNm * 1852), {
-            strokeStyle: BULLSEYE_HALO,
-            lineWidth: 2.2
-        });
-        drawCanvasCircle(ctx, center, getThreatRadiusPx(bullseyeLatLng, radiusNm * 1852), {
+        drawCanvasCircle(ctx, center, getThreatRadiusPx(bullseyeLatLng, getBullseyeRadius(radiusNm)), {
             strokeStyle: BULLSEYE_STROKE,
             lineWidth: 1
         });
     });
     drawCanvasCircle(ctx, center, 5, {
-        fillStyle: "rgba(255,255,255,0.8)",
-        strokeStyle: BULLSEYE_HALO,
-        lineWidth: 3
-    });
-    drawCanvasCircle(ctx, center, 5, {
-        fillStyle: "rgba(255,255,255,0.8)",
+        fillStyle: BULLSEYE_STROKE,
         strokeStyle: BULLSEYE_STROKE,
-        lineWidth: 1.5
+        lineWidth: 1
     });
 }
 
@@ -1052,6 +1216,12 @@ async function drawVisibleMapTiles(ctx) {
     tileImgs.forEach((img) => {
         if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
         const rect = img.getBoundingClientRect();
+        const pane = img.closest(".leaflet-pane");
+        const paneFilter = pane ? window.getComputedStyle(pane).filter : "";
+        ctx.save();
+        if (paneFilter && paneFilter !== "none") {
+            ctx.filter = paneFilter;
+        }
         ctx.drawImage(
             img,
             rect.left - containerRect.left,
@@ -1059,6 +1229,7 @@ async function drawVisibleMapTiles(ctx) {
             rect.width,
             rect.height
         );
+        ctx.restore();
     });
 }
 
@@ -1121,34 +1292,11 @@ async function exportMapImage() {
             ctx.drawImage(baseImg, baseRect.x, baseRect.y, baseRect.width, baseRect.height);
         }
 
-        // bullseye
-        if (IS_WEB_MAP) {
-            renderBullseyeCanvas(ctx);
-        } else {
-            try {
-                const bullImgEl = bullseye_overlay.getElement();
-                const bullSrc = await toDataUrl(bullImgEl?.src || "assets/bullseye.png") || bullImgEl?.src;
-                const bullImg = new Image();
-                bullImg.crossOrigin = "anonymous";
-                bullImg.src = bullSrc;
-                await new Promise((res, rej) => {
-                    if (bullImg.complete) res();
-                    else {
-                        bullImg.onload = res;
-                        bullImg.onerror = (e) => {
-                            window.exportMapLastError = "Bullseye load failed";
-                            window.exportMapLog.push(window.exportMapLastError);
-                            rej(e);
-                        };
-                    }
-                });
-                const bullseyeRect = getOverlayDrawRect(bullseye_overlay);
-                ctx.drawImage(bullImg, bullseyeRect.x, bullseyeRect.y, bullseyeRect.width, bullseyeRect.height);
-            } catch {}
-        }
+        renderBullseyeCanvas(ctx);
         renderFlightPlanCanvas(ctx);
         renderThreatsCanvas(ctx);
         renderSteerpointLinesCanvas(ctx);
+        renderTargetSteerpointsCanvas(ctx);
 
         const dataUrl = canvas.toDataURL("image/png");
         window.exportMapLastError = "ok:" + (dataUrl ? dataUrl.length : 0);

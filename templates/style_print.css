@@ -96,6 +96,7 @@ tbody tr:nth-child(even) td {
     button,
     input[type="file"],
     .imageFileInput,
+    .map-source-select,
     .refreshButton,
     .arrow {
         display: none !important;

@@ -17,7 +17,25 @@ MAP_TILE_MIN_ZOOM = -3
 MAP_TILE_MAX_NATIVE_ZOOM_CAP = 2
 MAP_TILE_MANIFEST = "manifest.txt"
 MAP_MAX_SOURCE_PIXELS = MAP_LOGICAL_SIZE[0] * MAP_LOGICAL_SIZE[1] * (2 ** MAP_TILE_MAX_NATIVE_ZOOM_CAP) ** 2
-WEB_TILE_URL_TEMPLATE = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+LOCAL_MAP_ID = "local"
+WEB_MAP_SOURCES = {
+    "esri_imagery_hybrid": {
+        "max_zoom": 23,
+        "layers": [
+            {
+                "url_template": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                "attribution": "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+                "filter": "brightness(1.0) saturate(1.0) contrast(1.0)",
+                "max_native_zoom": 23,
+            },
+            {
+                "url_template": "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+                "attribution": "Tiles &copy; Esri",
+                "max_native_zoom": 23,
+            },
+        ],
+    },
+}
 
 Image.MAX_IMAGE_PIXELS = max(Image.MAX_IMAGE_PIXELS or 0, MAP_MAX_SOURCE_PIXELS)
 
@@ -56,15 +74,41 @@ def _map_cache_slug(name):
     return slug or "default"
 
 
-def _map_base_mode(conf):
+def _map_selection(conf):
     try:
-        raw = conf["system"].get("map_base_mode", "local_tiles")
+        raw = conf["system"].get("map", LOCAL_MAP_ID)
     except Exception:
-        raw = "local_tiles"
-    mode = str(raw).strip().lower().replace("-", "_")
-    if mode in {"web", "web_tiles", "online", "online_tiles"}:
-        return "web"
-    return "local_tiles"
+        raw = LOCAL_MAP_ID
+    map_id = str(raw).strip().lower().replace("-", "_") or LOCAL_MAP_ID
+    if map_id in WEB_MAP_SOURCES:
+        return _map_selection_from_id(map_id)
+
+    return _map_selection_from_id(LOCAL_MAP_ID)
+
+
+def _map_selection_from_id(map_id):
+    if map_id in WEB_MAP_SOURCES:
+        source = WEB_MAP_SOURCES[map_id]
+        layers = source.get("layers") or [source]
+        first_layer = layers[0] if layers else {}
+        return {
+            "id": map_id,
+            "base_mode": "web",
+            "web_tile_layers": layers,
+            "web_tile_url_template": first_layer.get("url_template", ""),
+            "web_tile_attribution": first_layer.get("attribution", ""),
+            "web_tile_filter": first_layer.get("filter", ""),
+            "web_tile_max_zoom": source.get("max_zoom", 19),
+        }
+    return {
+        "id": LOCAL_MAP_ID,
+        "base_mode": "local_tiles",
+        "web_tile_layers": [],
+        "web_tile_url_template": "",
+        "web_tile_attribution": "",
+        "web_tile_filter": "",
+        "web_tile_max_zoom": 19,
+    }
 
 
 def _map_tile_info(map_path):
@@ -213,11 +257,14 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
         logger.error(e)
         logger_ui.error(f"Couldn't create the map folder: {e}")
 
-    map_base_mode = _map_base_mode(conf)
-    try:
-        web_tile_url_template = conf["system"].get("web_tile_url_template", WEB_TILE_URL_TEMPLATE)
-    except Exception:
-        web_tile_url_template = WEB_TILE_URL_TEMPLATE
+    map_selection = _map_selection(conf)
+    map_id = map_selection["id"]
+    map_base_mode = map_selection["base_mode"]
+    web_tile_url_template = map_selection["web_tile_url_template"]
+    web_tile_attribution = map_selection["web_tile_attribution"]
+    web_tile_filter = map_selection["web_tile_filter"]
+    web_tile_layers = map_selection["web_tile_layers"]
+    web_tile_max_zoom = map_selection["web_tile_max_zoom"]
 
     # load map location
     map_file = ''
@@ -332,12 +379,17 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
                                                  num = page_num,
                                                  logo_present = logo_present,
                                                  brief_is_joined = True,
+                                                 map_id = map_id,
                                                  map_base_mode = map_base_mode,
                                                  theater_name = bms_conf.theater,
                                                  theater_center_latitude = getattr(bms_conf, "theater_center_latitude", None),
                                                  theater_center_longitude = getattr(bms_conf, "theater_center_longitude", None),
                                                  theater_size_km = getattr(bms_conf, "theater_size_km", None),
                                                  web_tile_url_template = web_tile_url_template,
+                                                 web_tile_attribution = web_tile_attribution,
+                                                 web_tile_filter = web_tile_filter,
+                                                 web_tile_layers = web_tile_layers,
+                                                 web_tile_max_zoom = web_tile_max_zoom,
                                                  map_tile_max_native_zoom = map_tile_max_native_zoom,
                                                  map_tile_url_template = map_tile_url_template,
                                                  package_options = render_context["package_options"],

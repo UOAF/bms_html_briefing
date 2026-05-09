@@ -41,6 +41,13 @@ CHECKLIST_IMAGE_SRC_PREFIXES = (
     "data:image/gif;base64,",
     "data:image/webp;base64,",
 )
+REPLACED_MAP_SYSTEM_KEYS = {
+    "map_base_mode",
+    "web_tile_url_template",
+    "web_tile_attribution",
+    "web_tile_filter",
+    "web_tile_layers",
+}
 
 
 class ConfigUpdate(BaseModel):
@@ -138,6 +145,9 @@ def register_config_routes(
         for section, values in payload_dict.items():
             if section not in app.state.cfg:
                 app.state.cfg[section] = {}
+            if section == "system" and "map" in values:
+                for stale_key in REPLACED_MAP_SYSTEM_KEYS:
+                    app.state.cfg[section].pop(stale_key, None)
             for key, value in values.items():
                 app.state.cfg[section][key] = str(value)
 
@@ -147,6 +157,9 @@ def register_config_routes(
         for section, values in payload_dict.items():
             if section not in cfg_to_persist:
                 cfg_to_persist[section] = {}
+            if section == "system" and "map" in values:
+                for stale_key in REPLACED_MAP_SYSTEM_KEYS:
+                    cfg_to_persist[section].pop(stale_key, None)
             for key, value in values.items():
                 cfg_to_persist[section][key] = str(value)
         save_config(cfg_to_persist, app.state.config_path)
@@ -163,6 +176,9 @@ def register_config_routes(
         for section, values in payload_dict.items():
             if section not in app.state.cfg:
                 app.state.cfg[section] = {}
+            if section == "system" and "map" in values:
+                for stale_key in REPLACED_MAP_SYSTEM_KEYS:
+                    app.state.cfg[section].pop(stale_key, None)
             for key, value in values.items():
                 app.state.cfg[section][key] = str(value)
         ensure_dirs(app.state.cfg)

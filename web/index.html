@@ -1019,12 +1019,23 @@
       "package_34", "package_35", "package_36", "package_37", "package_38", "package_39", "package_40", "package_41"
     ];
     const TOOLBAR_STATE_KEY = "toolbarCollapsed";
+    const MAP_SOURCES = [
+      {
+        id: "local",
+        label: "BMS local"
+      },
+      {
+        id: "esri_imagery_hybrid",
+        label: "Web satelite"
+      }
+    ];
     let lastLogId = 0;
     const LOG_MAX_LINES = 300;
     const logLines = [];
     let pages = [];
     let currentPageIndex = 0;
     let dndAttached = false;
+    let selectedMapSourceId = "local";
     let draggingEl = null;
     let draggingFrom = null;
     let pdfBusy = false;
@@ -1360,6 +1371,24 @@
       bmsSelect.value = current || opts[0];
     }
 
+    function getMapSourceById(id) {
+      return MAP_SOURCES.find((source) => source.id === id) || MAP_SOURCES[0];
+    }
+
+    function detectMapSource(sys) {
+      const mapId = String(sys.map || "").trim().toLowerCase().replace("-", "_");
+      return getMapSourceById(mapId).id;
+    }
+
+    function setSelectedMapSource(id) {
+      selectedMapSourceId = getMapSourceById(id).id;
+    }
+
+    function selectedMapSystemOverrides() {
+      const selected = getMapSourceById(selectedMapSourceId);
+      return { map: selected.id };
+    }
+
     async function loadConfig() {
       try {
         const data = await fetchJSON("/api/config");
@@ -1371,6 +1400,7 @@
         wineInput.value = sys.wine_prefix || "";
         document.getElementById("output_dir").value = sys.output_dir || "";
         document.getElementById("pdf_output_dir").value = sys.pdf_output_dir || "";
+        setSelectedMapSource(detectMapSource(sys));
         applyAutoExportMode(
           String(sys.auto_export_on_change || "False").toLowerCase() === "true",
           String(sys.auto_export_pdf_only || "False").toLowerCase() === "true"
@@ -1466,6 +1496,7 @@
       payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
       payload.system.auto_export_on_change = autoExportOnChange ? "True" : "False";
       payload.system.auto_export_pdf_only = autoExportPdfOnly ? "True" : "False";
+      Object.assign(payload.system, selectedMapSystemOverrides());
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
         log("Config saved");
@@ -1526,6 +1557,17 @@
       });
     });
 
+    window.addEventListener("message", async (ev) => {
+      if (ev.origin !== window.location.origin) return;
+      const data = ev.data || {};
+      if (data.type !== "html_brief_map_source_change") return;
+      const nextMapSource = getMapSourceById(data.map).id;
+      if (nextMapSource === selectedMapSourceId) return;
+      setSelectedMapSource(nextMapSource);
+      clearSavedCamRenderedValues({ clearBullseye: true });
+      await doPreview(currentOverrides());
+    });
+
     // Hide Linux-specific wine prefix field for Windows users to reduce confusion.
     if (wineInput && navigator.userAgent.toLowerCase().includes("windows")) {
       const wrapper = wineInput.closest("div");
@@ -1554,7 +1596,8 @@
         system: {
           wine_prefix: wineInput.value,
           output_dir: document.getElementById("output_dir").value,
-          pdf_output_dir: document.getElementById("pdf_output_dir").value
+          pdf_output_dir: document.getElementById("pdf_output_dir").value,
+          ...selectedMapSystemOverrides()
         },
         selected_package_index: (() => {
           const selected = getSelectedCamPackageIndex();
@@ -1814,10 +1857,17 @@
       return pagesObj;
     }
 
+    function layoutIncludesMap() {
+      return Array.isArray(pages) && pages.some((page) => Array.isArray(page) && page.includes("map"));
+    }
+
     async function captureMapImage() {
+      if (!layoutIncludesMap()) return null;
       const frame = document.getElementById("brief-frame");
       const cw = frame?.contentWindow;
-      if (!cw || typeof cw.exportMapImage !== "function") return null;
+      if (!cw || typeof cw.exportMapImage !== "function") {
+        throw new Error("Map capture unavailable: preview frame is not ready");
+      }
       const started = performance.now();
       debugLog("PDF prep: map capture start");
       try {
@@ -1825,14 +1875,13 @@
         if (!dataUrl) {
           const err = cw.exportMapLastError || "unknown";
           const logTrail = Array.isArray(cw.exportMapLog) ? cw.exportMapLog.join(" | ") : "";
-          log(`Map capture returned empty. Details: ${err}. Trace: ${logTrail}`);
+          throw new Error(`Map capture failed: ${err}${logTrail ? `. Trace: ${logTrail}` : ""}`);
         } else {
           debugLog(`PDF prep: map capture done len=${dataUrl.length} elapsed_ms=${(performance.now() - started).toFixed(1)}`);
         }
-        return dataUrl || null;
+        return dataUrl;
       } catch (err) {
-        log(`Map capture failed after ${(performance.now() - started).toFixed(1)}ms: ${err && err.message ? err.message : err}`);
-        return null;
+        throw new Error(`Map capture failed after ${(performance.now() - started).toFixed(1)}ms: ${err && err.message ? err.message : err}`);
       }
     }
 

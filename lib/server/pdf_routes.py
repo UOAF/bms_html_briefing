@@ -26,6 +26,19 @@ logger = logging.getLogger("html_brief_log")
 logger_ui = logging.getLogger("ui_logger")
 
 
+def _pages_include_map(pages: Optional[Dict[str, str]], cfg: configparser.ConfigParser) -> bool:
+    if isinstance(pages, dict):
+        for value in pages.values():
+            sections = [part.strip() for part in str(value or "").split(",")]
+            if "map" in sections:
+                return True
+        return False
+    try:
+        return any("map" in page for page in page_contents_ini_to_list(cfg))
+    except Exception:
+        return False
+
+
 class PdfRequest(BaseModel):
     content: Optional[Dict[str, Any]] = None
     pages: Optional[Dict[str, str]] = None
@@ -66,6 +79,8 @@ def register_pdf_routes(
         pdf_path: Optional[Path] = None
         try:
             payload_stats = content_payload_stats(payload.content)
+            if _pages_include_map(payload.pages, app.state.cfg) and payload_stats["map_image_len"] <= 0:
+                raise HTTPException(status_code=400, detail="Map capture failed; PDF generation requires a captured map image when the map page is enabled.")
             logger.debug(
                 "PDF[%s] request start: selected_package_index=%r cam_loaded=%s payload_keys=%d map_image_len=%d target_image_keys=%d display_keys=%d text_keys=%d total_text_len=%d",
                 pdf_trace,
