@@ -172,6 +172,7 @@ const WEB_TILE_ATTRIBUTION = {{ web_tile_attribution|default("Tiles &copy; Esri 
 const WEB_TILE_FILTER = {{ web_tile_filter|default("")|tojson }};
 const WEB_TILE_LAYERS = {{ web_tile_layers|default([])|tojson }};
 const WEB_TILE_MAX_ZOOM = {{ web_tile_max_zoom|default(19)|tojson }};
+const WEB_TILE_RUNTIME_MAX_ZOOM = Math.min(Number(WEB_TILE_MAX_ZOOM) || 19, 18);
 const BULLSEYE_RING_NM = Array.from({ length: 20 }, (_, index) => (index + 1) * 25);
 const BULLSEYE_STROKE = "#009900";
 const NM_TO_FEET = 6076.12;
@@ -182,7 +183,7 @@ const mapOptions = {
 };
 if (IS_WEB_MAP) {
 	mapOptions.minZoom = 2;
-	mapOptions.maxZoom = WEB_TILE_MAX_ZOOM;
+	mapOptions.maxZoom = WEB_TILE_RUNTIME_MAX_ZOOM;
 	mapOptions.zoom = 7;
 } else {
 	mapOptions.minZoom = -3;
@@ -209,6 +210,10 @@ if (!IS_WEB_MAP) {
     map.createPane("webBasemap");
     const webBasemapPane = map.getPane("webBasemap");
     webBasemapPane.style.zIndex = 200;
+    map.createPane("webOverlayCanvas");
+    const webOverlayCanvasPane = map.getPane("webOverlayCanvas");
+    webOverlayCanvasPane.style.zIndex = 700;
+    webOverlayCanvasPane.style.pointerEvents = "none";
 }
 
 let mapBaseDataUrl = null;
@@ -220,6 +225,7 @@ bullseye_overlay.getCenter = function() {
 };
 let map_tile_layers = [];
 let mapBaseMode = IS_WEB_MAP ? "web" : "image";
+let mapCanvasOverlay = null;
 
 function getBullseyeSpokeLatLngs(centerLatLng, bearingDegrees) {
     const centerPoint = map.latLngToLayerPoint(centerLatLng);
@@ -242,6 +248,10 @@ function getBullseyeRadius(radiusNm) {
 function setBullseye(latlng) {
     bullseyeLatLng = L.latLng(latlng);
     bullseye_overlay.clearLayers();
+    if (IS_WEB_MAP) {
+        redrawMapCanvasOverlay();
+        return;
+    }
     L.circleMarker(bullseyeLatLng, {
         radius: 5,
         color: BULLSEYE_STROKE,
@@ -823,8 +833,58 @@ function drawCanvasPolyline(ctx, latlngs, style) {
     ctx.restore();
 }
 
+function canvasPointNearViewport(ctx, point, padding) {
+    const pad = Number.isFinite(padding) ? padding : 64;
+    return point.x >= -pad
+        && point.y >= -pad
+        && point.x <= ctx.canvas.width + pad
+        && point.y <= ctx.canvas.height + pad;
+}
+
+function getCircleViewportRelation(ctx, point, radius, padding) {
+    const r = Number(radius);
+    const pad = Number.isFinite(padding) ? padding : 64;
+    if (!Number.isFinite(r) || r < 0) {
+        return { shouldDraw: false, boundaryVisible: false, viewportInside: false };
+    }
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    if (point.x + r < -pad || point.y + r < -pad || point.x - r > width + pad || point.y - r > height + pad) {
+        return { shouldDraw: false, boundaryVisible: false, viewportInside: false };
+    }
+    const corners = [
+        [0, 0],
+        [width, 0],
+        [0, height],
+        [width, height]
+    ];
+    let minDistance = Infinity;
+    let maxDistance = 0;
+    corners.forEach((corner) => {
+        const distance = Math.hypot(point.x - corner[0], point.y - corner[1]);
+        minDistance = Math.min(minDistance, distance);
+        maxDistance = Math.max(maxDistance, distance);
+    });
+    const boundaryVisible = r >= minDistance - pad && r <= maxDistance + pad;
+    return {
+        shouldDraw: true,
+        boundaryVisible: boundaryVisible,
+        viewportInside: r > maxDistance + pad
+    };
+}
+
 function drawCanvasCircle(ctx, point, radius, style) {
+    const viewportRelation = getCircleViewportRelation(ctx, point, radius, 64);
+    if (!viewportRelation.shouldDraw) return;
     ctx.save();
+    if (viewportRelation.viewportInside && !viewportRelation.boundaryVisible) {
+        if (style.fillStyle) {
+            ctx.fillStyle = style.fillStyle;
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        }
+        ctx.restore();
+        return;
+    }
     ctx.setLineDash(Array.isArray(style.dashPattern) ? style.dashPattern : []);
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
@@ -841,6 +901,7 @@ function drawCanvasCircle(ctx, point, radius, style) {
 }
 
 function drawCanvasDiamond(ctx, point, radius, style) {
+    if (!canvasPointNearViewport(ctx, point, radius + 64)) return;
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(point.x, point.y - radius);
@@ -861,6 +922,7 @@ function drawCanvasDiamond(ctx, point, radius, style) {
 }
 
 function drawCanvasText(ctx, text, point, style) {
+    if (!canvasPointNearViewport(ctx, point, 96)) return;
     ctx.save();
     ctx.font = style.font;
     ctx.lineJoin = "round";
@@ -969,6 +1031,127 @@ function renderSteerpointLinesCanvas(ctx) {
     });
 }
 
+function renderMapOverlayCanvas(ctx) {
+    renderBullseyeCanvas(ctx);
+    renderFlightPlanCanvas(ctx);
+    renderThreatsCanvas(ctx);
+    renderSteerpointLinesCanvas(ctx);
+    renderTargetSteerpointsCanvas(ctx);
+}
+
+const MapCanvasOverlay = L.Layer.extend({
+    options: {
+        pane: "webOverlayCanvas"
+    },
+
+    onAdd: function(mapInstance) {
+        this._map = mapInstance;
+        this._canvas = L.DomUtil.create("canvas", "leaflet-map-overlay-canvas");
+        this._canvas.style.position = "absolute";
+        this._canvas.style.pointerEvents = "none";
+        this.getPane().appendChild(this._canvas);
+        mapInstance.on("move zoom resize", this._reset, this);
+        mapInstance.on("moveend zoomend resize", this.redraw, this);
+        this._reset();
+    },
+
+    onRemove: function(mapInstance) {
+        mapInstance.off("move zoom resize", this._reset, this);
+        mapInstance.off("moveend zoomend resize", this.redraw, this);
+        L.DomUtil.remove(this._canvas);
+        this._canvas = null;
+    },
+
+    _reset: function() {
+        if (!this._map || !this._canvas) return;
+        const size = this._map.getSize();
+        const topLeft = this._map.containerPointToLayerPoint([0, 0]);
+        L.DomUtil.setPosition(this._canvas, topLeft);
+        if (this._canvas.width !== size.x || this._canvas.height !== size.y) {
+            this._canvas.width = size.x;
+            this._canvas.height = size.y;
+            this._canvas.style.width = size.x + "px";
+            this._canvas.style.height = size.y + "px";
+        }
+        this.redraw();
+    },
+
+    redraw: function() {
+        if (!this._canvas) return;
+        const ctx = this._canvas.getContext("2d");
+        ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+        renderMapOverlayCanvas(ctx);
+    }
+});
+
+function redrawMapCanvasOverlay() {
+    if (mapCanvasOverlay && typeof mapCanvasOverlay.redraw === "function") {
+        mapCanvasOverlay.redraw();
+    }
+}
+
+function clearLeafletDrawings() {
+    drawings.clearLayers();
+}
+
+function renderLeafletDrawings() {
+    clearLeafletDrawings();
+    renderFlightPlanLeaflet();
+    renderTargetSteerpointsLeaflet();
+    renderThreatsLeaflet();
+    renderSteerpointLinesLeaflet();
+    drawings.addTo(map);
+}
+
+function renderWebCanvasDrawings() {
+    clearLeafletDrawings();
+    if (!mapCanvasOverlay) {
+        mapCanvasOverlay = new MapCanvasOverlay();
+    }
+    if (!map.hasLayer(mapCanvasOverlay)) {
+        mapCanvasOverlay.addTo(map);
+    }
+    redrawMapCanvasOverlay();
+    ensureMapFontsLoaded().then(redrawMapCanvasOverlay).catch(() => {});
+}
+
+function renderMapDrawings() {
+    if (IS_WEB_MAP) {
+        renderWebCanvasDrawings();
+    } else {
+        if (mapCanvasOverlay && map.hasLayer(mapCanvasOverlay)) {
+            map.removeLayer(mapCanvasOverlay);
+        }
+        renderLeafletDrawings();
+    }
+}
+
+function getCanvasTargetSteerpointAt(latlng) {
+    const clickPoint = map.latLngToContainerPoint(latlng);
+    let bestEntry = null;
+    let bestDistance = Infinity;
+    getTargetSteerpointEntries().forEach((entry) => {
+        const point = latLngToCanvasPoint(entry.latlng);
+        const distance = Math.hypot(point.x - clickPoint.x, point.y - clickPoint.y);
+        if (distance <= 12 && distance < bestDistance) {
+            bestEntry = entry;
+            bestDistance = distance;
+        }
+    });
+    return bestEntry;
+}
+
+function openWebTargetSteerpointPopup(ev) {
+    if (!IS_WEB_MAP) return;
+    const entry = getCanvasTargetSteerpointAt(ev.latlng);
+    if (!entry || !entry.name) return;
+    const label = "T" + String(entry.number || "");
+    L.popup({ className: "target-stpt-popup" })
+        .setLatLng(entry.latlng)
+        .setContent("<b>" + label + "</b> " + escapeHtml(entry.name))
+        .openOn(map);
+}
+
 function resetMapView(force) {
     if (IS_WEB_MAP) {
         const routeCoords = getFlightRouteCoords();
@@ -1048,6 +1231,10 @@ function layerDefBoolean(layerDef, camelName, snakeName, fallback) {
     return value === true || value === "true" || value === 1 || value === "1";
 }
 
+function layerDefCappedZoom(layerDef, camelName, snakeName, fallback) {
+    return Math.min(layerDefNumber(layerDef, camelName, snakeName, fallback), WEB_TILE_RUNTIME_MAX_ZOOM);
+}
+
 function drawMap(url) {
     if (IS_WEB_MAP) return;
 // dimensions of the image
@@ -1058,13 +1245,8 @@ function drawMap(url) {
         map_overlay.addTo(map);
     }
     map_overlay.setUrl(url);
-    drawings.clearLayers();
     rebuildMapCoords();
-    renderFlightPlanLeaflet();
-    renderTargetSteerpointsLeaflet();
-    renderThreatsLeaflet();
-    renderSteerpointLinesLeaflet();
-    drawings.addTo(map);
+    renderMapDrawings();
     resetMapView(false);
 }
 
@@ -1086,13 +1268,8 @@ function drawTiledMap(urlTemplate) {
         updateWhenIdle: true
     }).addTo(map);
     map_tile_layers = [tileLayer];
-    drawings.clearLayers();
     rebuildMapCoords();
-    renderFlightPlanLeaflet();
-    renderTargetSteerpointsLeaflet();
-    renderThreatsLeaflet();
-    renderSteerpointLinesLeaflet();
-    drawings.addTo(map);
+    renderMapDrawings();
     resetMapView(false);
 }
 
@@ -1118,7 +1295,7 @@ function drawWebMap() {
         const layerOpacity = layerDefNumber(layerDef, "opacity", "opacity", 1);
         const tileLayer = L.tileLayer(layerUrlTemplate, {
             minZoom: 2,
-            maxZoom: layerDefNumber(layerDef, "maxZoom", "max_zoom", WEB_TILE_MAX_ZOOM),
+            maxZoom: layerDefCappedZoom(layerDef, "maxZoom", "max_zoom", WEB_TILE_RUNTIME_MAX_ZOOM),
             maxNativeZoom: layerDefNumber(layerDef, "maxNativeZoom", "max_native_zoom", WEB_TILE_MAX_ZOOM),
             opacity: layerOpacity,
             tileSize: 256,
@@ -1131,13 +1308,8 @@ function drawWebMap() {
         }).addTo(map);
         map_tile_layers.push(tileLayer);
     });
-    drawings.clearLayers();
     rebuildMapCoords();
-    renderFlightPlanLeaflet();
-    renderTargetSteerpointsLeaflet();
-    renderThreatsLeaflet();
-    renderSteerpointLinesLeaflet();
-    drawings.addTo(map);
+    renderMapDrawings();
     resetMapView(true);
 }
 
@@ -1157,14 +1329,20 @@ try {
 
 map.on("zoomend", function() {
     if (bullseyeLatLng) setBullseye(bullseyeLatLng);
-    drawings.eachLayer((layer) => {
-        if (layer && typeof layer.redraw === "function") layer.redraw();
-    });
+    if (IS_WEB_MAP) {
+        redrawMapCanvasOverlay();
+    } else {
+        drawings.eachLayer((layer) => {
+            if (layer && typeof layer.redraw === "function") layer.redraw();
+        });
+    }
 });
 
 map.on("dblclick", function(ev) {
     setBullseye(ev.latlng);
 });
+
+map.on("click", openWebTargetSteerpointPopup);
 
 const mapSourceSelect = document.getElementById("mapSourceSelect");
 if (mapSourceSelect) {
