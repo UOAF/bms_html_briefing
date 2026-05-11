@@ -381,7 +381,9 @@ const LEAFLET_TOOLTIP_OPTS = {
     alt: { direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-anchor" }
 };
 
-const FEET_TO_METERS = 0.30488;
+const FEET_TO_METERS = 0.3048;
+const METERS_TO_FEET = 1 / FEET_TO_METERS;
+const BMS_HEIGHTMAP_SAMPLES = 32768;
 const WGS84_A = 6378137.0;
 const WGS84_E2 = 0.00669437999014;
 const DEFAULT_THEATER_SIZE_KM = 1024;
@@ -481,7 +483,24 @@ function inverseTransverseMercator(eastingMeters, northingMeters, projection) {
 function convertBmsCoordToLatLng(xFeet, yFeet) {
     const projection = getTheaterProjection();
     if (!projection) return [NaN, NaN];
-    return inverseTransverseMercator(yFeet * FEET_TO_METERS, xFeet * FEET_TO_METERS, projection);
+    const northFeet = parseFloat(xFeet);
+    const eastFeet = parseFloat(yFeet);
+    if (!Number.isFinite(northFeet) || !Number.isFinite(eastFeet)) return [NaN, NaN];
+
+    const theaterSizeMeters = getTheaterSizeMeters();
+    const meterRes = theaterSizeMeters / BMS_HEIGHTMAP_SAMPLES;
+    const heightmapSizeMinusOne = BMS_HEIGHTMAP_SAMPLES - 1;
+    const gridOffset = heightmapSizeMinusOne / 2;
+    const ftToGrid = 1 / (meterRes * METERS_TO_FEET);
+
+    const gridY = -gridOffset + northFeet * ftToGrid;
+    const gridX = -gridOffset + eastFeet * ftToGrid;
+    let eastingMeters = gridX + 0.5 * heightmapSizeMinusOne;
+    let northingMeters = 0 - (gridY - 0.5 * heightmapSizeMinusOne);
+    eastingMeters *= meterRes;
+    northingMeters *= meterRes;
+    northingMeters = theaterSizeMeters - northingMeters;
+    return inverseTransverseMercator(eastingMeters, northingMeters, projection);
 }
 
 function convertCmpBullseyeToLatLng(rawX, rawY, gridSizeX, gridSizeY) {
@@ -1017,7 +1036,9 @@ function layerDefValue(layerDef, camelName, snakeName) {
 }
 
 function layerDefNumber(layerDef, camelName, snakeName, fallback) {
-    const value = Number(layerDefValue(layerDef, camelName, snakeName));
+    const raw = layerDefValue(layerDef, camelName, snakeName);
+    if (raw === "") return fallback;
+    const value = Number(raw);
     return Number.isFinite(value) ? value : fallback;
 }
 
@@ -1097,7 +1118,7 @@ function drawWebMap() {
         const layerOpacity = layerDefNumber(layerDef, "opacity", "opacity", 1);
         const tileLayer = L.tileLayer(layerUrlTemplate, {
             minZoom: 2,
-            maxZoom: WEB_TILE_MAX_ZOOM,
+            maxZoom: layerDefNumber(layerDef, "maxZoom", "max_zoom", WEB_TILE_MAX_ZOOM),
             maxNativeZoom: layerDefNumber(layerDef, "maxNativeZoom", "max_native_zoom", WEB_TILE_MAX_ZOOM),
             opacity: layerOpacity,
             tileSize: 256,

@@ -69,6 +69,10 @@
       margin: 0 auto;
     }
 
+    body.dtc-active .page-wrap {
+      max-width: none;
+    }
+
     header {
       display: flex;
       justify-content: space-between;
@@ -222,12 +226,16 @@
       display: block;
       width: 850px;
       max-width: 100%;
-      height: 70vh;
+      height: 75vh;
       margin: 0 auto;
       border: 1px solid rgb(255, 255, 255);
       border-radius: 0px;
       background: #0a1310;
       box-shadow: 0 0 0 1px rgba(58, 167, 255, 0.1);
+    }
+
+    .layout.dtc-active #brief-frame {
+      width: 100%;
     }
 
     .layout {
@@ -249,6 +257,25 @@
     .layout.collapsed .main-column {
       max-width: 960px;
       margin: 0 auto;
+    }
+
+    .layout.dtc-active {
+      grid-template-columns: minmax(0, 2.6fr) minmax(320px, 0.8fr);
+    }
+
+    .layout.dtc-active.collapsed {
+      grid-template-columns: 1fr;
+    }
+
+    .layout.dtc-active .main-column {
+      max-width: none;
+      width: 100%;
+      margin: 0;
+    }
+
+    .layout.dtc-active .mfd-flow,
+    .layout.dtc-active .mfd-layout {
+      display: none;
     }
 
     .main-column section:first-child,
@@ -529,12 +556,31 @@
       color: #ffffff;
     }
 
+    .preview-nav {
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
     .page-shortcuts {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
       gap: 0.5rem;
-      margin: 0 auto 0.5rem;
+      margin: 0 auto 0.35rem;
+    }
+
+    .view-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin: 0 auto 0.15rem;
+    }
+
+    .view-tabs button.is-active {
+      color: var(--line);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
     }
 
     .page-shortcuts button {
@@ -816,7 +862,13 @@
         </section>
 
         <section class="mfd-box mfd-page-nav">
-          <div class="page-shortcuts mfd-anchor" id="page-shortcuts"></div>
+          <div class="preview-nav mfd-anchor">
+            <div class="view-tabs" id="main-view-tabs">
+              <button id="briefing-view-btn" type="button">Briefing</button>
+              <button id="dtc-view-btn" type="button">DTC</button>
+            </div>
+            <div class="page-shortcuts" id="page-shortcuts"></div>
+          </div>
           <iframe id="brief-frame" src="/brief" title="Briefing preview"></iframe>
         </section>
 
@@ -1011,6 +1063,7 @@
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
     const CAM_LAST_SAVE_PATH_KEY = "cam_last_save_path";
     const APP_INSTANCE_SEEN_KEY = "app_instance_id_seen";
+    const MAIN_VIEW_STORAGE_KEY = "main_view";
     const CAM_SUPPORT_CELL_IDS = [
       "package_1", "package_2", "package_3", "package_4", "package_5", "package_6", "package_7", "package_30",
       "package_8", "package_9", "package_10", "package_11", "package_12", "package_13", "package_14", "package_31",
@@ -1043,6 +1096,7 @@
     let shutdownScreenShown = false;
     let logPollTimer = null;
     let statusPollTimer = null;
+    let currentMainView = localStorage.getItem(MAIN_VIEW_STORAGE_KEY) === "dtc" ? "dtc" : "briefing";
     const sectionLabels = {
       airbase: "Airbase",
       package: "Package",
@@ -1586,6 +1640,7 @@
 
     function setToolbarCollapsed(collapsed) {
       layoutEl.classList.toggle("collapsed", collapsed);
+      document.body.classList.toggle("settings-collapsed", collapsed);
       toggleToolbarBtn.textContent = collapsed ? "Show settings" : "Hide settings";
     }
     toggleToolbarBtn.addEventListener("click", () => {
@@ -2099,7 +2154,40 @@
     }
 
     const briefFrame = document.getElementById("brief-frame");
+    const briefingViewBtn = document.getElementById("briefing-view-btn");
+    const dtcViewBtn = document.getElementById("dtc-view-btn");
+
+    function previewFramePath(view = currentMainView) {
+      return view === "dtc" ? "/dtc" : "/brief";
+    }
+
+    function updateMainViewControls() {
+      const isDtc = currentMainView === "dtc";
+      if (briefingViewBtn) briefingViewBtn.classList.toggle("is-active", !isDtc);
+      if (dtcViewBtn) dtcViewBtn.classList.toggle("is-active", isDtc);
+      if (layoutEl) layoutEl.classList.toggle("dtc-active", isDtc);
+      document.body.classList.toggle("dtc-active", isDtc);
+      const shortcutBar = document.getElementById("page-shortcuts");
+      if (shortcutBar) shortcutBar.style.display = isDtc ? "none" : "";
+      if (briefFrame) briefFrame.title = isDtc ? "DTC management" : "Briefing preview";
+    }
+
+    function setMainView(view, options = {}) {
+      const nextView = view === "dtc" ? "dtc" : "briefing";
+      const changed = nextView !== currentMainView;
+      currentMainView = nextView;
+      localStorage.setItem(MAIN_VIEW_STORAGE_KEY, currentMainView);
+      updateMainViewControls();
+      if (!briefFrame) return;
+      const path = previewFramePath();
+      const framePath = new URL(briefFrame.src || path, window.location.origin).pathname;
+      if (changed || options.reload || framePath !== path) {
+        briefFrame.src = path + "?ts=" + Date.now();
+      }
+    }
+
     function callBriefing(fnName) {
+      if (currentMainView !== "briefing") return;
       const cw = briefFrame?.contentWindow;
       if (!cw) { log("Preview not ready"); return; }
       if (typeof cw[fnName] !== "function") { log(`Function ${fnName} not found in briefing page`); return; }
@@ -2133,6 +2221,14 @@
         saveCamSupportPackageIndex(selectedIndex);
       }
     });
+
+    if (briefingViewBtn) {
+      briefingViewBtn.addEventListener("click", () => setMainView("briefing"));
+    }
+    if (dtcViewBtn) {
+      dtcViewBtn.addEventListener("click", () => setMainView("dtc"));
+    }
+    setMainView(currentMainView, { reload: currentMainView === "dtc" });
 
     document.getElementById("save-edits-btn").addEventListener("click", () => {
       callBriefing("saveChangedData");
@@ -2188,7 +2284,7 @@
       if (resolveLoad) {
         timeoutId = setTimeout(() => resolveLoad(false), 6000);
       }
-      frame.src = "/brief?ts=" + Date.now();
+      frame.src = previewFramePath() + "?ts=" + Date.now();
       return loadPromise;
     }
 
@@ -2232,7 +2328,10 @@
       list.innerHTML = "";
       availableList.innerHTML = "";
       if (shortcutBar) shortcutBar.innerHTML = "";
-      if (!pages || pages.length === 0) return;
+      if (!pages || pages.length === 0) {
+        updateMainViewControls();
+        return;
+      }
 
       pages.forEach((p, idx) => {
         const opt = document.createElement("option");
@@ -2270,6 +2369,7 @@
         list.appendChild(li);
       });
       attachDnD();
+      updateMainViewControls();
     }
 
     function getAfterElement(list, y) {

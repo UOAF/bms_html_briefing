@@ -18,6 +18,7 @@ from fastapi.responses import Response
 from lib.bms_config import BmsConfig
 from lib.server.cam_routes import register_cam_routes
 from lib.server.config_routes import register_config_routes
+from lib.server.dtc_routes import register_dtc_routes
 from lib.server.export_routes import register_export_routes
 from lib.server.file_routes import register_file_routes
 from lib.server.pdf_routes import register_pdf_routes
@@ -115,7 +116,7 @@ def is_protected_request_path(path: str) -> bool:
     return (
         path == "/api"
         or path.startswith("/api/")
-        or path in {"/brief", "/pdf"}
+        or path in {"/brief", "/dtc", "/pdf"}
         or path.startswith("/kneeboards/")
     )
 
@@ -268,6 +269,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         get_runtime_template_path=get_runtime_template_path,
     )
     register_cam_routes(app, ensure_dirs=ensure_dirs, resolve_path=resolve_path)
+    register_dtc_routes(app, static_root=STATIC_ROOT)
     register_render_routes(
         app,
         ensure_dirs=ensure_dirs,
