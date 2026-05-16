@@ -1,0 +1,108 @@
+.interface-text-input:not([type="checkbox"]) {
+  box-sizing: border-box;
+  border: 2px solid var(--preview-line, #3f3f3f);
+  border-radius: 0;
+  background: var(--preview-panel, #0d0d0d);
+  color: var(--preview-text, #d4d4d4);
+  font-family: "Map Overlay Mono", "IBMPlexMono", "DejaVu Sans Mono", monospace;
+  font-size: 0.88rem;
+  font-weight: 400;
+  min-height: 2rem;
+  padding: 2px 6px;
+  letter-spacing: 0;
+  outline: none;
+}
+
+.interface-text-input:not([type="checkbox"])::placeholder {
+  color: rgba(212, 212, 212, 0.56);
+}
+
+.interface-text-input:not([type="checkbox"]):focus {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #000000;
+  box-shadow: none;
+}
+
+.interface-text-input:not([type="checkbox"])[readonly] {
+  color: rgba(212, 212, 212, 0.82);
+  border-color: var(--preview-line, #3f3f3f);
+}
+
+.interface-select {
+  box-sizing: border-box;
+  min-height: 2rem;
+  padding: 2px 1.9rem 2px 6px;
+  border: 2px solid var(--preview-line, #3f3f3f);
+  border-radius: 0;
+  background-color: var(--preview-panel, #0d0d0d);
+  color: var(--preview-text, #d4d4d4);
+  font-family: "Map Overlay Mono", "IBMPlexMono", "DejaVu Sans Mono", monospace;
+  font-size: 0.88rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 0.95rem) calc(50% - 0.1rem),
+    calc(100% - 0.62rem) calc(50% - 0.1rem);
+  background-size: 0.33rem 0.33rem, 0.33rem 0.33rem;
+  background-repeat: no-repeat;
+  color-scheme: dark;
+}
+
+.interface-select:focus {
+  border-color: var(--preview-accent, #80bfff);
+  background-color: var(--preview-panel, #0d0d0d);
+  color: var(--preview-text, #d4d4d4);
+  box-shadow: none;
+}
+
+.interface-select option {
+  background: #000000;
+  color: #ffffff;
+}
+
+.interface-cycle-button {
+  box-sizing: border-box;
+  min-height: 2rem;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 0;
+  background: var(--preview-bg, #070707);
+  color: var(--preview-text, #d4d4d4);
+  font-family: "Viper", "Briefing Sans", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+  cursor: pointer;
+  outline: none;
+}
+
+.interface-cycle-button:focus {
+  outline: none;
+}
+
+.interface-cycle-button:focus-visible {
+  outline: 1px solid var(--preview-accent, #80bfff);
+  outline-offset: 2px;
+}
+
+.interface-cycle-button:hover {
+  color: var(--preview-accent, #80bfff);
+  text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+}
+
+.interface-cycle-button:active,
+.interface-cycle-button.is-flashing {
+  background: #ffffff;
+  color: #000000;
+  text-shadow: none;
+}

@@ -1,6 +1,40 @@
+const SMS_FCC_CYCLE_OPTIONS = {
+    "FCC_AGB:Profile1_Submode": [
+        { value: "7", label: "CCIP" },
+        { value: "8", label: "CCRP" },
+        { value: "9", label: "DTOS" },
+        { value: "10", label: "LADD" },
+    ],
+    "FCC_AGB:Profile2_Submode": [
+        { value: "7", label: "CCIP" },
+        { value: "8", label: "CCRP" },
+        { value: "9", label: "DTOS" },
+        { value: "10", label: "LADD" },
+    ],
+    "FCC_AGB:Profile1_Fuze": [
+        { value: "1", label: "NOSE" },
+        { value: "2", label: "TAIL" },
+        { value: "0", label: "NSTL" },
+    ],
+    "FCC_AGB:Profile2_Fuze": [
+        { value: "1", label: "NOSE" },
+        { value: "2", label: "TAIL" },
+        { value: "0", label: "NSTL" },
+    ],
+    "FCC_AGB:Profile1_SGL/PAIR": [
+        { value: "0", label: "SGL" },
+        { value: "1", label: "PAIR" },
+    ],
+    "FCC_AGB:Profile2_SGL/PAIR": [
+        { value: "0", label: "SGL" },
+        { value: "1", label: "PAIR" },
+    ],
+};
+
 window.onload = function()
 {
     bindClipboardImagePasteHandlers();
+    bindSmsFccCycleFields();
     saveContenteditablesDefaults();
 
     var restore = localStorage.getItem("onrefresh");
@@ -15,7 +49,61 @@ window.onload = function()
 }
 
 function getPersistentContenteditableElements() {
-    return document.querySelectorAll('[contenteditable="true"]:not([data-local-storage="ignore"])');
+    return document.querySelectorAll('[contenteditable="true"]:not([data-local-storage="ignore"]), [data-persistent-field="true"]:not([data-local-storage="ignore"])');
+}
+
+function smsFccKey(el) {
+    if (!el || !el.dataset) {
+        return "";
+    }
+    return (el.dataset.smsFccSection || "") + ":" + (el.dataset.smsFccField || "");
+}
+
+function getSmsFccCycleOptions(el) {
+    return SMS_FCC_CYCLE_OPTIONS[smsFccKey(el)] || [];
+}
+
+function renderSmsFccCycleField(el, rawValue) {
+    const options = getSmsFccCycleOptions(el);
+    if (!el || !options.length) {
+        return;
+    }
+    const rawText = String(rawValue == null ? el.textContent : rawValue).trim();
+    const cleanValue = rawText.replace(/^MODE:\s*/i, "");
+    const selected = options.find((option) => option.value === cleanValue || option.label.toUpperCase() === cleanValue.toUpperCase()) || options[0];
+    el.dataset.smsFccValue = selected.value;
+    el.textContent = el.id && el.id.startsWith("sms_mode_") ? "MODE: " + selected.label : selected.label;
+    el.title = options.map((option) => option.label).join(" / ");
+}
+
+function cycleSmsFccField(el) {
+    const options = getSmsFccCycleOptions(el);
+    if (!el || !options.length) {
+        return;
+    }
+    const currentLabel = el.textContent.trim().replace(/^MODE:\s*/i, "");
+    const currentIndex = options.findIndex((option) => option.value === el.dataset.smsFccValue || option.label === currentLabel);
+    const next = options[((currentIndex >= 0 ? currentIndex : 0) + 1) % options.length];
+    renderSmsFccCycleField(el, next.value);
+    saveChangedData();
+}
+
+function bindSmsFccCycleFields() {
+    document.querySelectorAll(".sms-cycle-field[data-sms-fcc-section][data-sms-fcc-field]").forEach((el) => {
+        renderSmsFccCycleField(el);
+        if (el.dataset.smsFccBound === "1") {
+            return;
+        }
+        el.dataset.smsFccBound = "1";
+        el.addEventListener("click", () => cycleSmsFccField(el));
+        el.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== " ") {
+                return;
+            }
+            event.preventDefault();
+            cycleSmsFccField(el);
+        });
+    });
 }
 
 function insertNodeAtCursor(node, fallbackContainer) {
@@ -159,6 +247,7 @@ function saveContenteditablesDefaults() {
 
 function loadChangedData() {
     loadContenteditables();
+    bindSmsFccCycleFields();
     loadImages();
 }
 

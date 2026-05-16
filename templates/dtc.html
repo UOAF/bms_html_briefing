@@ -1,0 +1,3443 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DTC Management</title>
+  <link rel="stylesheet" href="/templates/style_preview.css">
+  <link rel="stylesheet" href="/templates/interface.css">
+  <link rel="stylesheet" href="/dist/leaflet/leaflet.css">
+  <script src="/dist/leaflet/leaflet.js"></script>
+  <style>
+    @font-face {
+      font-family: "Viper";
+      src: url("/assets/fonts/viper-display/ViperDisplay-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "Viper";
+      src: url("/assets/fonts/viper-display/ViperDisplay-Bold.ttf") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+    :root {
+      color-scheme: dark;
+      --dtc-hover: #111c2a;
+      --dtc-hover-border: #496f94;
+      --dtc-selected: #172d45;
+      --dtc-selected-border: #80bfff;
+      --dtc-muted: #8f9aa5;
+      --dtc-frame: #e9eef3;
+      --dtc-frame-soft: #7f8b96;
+      --dtc-mfd-bg: var(--preview-bg);
+      --dtc-mfd-panel: var(--preview-panel);
+    }
+    body {
+      --map-height: min(70vh, 760px);
+      margin: 0;
+      padding: 8px;
+      background: var(--preview-bg);
+      color: var(--preview-text);
+    }
+    table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+    table,
+    th,
+    td {
+      text-align: center;
+      vertical-align: middle;
+      padding: 3px;
+    }
+    th,
+    td {
+      border: 2px solid var(--preview-line);
+    }
+    td {
+      height: 1.7em;
+    }
+    .header {
+      font-weight: 700;
+    }
+    .dtc-panel-heading {
+      border: 2px solid var(--dtc-frame);
+      background: var(--dtc-mfd-bg);
+      color: var(--preview-text);
+      font-family: "Viper", "Briefing Sans", sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .dtc-panel-heading {
+      margin-bottom: 10px;
+      padding: 5px 8px;
+      font-size: 0.92rem;
+    }
+    .dtc-main-tabs {
+      --dtc-tab-gap: 1rem;
+      --dtc-tab-py: 0.18rem;
+      --dtc-tab-px: 0.4rem;
+      --dtc-tab-cutout-x: 0.45rem;
+      --dtc-tab-cutout-top: 0.6rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: var(--dtc-tab-gap);
+      margin: 0 auto 0.15rem;
+      padding: 0 0.6rem;
+    }
+    .dtc-layout {
+      display: grid;
+      grid-template-columns: minmax(600px, 680px) minmax(520px, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+    .dtc-panel {
+      min-width: 0;
+    }
+    .dtc-tab-button {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      width: auto;
+      border: none;
+      background: var(--preview-bg);
+      color: var(--preview-text);
+      font-family: "Viper", "Briefing Sans", sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: var(--dtc-tab-py) var(--dtc-tab-px);
+      cursor: pointer;
+      text-transform: uppercase;
+      white-space: nowrap;
+      box-shadow: none;
+      transition:
+        transform 80ms ease,
+        box-shadow 120ms ease,
+        background 120ms ease,
+        color 120ms ease;
+    }
+    .dtc-tab-button::before {
+      content: "";
+      position: absolute;
+      left: calc(-1 * var(--dtc-tab-cutout-x));
+      right: calc(-1 * var(--dtc-tab-cutout-x));
+      top: calc(-1 * var(--dtc-tab-cutout-top) + 0.02rem);
+      height: var(--dtc-tab-cutout-top);
+      background: var(--preview-bg);
+      pointer-events: none;
+    }
+    .dtc-tab-button:hover,
+    .dtc-tab-button.is-active {
+      transform: none;
+      background: var(--preview-bg);
+      color: var(--preview-accent);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+      box-shadow: none;
+    }
+    .dtc-tab-button:active {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+      box-shadow: none;
+    }
+    .dtc-tab-button:focus-visible {
+      outline: 1px solid var(--preview-accent);
+      outline-offset: 2px;
+    }
+    .dtc-left-pane[hidden] {
+      display: none;
+    }
+    .dtc-page-pane[hidden] {
+      display: none;
+    }
+    .dtc-section[hidden] {
+      display: none;
+    }
+    .dtc-steerpoint-table tbody tr[data-dtc-map-x] {
+      cursor: pointer;
+    }
+    .dtc-steerpoint-table tbody tr[data-dtc-map-x]:hover {
+      background: var(--dtc-hover);
+    }
+    .dtc-steerpoint-table tbody tr.is-selected {
+      background: var(--dtc-selected);
+    }
+    .dtc-steerpoint-table tbody tr[data-dtc-map-x]:hover td {
+      background: var(--dtc-hover);
+      border-color: var(--dtc-hover-border);
+    }
+    .dtc-steerpoint-table tbody tr.is-selected td {
+      background: var(--dtc-selected);
+      border-color: var(--dtc-selected-border);
+    }
+    .dtc-steerpoint-table tbody tr[data-dtc-map-x]:hover td,
+    .dtc-steerpoint-table tbody tr.is-selected td {
+      position: relative;
+      z-index: 1;
+    }
+    .dtc-steerpoint-table tbody tr[data-dtc-map-x]:hover td::before,
+    .dtc-steerpoint-table tbody tr.is-selected td::before {
+      content: "";
+      position: absolute;
+      left: -2px;
+      right: -2px;
+      top: -2px;
+      border-top: 2px solid var(--dtc-hover-border);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .dtc-steerpoint-table tbody tr.is-selected td::before {
+      border-top-color: var(--dtc-selected-border);
+    }
+    .dtc-section-row th {
+      text-align: left;
+      padding-left: 8px;
+    }
+    .dtc-section-gap td {
+      height: 8px;
+      padding: 0;
+      border-left-color: transparent;
+      border-right-color: transparent;
+      background: var(--preview-bg);
+    }
+    .dtc-label {
+      width: 30%;
+    }
+    .dtc-stpt-number {
+      white-space: nowrap;
+    }
+    .dtc-stpt-marker {
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 0.7rem;
+      color: var(--preview-accent);
+      margin-left: 2px;
+      vertical-align: super;
+    }
+    .dtc-label-text {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dtc-coords {
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+    .dtc-map-panel {
+      min-width: 0;
+    }
+    .dtc-offset-panel {
+      margin-top: 10px;
+    }
+    .dtc-popup-panel {
+      margin-top: 0;
+    }
+    .dtc-page.is-popup-active .dtc-popup-panel {
+      display: flex;
+      min-height: calc(var(--map-height) + 8.5em);
+      flex-direction: column;
+    }
+    .dtc-icp-panel {
+      box-sizing: border-box;
+      border: 2px solid var(--dtc-frame);
+      background: var(--preview-bg);
+      padding: 10px;
+    }
+    .dtc-icp-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(150px, max-content));
+      gap: 10px 18px;
+      justify-content: start;
+    }
+    .dtc-laser-grid {
+      display: grid;
+      grid-template-columns: minmax(120px, max-content);
+      gap: 10px 18px;
+      justify-content: start;
+    }
+    .dtc-icp-input {
+      width: 8.5em;
+      height: 2rem;
+      padding: 2px 6px;
+      text-align: center;
+    }
+    .dtc-icp-cycle {
+      width: max-content;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .dtc-laser-input {
+      width: 8.5em;
+      height: 2rem;
+      padding: 2px 6px;
+      text-align: center;
+    }
+    .dtc-icp-status {
+      min-height: 1.3em;
+      color: var(--dtc-muted);
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .dtc-icp-fcc-grid {
+      display: grid;
+      grid-template-columns: repeat(3, max-content);
+      gap: 14px 18px;
+      align-items: start;
+      justify-content: start;
+    }
+    .dtc-fcc-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(320px, max-content));
+      gap: 14px 18px;
+      align-items: start;
+      max-width: none;
+    }
+    .dtc-icp-fcc-grid .dtc-fcc-grid {
+      display: contents;
+    }
+    .dtc-fcc-half-column {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      align-items: start;
+      min-width: 0;
+      width: max-content;
+    }
+    .dtc-fcc-half-column .dtc-fcc-group {
+      margin: 0;
+    }
+    .dtc-fcc-half-column .dtc-fcc-cycle {
+      min-width: 0;
+      max-width: 100%;
+    }
+    .dtc-fcc-half-column .dtc-fcc-input {
+      width: 6.5em;
+    }
+    .dtc-icp-fcc-grid > .dtc-offset-actions,
+    .dtc-icp-fcc-grid > .dtc-fcc-status {
+      grid-column: 1 / -1;
+    }
+    .dtc-fcc-group {
+      position: relative;
+      border: 2px solid var(--dtc-frame);
+      background: var(--preview-bg);
+      padding: 10px 12px 24px;
+      margin: 0 0 10px;
+      min-width: 0;
+    }
+    .dtc-fcc-group legend {
+      padding: 0 6px;
+      margin-bottom: 4px;
+      color: var(--preview-text);
+      background: var(--preview-bg);
+      font-family: "Viper", "Briefing Sans", sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .dtc-fcc-section-save {
+      position: absolute;
+      right: 12px;
+      bottom: -8px;
+      width: max-content;
+      border: none;
+      background: var(--preview-bg);
+      color: var(--preview-text);
+      font-family: "Viper", "Briefing Sans", sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 0 7px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .dtc-fcc-section-save:hover {
+      color: var(--preview-accent);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+    }
+    .dtc-fcc-section-save:active {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+    }
+    .dtc-fcc-group .dtc-fcc-group {
+      margin-top: 10px;
+      border-color: var(--dtc-frame-soft);
+      background: transparent;
+    }
+    .dtc-fcc-agb-group {
+      grid-column: 1 / -1;
+    }
+    .dtc-fcc-agb-profiles {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(320px, max-content));
+      gap: 14px 18px;
+      align-items: start;
+    }
+    .dtc-fcc-profile {
+      min-width: 0;
+    }
+    .dtc-fcc-profile-title {
+      margin: 0 0 8px;
+      color: var(--preview-text);
+      font-family: "Viper", "Briefing Sans", sans-serif;
+      font-size: 0.84rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .dtc-fcc-profile-grid,
+    .dtc-fcc-subgroups {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 14px;
+      align-items: start;
+    }
+    .dtc-fcc-subgroups {
+      margin-top: 10px;
+    }
+    .dtc-fcc-subgroups .dtc-fcc-group {
+      margin-top: 0;
+    }
+    .dtc-fcc-row {
+      display: grid;
+      grid-template-columns: max-content auto;
+      align-items: end;
+      gap: 6px;
+      margin-top: 8px;
+      min-width: 0;
+      justify-content: start;
+    }
+    .dtc-fcc-row label {
+      grid-column: 1 / -1;
+      display: block;
+      font-size: 0.8rem;
+      color: var(--dtc-muted);
+      text-align: left;
+      text-transform: uppercase;
+      font-weight: 400;
+    }
+    .dtc-fcc-input {
+      box-sizing: border-box;
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 0.88rem;
+      height: 2rem;
+      padding: 2px 6px;
+    }
+    .dtc-fcc-input {
+      width: 7.5em;
+      text-align: center;
+    }
+    .dtc-fcc-cycle {
+      width: max-content;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .dtc-fcc-unit {
+      color: var(--dtc-muted);
+      font-size: 0.74rem;
+      text-align: left;
+      text-transform: uppercase;
+      min-width: 36px;
+      align-self: center;
+    }
+    .dtc-fcc-status {
+      min-height: 1.3em;
+      color: var(--dtc-muted);
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .dtc-offset-panel[hidden],
+    .dtc-popup-panel[hidden],
+    .dtc-offset-row[hidden],
+    #dtc-modesel-toggle[hidden] {
+      display: none;
+    }
+    .dtc-offset-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .dtc-offset-button {
+      border: none;
+      background: var(--preview-bg);
+      color: var(--preview-text);
+      font-family: "Viper", "Briefing Sans", sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 3px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .dtc-offset-button:hover {
+      color: var(--preview-accent);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+    }
+    .dtc-offset-button:disabled,
+    .dtc-offset-button:disabled:hover {
+      color: #606f7d;
+      cursor: not-allowed;
+      text-shadow: none;
+    }
+    .dtc-offset-button.is-active,
+    .dtc-offset-button:active {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+    }
+    .dtc-offset-input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 0;
+      background: transparent;
+      color: var(--preview-text);
+      font: inherit;
+      text-align: center;
+      outline: none;
+    }
+    .dtc-offset-input:focus {
+      background: #ffffff;
+      color: #000000;
+    }
+    .dtc-offset-clear {
+      width: 100%;
+    }
+    .dtc-popup-section {
+      margin-top: 8px;
+    }
+    .dtc-popup-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(210px, max-content));
+      gap: 10px 18px;
+      justify-content: start;
+    }
+    .dtc-popup-grid.is-setup {
+      grid-template-columns: repeat(4, minmax(120px, max-content));
+    }
+    .dtc-page.is-popup-active .dtc-popup-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 16px;
+      justify-content: start;
+    }
+    .dtc-page.is-popup-active .dtc-popup-grid.is-setup {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px 12px;
+    }
+    .dtc-popup-field {
+      min-width: 0;
+    }
+    .dtc-popup-field label {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 0.8rem;
+      color: var(--dtc-muted);
+      text-transform: uppercase;
+    }
+    .dtc-popup-output {
+      box-sizing: border-box;
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 0.88rem;
+    }
+    .dtc-popup-output {
+      border: 2px solid var(--preview-line);
+      background: var(--preview-panel);
+      color: var(--preview-text);
+    }
+    .dtc-popup-input,
+    .dtc-popup-clicker {
+      width: 9.5em;
+    }
+    .dtc-popup-clicker {
+      width: max-content;
+      min-width: 0;
+      max-width: 13em;
+    }
+    .dtc-page.is-popup-active .dtc-popup-clicker {
+      width: max-content;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .dtc-popup-output {
+      width: 100%;
+    }
+    .dtc-popup-input:disabled {
+      color: var(--dtc-muted);
+      border-color: #2f2f2f;
+      cursor: not-allowed;
+    }
+    .dtc-slider-field {
+      display: grid;
+      grid-template-columns: 12em 5.2em auto;
+      gap: 6px;
+      align-items: center;
+      justify-content: start;
+    }
+    .dtc-page.is-popup-active .dtc-slider-field {
+      grid-template-columns: minmax(130px, 1fr) 5.2em auto;
+      justify-content: stretch;
+    }
+    .dtc-popup-slider {
+      width: 100%;
+      min-width: 0;
+      accent-color: var(--preview-accent);
+    }
+    .dtc-popup-slider-value {
+      width: 100%;
+      min-width: 0;
+      min-height: 2rem;
+      text-align: center;
+    }
+    .dtc-popup-slider-unit {
+      color: var(--dtc-muted);
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+    .dtc-popup-output {
+      min-height: 8.5rem;
+      margin-top: 8px;
+      padding: 8px;
+      resize: vertical;
+      line-height: 1.28;
+    }
+    .dtc-page.is-popup-active .dtc-popup-output {
+      flex: 1 1 auto;
+      height: auto;
+    }
+    .dtc-popup-status {
+      min-height: 1.2rem;
+      margin-top: 4px;
+      color: var(--dtc-muted);
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 0.78rem;
+      text-align: center;
+    }
+    #dtc-page-icp-fcc .dtc-popup-section {
+      margin-top: 14px;
+      border: 2px solid var(--dtc-frame);
+      background: var(--preview-bg);
+      padding: 0 12px 12px;
+    }
+    #dtc-page-icp-fcc .dtc-popup-section-title {
+      display: inline-block;
+      margin: -0.72em 0 8px -4px;
+      padding: 0 6px;
+      color: var(--preview-text);
+      background: var(--preview-bg);
+    }
+    #dtc-page-icp-fcc .dtc-offset-button {
+      border: 2px solid var(--dtc-frame);
+      background: var(--dtc-mfd-bg);
+      color: var(--preview-text);
+      padding: 4px 12px;
+    }
+    #dtc-page-icp-fcc .dtc-offset-button:hover {
+      color: var(--preview-text);
+      border-color: var(--preview-accent);
+      background: var(--preview-panel);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+    }
+    #dtc-page-icp-fcc .dtc-offset-button:active {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+    }
+    .dtc-map-panel table th,
+    .dtc-map-panel table td {
+      border: 2px solid var(--preview-line);
+    }
+    .dtc-map-panel .map-source-select {
+      border-color: var(--preview-line);
+      background: var(--preview-panel);
+      color: var(--preview-text);
+    }
+    .dtc-selected-point {
+      filter: drop-shadow(0 0 6px #66baff);
+    }
+    .dtc-offset-map-icon {
+      width: 26px !important;
+      height: 26px !important;
+      margin-left: -13px !important;
+      margin-top: -13px !important;
+      color: #000000;
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95));
+    }
+    .dtc-offset-map-icon::before {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      background: #e8f3ff;
+      border: 2px solid #000000;
+      box-sizing: border-box;
+      z-index: -1;
+    }
+    .dtc-offset-map-icon.is-tgt::before {
+      border-radius: 0;
+    }
+    .dtc-offset-map-icon.is-oa::before {
+      inset: 3px 5px;
+      clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    }
+    .dtc-offset-map-icon.is-pup::before {
+      border-radius: 999px;
+    }
+    .dtc-offset-map-icon.is-vip::before,
+    .dtc-offset-map-icon.is-vrp::before {
+      transform: rotate(45deg);
+    }
+    .dtc-offset-map-icon.is-vip::before {
+      background: #bfe3ff;
+    }
+    .dtc-offset-map-icon.is-vrp::before {
+      background: #d5f7df;
+    }
+    .dtc-offset-map-icon.is-action::before,
+    .dtc-offset-map-icon.is-pdp::before {
+      inset: 7px;
+      border-radius: 999px;
+      background: #ffe680;
+    }
+    .dtc-popup-map-icon::before {
+      background: #ffe680;
+    }
+    .dtc-popup-map-icon {
+      cursor: pointer;
+    }
+    .dtc-drag-offset-tooltip {
+      padding: 2px 4px;
+      border: 1px solid #000000;
+      background: rgba(232, 243, 255, 0.92);
+      color: #000000;
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.15;
+      white-space: nowrap;
+      box-shadow: none;
+    }
+    .dtc-drag-offset-tooltip::before {
+      display: none;
+    }
+    .dtc-stpt-hit-icon {
+      width: 34px !important;
+      height: 34px !important;
+      margin-left: -17px !important;
+      margin-top: -17px !important;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+    @media (max-width: 900px) {
+      .dtc-layout {
+        grid-template-columns: 1fr;
+      }
+      .dtc-popup-grid,
+      .dtc-popup-grid.is-setup {
+        grid-template-columns: repeat(2, minmax(120px, max-content));
+      }
+      .dtc-fcc-grid {
+        grid-template-columns: 1fr;
+      }
+      .dtc-icp-fcc-grid {
+        grid-template-columns: 1fr;
+      }
+      .dtc-fcc-profile-grid,
+      .dtc-fcc-subgroups,
+      .dtc-fcc-half-column,
+      .dtc-fcc-agb-profiles {
+        grid-template-columns: 1fr;
+      }
+      .dtc-slider-field {
+        grid-template-columns: minmax(8em, 1fr) 5.2em auto;
+      }
+      body {
+        --map-height: 520px;
+      }
+    }
+  </style>
+</head>
+<body class="dtc-page">
+  <div class="dtc-main-tabs" role="tablist" aria-label="DTC page">
+    <button type="button" class="dtc-tab-button is-active" data-dtc-page-tab="steerpoints">Steerpoints</button>
+    <button type="button" class="dtc-tab-button" data-dtc-page-tab="popup">Pop-up</button>
+    <button type="button" class="dtc-tab-button" data-dtc-page-tab="icp-fcc">ICP/FCC</button>
+  </div>
+
+  <section id="dtc-page-steerpoints" class="dtc-section dtc-page-pane">
+    <div class="dtc-layout">
+      <div class="dtc-panel">
+        <div class="dtc-left-pane" id="dtc-left-steerpoints">
+        <table class="dtc-steerpoint-table">
+          <colgroup>
+            <col style="width: 8%;">
+            <col style="width: 32%;">
+            <col style="width: 17%;">
+            <col style="width: 17%;">
+            <col style="width: 26%;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Label</th>
+              <th>Lat</th>
+              <th>Lon</th>
+              <th>ELEV (FT)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="dtc-section-row"><th colspan="5">Flight path steerpoints</th></tr>
+            {% for stpt in stpt_coords %}
+            <tr data-dtc-map-x="{{ stpt.coord_x }}" data-dtc-map-y="{{ stpt.coord_y }}" data-dtc-map-z="{{ stpt.coord_z }}" data-dtc-label="STPT {{ stpt.number }}" data-dtc-stpt-number="{{ stpt.number }}">
+              <td class="dtc-stpt-number"><span class="dtc-stpt-number-text">{{ stpt.number }}</span><span class="dtc-stpt-marker" aria-hidden="true"></span></td>
+              <td class="dtc-label" title="Action {{ stpt.action|e }}"><span class="dtc-label-text">{{ stpt.action_name|e }}</span></td>
+              <td class="dtc-coords dtc-lat" title="Raw X: {{ stpt.coord_x }}">{{ stpt.coord_x }}</td>
+              <td class="dtc-coords dtc-lon" title="Raw Y: {{ stpt.coord_y }}">{{ stpt.coord_y }}</td>
+              <td class="dtc-coords dtc-z" title="Raw Z: {{ stpt.coord_z }}">{{ stpt.coord_z }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No flight path steerpoints found</td></tr>
+            {% endfor %}
+
+            <tr class="dtc-section-gap"><td colspan="5"></td></tr>
+            <tr class="dtc-section-row"><th colspan="5">Threat steerpoints</th></tr>
+            {% for stpt in tstpt_coords %}
+            <tr data-dtc-map-x="{{ stpt.coord_x }}" data-dtc-map-y="{{ stpt.coord_y }}" data-dtc-map-z="{{ stpt.coord_z }}" data-dtc-label="{{ stpt.name|e }}" data-dtc-stpt-number="{{ stpt.number }}">
+              <td class="dtc-stpt-number"><span class="dtc-stpt-number-text">{{ stpt.number }}</span><span class="dtc-stpt-marker" aria-hidden="true"></span></td>
+              <td class="dtc-label" title="{{ stpt.name|e }}"><span class="dtc-label-text">{{ stpt.name|e }}</span></td>
+              <td class="dtc-coords dtc-lat" title="Raw X: {{ stpt.coord_x }}">{{ stpt.coord_x }}</td>
+              <td class="dtc-coords dtc-lon" title="Raw Y: {{ stpt.coord_y }}">{{ stpt.coord_y }}</td>
+              <td class="dtc-coords dtc-z" title="Raw Z: {{ stpt.coord_z }}">{{ stpt.coord_z }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No threat steerpoints found</td></tr>
+            {% endfor %}
+
+            <tr class="dtc-section-gap"><td colspan="5"></td></tr>
+            <tr class="dtc-section-row"><th colspan="5">Target steerpoints</th></tr>
+            {% for stpt in tgtsteerpoints %}
+            <tr data-dtc-map-x="{{ stpt.coord_x }}" data-dtc-map-y="{{ stpt.coord_y }}" data-dtc-map-z="{{ stpt.coord_z }}" data-dtc-label="{{ stpt.name|e }}" data-dtc-stpt-number="{{ stpt.number }}">
+              <td class="dtc-stpt-number"><span class="dtc-stpt-number-text">{{ stpt.number }}</span><span class="dtc-stpt-marker" aria-hidden="true"></span></td>
+              <td class="dtc-label" title="{{ stpt.name|e }}"><span class="dtc-label-text">{{ stpt.name|e }}</span></td>
+              <td class="dtc-coords dtc-lat" title="Raw X: {{ stpt.coord_x }}">{{ stpt.coord_x }}</td>
+              <td class="dtc-coords dtc-lon" title="Raw Y: {{ stpt.coord_y }}">{{ stpt.coord_y }}</td>
+              <td class="dtc-coords dtc-z" title="Raw Z: {{ stpt.coord_z }}">{{ stpt.coord_z }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No target steerpoints found</td></tr>
+            {% endfor %}
+
+            <tr class="dtc-section-gap"><td colspan="5"></td></tr>
+            <tr class="dtc-section-row"><th colspan="5">Weapon targets</th></tr>
+            {% for stpt in wpntgts %}
+            <tr data-dtc-display-x="{{ stpt.coord_x }}" data-dtc-display-y="{{ stpt.coord_y }}" data-dtc-display-z="{{ stpt.coord_z }}" data-dtc-label="{{ stpt.name|e }}">
+              <td class="dtc-stpt-number"><span class="dtc-stpt-number-text">{{ stpt.number }}</span></td>
+              <td class="dtc-label" title="{{ stpt.name|e }}"><span class="dtc-label-text">{{ stpt.name|e }}</span></td>
+              <td class="dtc-coords dtc-lat" title="Raw X: {{ stpt.coord_x }}">{{ stpt.coord_x }}</td>
+              <td class="dtc-coords dtc-lon" title="Raw Y: {{ stpt.coord_y }}">{{ stpt.coord_y }}</td>
+              <td class="dtc-coords dtc-z" title="Raw Z: {{ stpt.coord_z }}">{{ stpt.coord_z }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No weapon targets found</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <div class="dtc-left-pane dtc-popup-panel" id="dtc-left-popup" hidden>
+          <table>
+            <tr><th class="header">Pop-up attack computer <span id="dtc-popup-stpt-label"></span></th></tr>
+          </table>
+          <div class="dtc-popup-section">
+            <div class="dtc-popup-grid is-setup">
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-ref-mode">Reference</label>
+                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-ref-mode" data-popup-field="referenceMode" data-popup-value="vrp">VRP</button>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-range-model">Range model</label>
+                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-range-model" data-popup-field="rangeModel" data-popup-value="low_drag">Low drag</button>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-side">Turn to target</label>
+                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-side" data-popup-field="side" data-popup-value="right">Right</button>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-g-profile">G profile</label>
+                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-g-profile" data-popup-field="gProfile" data-popup-value="low">3-3.5 G</button>
+              </div>
+            </div>
+          </div>
+          <div class="dtc-popup-section">
+            <div class="dtc-popup-grid">
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-dive">Dive angle</label>
+                <div class="dtc-slider-field">
+                  <input class="dtc-popup-slider" id="dtc-popup-dive" data-popup-field="diveAngle" type="range" min="5" max="45" step="1" value="15" data-slider-unit="°">
+                  <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="diveAngle" inputmode="decimal"><span class="dtc-popup-slider-unit">deg</span>
+                </div>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-release-alt">Release alt AGL</label>
+                <div class="dtc-slider-field">
+                  <input class="dtc-popup-slider" id="dtc-popup-release-alt" data-popup-field="releaseAltitude" type="range" min="500" max="10000" step="100" value="2000" data-slider-unit=" ft">
+                  <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="releaseAltitude" inputmode="decimal"><span class="dtc-popup-slider-unit">ft</span>
+                </div>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-ingress-alt">Ingress alt AGL</label>
+                <div class="dtc-slider-field">
+                  <input class="dtc-popup-slider" id="dtc-popup-ingress-alt" data-popup-field="ingressAltitude" type="range" min="0" max="5000" step="100" value="500" data-slider-unit=" ft">
+                  <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="ingressAltitude" inputmode="decimal"><span class="dtc-popup-slider-unit">ft</span>
+                </div>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-release-speed">Release speed KTAS</label>
+                <div class="dtc-slider-field">
+                  <input class="dtc-popup-slider" id="dtc-popup-release-speed" data-popup-field="releaseSpeed" type="range" min="300" max="650" step="5" value="520" data-slider-unit=" kt">
+                  <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="releaseSpeed" inputmode="decimal"><span class="dtc-popup-slider-unit">kt</span>
+                </div>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-final-time">Time on final</label>
+                <div class="dtc-slider-field">
+                  <input class="dtc-popup-slider" id="dtc-popup-final-time" data-popup-field="timeOnFinal" type="range" min="0" max="20" step="1" value="5" data-slider-unit=" sec">
+                  <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="timeOnFinal" inputmode="decimal"><span class="dtc-popup-slider-unit">sec</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="dtc-popup-section">
+            <div class="dtc-popup-grid">
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-heading-mode">Heading source</label>
+                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-heading-mode" data-popup-field="headingMode" data-popup-value="attack">Attack HDG</button>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-heading">Heading</label>
+                <div class="dtc-slider-field">
+                  <input class="dtc-popup-slider" id="dtc-popup-heading" data-popup-field="heading" type="range" min="0" max="359" step="1" value="0" data-slider-unit="°">
+                  <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="heading" inputmode="decimal"><span class="dtc-popup-slider-unit">deg</span>
+                </div>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-action-range">Action range NM</label>
+                <div class="dtc-slider-field">
+                  <input class="dtc-popup-slider" id="dtc-popup-action-range" data-popup-field="actionRangeNm" type="range" min="1" max="10" step="0.1" value="4.5" data-slider-unit=" NM">
+                  <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="actionRangeNm" inputmode="decimal"><span class="dtc-popup-slider-unit">NM</span>
+                </div>
+              </div>
+              <div class="dtc-popup-field">
+                <label for="dtc-popup-bomb-range">Bomb range</label>
+                <input class="dtc-popup-input interface-text-input" id="dtc-popup-bomb-range" data-popup-field="bombRange" inputmode="decimal" value="5138">
+              </div>
+            </div>
+          </div>
+          <textarea class="dtc-popup-output" id="dtc-popup-output" readonly></textarea>
+          <div class="dtc-offset-actions">
+            <button type="button" class="dtc-offset-button" id="dtc-popup-apply">SET PUP/OA</button>
+          </div>
+          <div class="dtc-popup-status" id="dtc-popup-status"></div>
+        </div>
+      </div>
+
+      <div class="dtc-map-panel">
+        {% include "map.html" %}
+        <div class="dtc-offset-panel" id="dtc-offset-panel" hidden>
+          <table>
+            <tr><th class="header">Offset aimpoints <span id="dtc-offset-stpt-label"></span></th></tr>
+          </table>
+          <div class="dtc-offset-actions">
+            <button type="button" class="dtc-offset-button" id="dtc-add-oa">ADD OA</button>
+            <button type="button" class="dtc-offset-button" id="dtc-vip-toggle">SET AS VIP</button>
+            <button type="button" class="dtc-offset-button" id="dtc-vrp-toggle">SET AS VRP</button>
+            <button type="button" class="dtc-offset-button" id="dtc-modesel-toggle" title="VIP/VRP mode selector. Click to cycle NONE, VIP, VRP." hidden>NONE</button>
+          </div>
+          <table class="dtc-offset-table">
+            <colgroup>
+              <col style="width: 24%;">
+              <col style="width: 20%;">
+              <col style="width: 20%;">
+              <col style="width: 20%;">
+              <col style="width: 16%;">
+            </colgroup>
+            <thead>
+              <tr>
+                <th></th>
+                <th>RNG</th>
+                <th>BRG</th>
+                <th>ELEV</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row_key, row_label in [("oa1", "OA1"), ("oa2", "OA2"), ("vip", "VIP-TO-TGT"), ("vippup", "VIP-TO-PUP"), ("vrp", "TGT-TO-VRP"), ("vrppup", "TGT-TO-PUP")] %}
+              <tr class="dtc-offset-row" data-offset-row="{{ row_key }}" hidden>
+                <th>{{ row_label }}</th>
+                <td><input class="dtc-offset-input" data-offset-field="rng" inputmode="decimal" autocomplete="off"></td>
+                <td><input class="dtc-offset-input" data-offset-field="brg" inputmode="decimal" autocomplete="off"></td>
+                <td><input class="dtc-offset-input" data-offset-field="elev" inputmode="decimal" autocomplete="off"></td>
+                <td><button type="button" class="dtc-offset-button dtc-offset-clear">CLR</button></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="dtc-offset-actions">
+            <button type="button" class="dtc-offset-button" id="dtc-save-nav-offsets">SAVE TO .INI</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="dtc-page-icp-fcc" class="dtc-section dtc-page-pane" hidden>
+    <div class="dtc-icp-fcc-grid">
+    <fieldset class="dtc-fcc-group dtc-icp-panel">
+      <legend>ICP Settings</legend>
+        <div class="dtc-icp-grid">
+          <div class="dtc-fcc-row">
+            <label for="dtc-icp-wingspan">Manual Wingspan</label>
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-wingspan" data-icp-field="Manual Wingspan" inputmode="decimal" autocomplete="off">
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-icp-bingo">Bingo fuel</label>
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-bingo" data-icp-field="Bingo_Fuel" inputmode="numeric" autocomplete="off">
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-icp-master-mode">Master Mode</label>
+            <button type="button" class="dtc-icp-cycle interface-cycle-button" id="dtc-icp-master-mode" data-icp-field="MasterMode" data-icp-value="0">NAV</button>
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-icp-alow-agl">ALOW AGL</label>
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-agl" data-icp-field="Alow AGL" inputmode="numeric" autocomplete="off">
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-icp-alow-msl">ALOW MSL</label>
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-msl" data-icp-field="Alow MSL" inputmode="numeric" autocomplete="off">
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-icp-alow-tfadv">ALOW TF ADV</label>
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-tfadv" data-icp-field="Alow TFAdv" inputmode="numeric" autocomplete="off">
+          </div>
+        </div>
+      <div class="dtc-icp-status" id="dtc-icp-status"></div>
+      <button type="button" class="dtc-fcc-section-save" id="dtc-save-icp">SAVE TO .INI</button>
+    </fieldset>
+
+    <fieldset class="dtc-fcc-group dtc-laser-panel">
+      <legend>Laser</legend>
+        <div class="dtc-laser-grid">
+          <div class="dtc-fcc-row">
+            <label for="dtc-laser-st">Laser ST</label>
+            <input class="dtc-laser-input interface-text-input" id="dtc-laser-st" data-laser-field="LaserST" inputmode="numeric" autocomplete="off">
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-laser-tgp">Laser TGP</label>
+            <input class="dtc-laser-input interface-text-input" id="dtc-laser-tgp" data-laser-field="LaserTGP" inputmode="numeric" autocomplete="off">
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-laser-lst">Laser LST</label>
+            <input class="dtc-laser-input interface-text-input" id="dtc-laser-lst" data-laser-field="LaserLST" inputmode="numeric" autocomplete="off">
+          </div>
+        </div>
+      <div class="dtc-icp-status" id="dtc-laser-status"></div>
+      <button type="button" class="dtc-fcc-section-save" id="dtc-save-laser">SAVE TO .INI</button>
+    </fieldset>
+
+    <div class="dtc-fcc-grid">
+      <div class="dtc-fcc-half-column">
+      <fieldset class="dtc-fcc-group">
+        <legend>A-A missiles</legend>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-aim9-spot">AIM-9 Spot/Scan</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim9-spot" data-fcc-section="FCC_AIM" data-fcc-field="AIM-9_Spot/Scan" data-fcc-value="0">SPOT</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-aim9-tdbp">AIM-9 TD/BP</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim9-tdbp" data-fcc-section="FCC_AIM" data-fcc-field="AIM-9_TD/BP" data-fcc-value="0">BP</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-aim120-size">AIM-120 Target Size</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim120-size" data-fcc-section="FCC_AIM" data-fcc-field="AIM120_TargetSize" data-fcc-value="0">UNKN</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <button type="button" class="dtc-fcc-section-save" data-fcc-save-section="FCC_AIM">SAVE TO .INI</button>
+      </fieldset>
+
+      <fieldset class="dtc-fcc-group">
+        <legend>A-G missiles</legend>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-mav-power">Auto Power On</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-mav-power" data-fcc-section="FCC_AGM" data-fcc-field="Maverick_AutoPwr" data-fcc-value="0">OFF</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-mav-dir">Auto Power Dir</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-mav-dir" data-fcc-section="FCC_AGM" data-fcc-field="Maverick_AutoPwrDir" data-fcc-value="1">North of</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-mav-wpt">Auto Power Wpt</label>
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-mav-wpt" data-fcc-section="FCC_AGM" data-fcc-field="Maverick_AutoPwrWpt" inputmode="numeric" autocomplete="off">
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <button type="button" class="dtc-fcc-section-save" data-fcc-save-section="FCC_AGM">SAVE TO .INI</button>
+      </fieldset>
+      </div>
+
+      <fieldset class="dtc-fcc-group dtc-fcc-agb-group">
+        <legend>A-G bombs</legend>
+        <div class="dtc-fcc-agb-profiles">
+      {% for profile in [1, 2] %}
+      <div class="dtc-fcc-profile">
+        <div class="dtc-fcc-profile-title">Profile {{ profile }}</div>
+        <div class="dtc-fcc-profile-grid">
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-p{{ profile }}-submode">Sub Mode</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-submode" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Submode" data-fcc-value="{{ '8' if profile == 1 else '7' }}">{{ 'CCRP' if profile == 1 else 'CCIP' }}</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-p{{ profile }}-fuze">Fuze</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-fuze" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Fuze" data-fcc-value="1">NOSE</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-p{{ profile }}-sglpair">SGL/PAIR</label>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-sglpair" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_SGL/PAIR" data-fcc-value="0">SGL</button>
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-p{{ profile }}-spacing">Spacing</label>
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-spacing" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Release_Spacing" inputmode="numeric" autocomplete="off">
+          <span class="dtc-fcc-unit">feet</span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-p{{ profile }}-pulse">Release Pulse</label>
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-pulse" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Release_Pulse" data-fcc-display-offset="1" inputmode="numeric" autocomplete="off">
+          <span class="dtc-fcc-unit"></span>
+        </div>
+        <div class="dtc-fcc-row">
+          <label for="dtc-fcc-p{{ profile }}-angle">TOSS Angle</label>
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-angle" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Release_Angle" inputmode="numeric" autocomplete="off">
+          <span class="dtc-fcc-unit">deg</span>
+        </div>
+        </div>
+        <div class="dtc-fcc-subgroups">
+        <fieldset class="dtc-fcc-group">
+          <legend>Bombs</legend>
+          <div class="dtc-fcc-row">
+            <label for="dtc-fcc-p{{ profile }}-c1ad1">C1 Arming Delay 1</label>
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c1ad1" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C1_AD1" data-fcc-scale="100" data-fcc-decimals="6" inputmode="decimal" autocomplete="off">
+            <span class="dtc-fcc-unit">sec</span>
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-fcc-p{{ profile }}-c1ad2">C1 Arming Delay 2</label>
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c1ad2" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C1_AD2" data-fcc-scale="100" data-fcc-decimals="6" inputmode="decimal" autocomplete="off">
+            <span class="dtc-fcc-unit">sec</span>
+          </div>
+        </fieldset>
+        <fieldset class="dtc-fcc-group">
+          <legend>Cluster</legend>
+          <div class="dtc-fcc-row">
+            <label for="dtc-fcc-p{{ profile }}-c2ad">C2 Arming Delay</label>
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c2ad" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C2_AD" data-fcc-scale="100" data-fcc-decimals="6" inputmode="decimal" autocomplete="off">
+            <span class="dtc-fcc-unit">sec</span>
+          </div>
+          <div class="dtc-fcc-row">
+            <label for="dtc-fcc-p{{ profile }}-c2ba">C2 Burst Alt</label>
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c2ba" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C2_BA" inputmode="numeric" autocomplete="off">
+            <span class="dtc-fcc-unit">feet</span>
+          </div>
+        </fieldset>
+        </div>
+      </div>
+      {% endfor %}
+        </div>
+        <button type="button" class="dtc-fcc-section-save" data-fcc-save-section="FCC_AGB">SAVE TO .INI</button>
+      </fieldset>
+    </div>
+    <div class="dtc-fcc-status" id="dtc-fcc-status"></div>
+    </div>
+  </section>
+
+  <script>
+    function saveChangedData() {}
+    function loadChangedData() {}
+    function resetContenteditables() {}
+
+    const dtcNavOffsets = {{ nav_offsets|tojson }};
+    const dtcIcpSettings = {{ icp_settings|tojson }};
+    const dtcFccSettings = {{ fcc_settings|tojson }};
+    const dtcLaserSettings = {{ laser_settings|tojson }};
+    let dtcSelectedLayer = null;
+    let dtcSelectedStptNumber = "";
+    let dtcOffsetMapLayer = null;
+    let dtcStptSelectionLayer = null;
+    let dtcPopupMapLayer = null;
+    let dtcPopupLastPlan = null;
+    let dtcPopupStatusText = "";
+    const dtcPopupElevationCache = new Map();
+    const dtcPopupElevationRequests = new Set();
+    const FEET_PER_NM = 6076.12;
+    const FEET_PER_KNOT_SECOND = 1.68781;
+    const POPUP_MRA_BUFFER_FEET = 120;
+    const DEFAULT_OFFSET_RANGE_FEET = "6000";
+    const DEFAULT_OFFSET_BEARINGS = {
+      oa1: "0",
+      oa2: "15",
+      vip: "30",
+      vrp: "30",
+      vippup: "45",
+      vrppup: "45",
+    };
+    const DTC_ICP_DEFAULTS = {
+      "Manual Wingspan": "35",
+      "Bingo_Fuel": "1500",
+      "MasterMode": "0",
+      "Alow AGL": "100",
+      "Alow MSL": "10000",
+      "Alow TFAdv": "400",
+    };
+    const DTC_ICP_CYCLE_OPTIONS = {
+      "MasterMode": [
+        { value: "0", label: "NAV" },
+        { value: "1", label: "AG" },
+        { value: "2", label: "AA" },
+      ],
+    };
+    const DTC_LASER_DEFAULTS = {
+      "LaserST": "8",
+      "LaserTGP": "1688",
+      "LaserLST": "1688",
+    };
+    const DTC_ICP_BRIEFING_LINKS = {
+      "Bingo_Fuel": "admin_6",
+      "Alow AGL": "admin_1",
+      "Alow MSL": "admin_2",
+    };
+    const DTC_FCC_BRIEFING_LINKS = {
+      "FCC_AGB:Profile1_Submode": { id: "sms_mode_1", type: "cycle", prefix: "MODE: " },
+      "FCC_AGB:Profile1_Fuze": { id: "sms_1", type: "cycle" },
+      "FCC_AGB:Profile1_SGL/PAIR": { id: "sms_2", type: "cycle" },
+      "FCC_AGB:Profile1_C1_AD1": { id: "sms_7", scale: 100, decimals: 6 },
+      "FCC_AGB:Profile1_Release_Spacing": { id: "sms_8" },
+      "FCC_AGB:Profile1_C2_BA": { id: "sms_14" },
+      "FCC_AGB:Profile1_Release_Pulse": { id: "sms_15", displayOffset: 1 },
+      "FCC_AGB:Profile2_Submode": { id: "sms_mode_2", type: "cycle", prefix: "MODE: " },
+      "FCC_AGB:Profile2_Fuze": { id: "sms_3", type: "cycle" },
+      "FCC_AGB:Profile2_SGL/PAIR": { id: "sms_4", type: "cycle" },
+      "FCC_AGB:Profile2_C1_AD1": { id: "sms_9", scale: 100, decimals: 6 },
+      "FCC_AGB:Profile2_Release_Spacing": { id: "sms_10" },
+      "FCC_AGB:Profile2_C2_BA": { id: "sms_16" },
+      "FCC_AGB:Profile2_Release_Pulse": { id: "sms_17", displayOffset: 1 },
+    };
+    const DTC_FCC_DEFAULTS = {
+      FCC_AIM: {
+        "AIM-9_Spot/Scan": "0",
+        "AIM-9_TD/BP": "0",
+        "AIM120_TargetSize": "0",
+      },
+      FCC_AGM: {
+        "Maverick_AutoPwr": "0",
+        "Maverick_AutoPwrDir": "1",
+        "Maverick_AutoPwrWpt": "1",
+      },
+      FCC_AGB: {
+        "Profile1_Submode": "8",
+        "Profile1_Fuze": "1",
+        "Profile1_SGL/PAIR": "0",
+        "Profile1_Release_Spacing": "175",
+        "Profile1_Release_Pulse": "-1",
+        "Profile1_Release_Angle": "45",
+        "Profile1_C1_AD1": "400.000000",
+        "Profile1_C1_AD2": "600.000000",
+        "Profile1_C2_AD": "150.000000",
+        "Profile1_C2_BA": "500",
+        "Profile2_Submode": "7",
+        "Profile2_Fuze": "1",
+        "Profile2_SGL/PAIR": "0",
+        "Profile2_Release_Spacing": "175",
+        "Profile2_Release_Pulse": "-1",
+        "Profile2_Release_Angle": "45",
+        "Profile2_C1_AD1": "400.000000",
+        "Profile2_C1_AD2": "600.000000",
+        "Profile2_C2_AD": "150.000000",
+        "Profile2_C2_BA": "500",
+      },
+    };
+    const DTC_FCC_CYCLE_OPTIONS = {
+      "FCC_AIM:AIM-9_Spot/Scan": [
+        { value: "0", label: "SPOT" },
+        { value: "1", label: "SCAN" },
+      ],
+      "FCC_AIM:AIM-9_TD/BP": [
+        { value: "0", label: "BP" },
+        { value: "1", label: "TD" },
+      ],
+      "FCC_AIM:AIM120_TargetSize": [
+        { value: "0", label: "UNKN" },
+        { value: "1", label: "SMALL" },
+        { value: "2", label: "MEDIUM" },
+        { value: "3", label: "LARGE" },
+      ],
+      "FCC_AGM:Maverick_AutoPwr": [
+        { value: "0", label: "OFF" },
+        { value: "1", label: "ON" },
+      ],
+      "FCC_AGM:Maverick_AutoPwrDir": [
+        { value: "1", label: "North of" },
+        { value: "2", label: "East of" },
+        { value: "3", label: "South of" },
+        { value: "4", label: "West of" },
+      ],
+      "FCC_AGB:Profile1_Submode": [
+        { value: "7", label: "CCIP" },
+        { value: "8", label: "CCRP" },
+        { value: "9", label: "DTOS" },
+        { value: "10", label: "LADD" },
+      ],
+      "FCC_AGB:Profile2_Submode": [
+        { value: "7", label: "CCIP" },
+        { value: "8", label: "CCRP" },
+        { value: "9", label: "DTOS" },
+        { value: "10", label: "LADD" },
+      ],
+      "FCC_AGB:Profile1_Fuze": [
+        { value: "1", label: "NOSE" },
+        { value: "2", label: "TAIL" },
+        { value: "0", label: "NSTL" },
+      ],
+      "FCC_AGB:Profile2_Fuze": [
+        { value: "1", label: "NOSE" },
+        { value: "2", label: "TAIL" },
+        { value: "0", label: "NSTL" },
+      ],
+      "FCC_AGB:Profile1_SGL/PAIR": [
+        { value: "0", label: "SGL" },
+        { value: "1", label: "PAIR" },
+      ],
+      "FCC_AGB:Profile2_SGL/PAIR": [
+        { value: "0", label: "SGL" },
+        { value: "1", label: "PAIR" },
+      ],
+    };
+    const DTC_POPUP_CLICKER_OPTIONS = {
+      referenceMode: [
+        { value: "vrp", label: "VRP" },
+        { value: "vip", label: "VIP" },
+      ],
+      rangeModel: [
+        { value: "low_drag", label: "Low drag" },
+        { value: "high_drag", label: "High drag" },
+        { value: "manual", label: "Manual" },
+      ],
+      headingMode: [
+        { value: "attack", label: "Attack HDG" },
+        { value: "ingress", label: "Ingress HDG" },
+      ],
+      side: [
+        { value: "right", label: "Right" },
+        { value: "left", label: "Left" },
+      ],
+      gProfile: [
+        { value: "low", label: "3-3.5 G" },
+        { value: "high", label: "4.5-5 G" },
+      ],
+    };
+
+    function cleanOffsetValue(value) {
+      return value == null ? "" : String(value).trim();
+    }
+
+    function formatDtcIcpDisplayValue(value) {
+      const cleanValue = cleanOffsetValue(value);
+      if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(cleanValue)) return cleanValue;
+      const numberValue = Number.parseFloat(cleanValue);
+      if (!Number.isFinite(numberValue)) return cleanValue;
+      if (Number.isInteger(numberValue)) return String(numberValue);
+      return cleanValue.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
+    }
+
+    function renderCycleButton(button, options, valueDatasetName, rawValue, formatValue = cleanOffsetValue) {
+      if (!button || !Array.isArray(options) || options.length === 0) return null;
+      const selectedValue = formatValue(rawValue);
+      const selected = options.find((option) => option.value === selectedValue) || options[0];
+      button.dataset[valueDatasetName] = selected.value;
+      button.textContent = selected.label;
+      button.title = options.map((option) => option.label).join(" / ");
+      return selected;
+    }
+
+    function flashCycleButton(button) {
+      if (!button) return;
+      button.classList.remove("is-flashing");
+      void button.offsetWidth;
+      button.classList.add("is-flashing");
+      window.setTimeout(() => {
+        button.classList.remove("is-flashing");
+        if (document.activeElement === button) button.blur();
+      }, 120);
+    }
+
+    function cycleButton(button, options, valueDatasetName, onChange) {
+      if (!button || !Array.isArray(options) || options.length === 0) return null;
+      const currentIndex = options.findIndex((option) => option.value === button.dataset[valueDatasetName]);
+      const next = options[((currentIndex >= 0 ? currentIndex : 0) + 1) % options.length];
+      renderCycleButton(button, options, valueDatasetName, next.value);
+      flashCycleButton(button);
+      if (typeof onChange === "function") onChange(button, next);
+      return next;
+    }
+
+    function plainTextFromHtml(value) {
+      const container = document.createElement("div");
+      container.innerHTML = value == null ? "" : String(value);
+      return container.textContent.trim();
+    }
+
+    function readBriefingLinkedValue(fieldName) {
+      const id = DTC_ICP_BRIEFING_LINKS[fieldName];
+      if (!id) return "";
+      try {
+        const liveFrame = window.parent?.document?.getElementById("brief-frame");
+        const liveElement = liveFrame?.contentDocument?.getElementById(id);
+        if (liveElement && liveElement.textContent.trim() !== "") {
+          return liveElement.textContent.trim();
+        }
+      } catch (error) {
+        console.warn("Unable to read linked briefing field", id, error);
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
+        if (Object.prototype.hasOwnProperty.call(saved, id)) return plainTextFromHtml(saved[id]);
+      } catch (error) {
+        console.warn("Unable to read linked briefing storage", id, error);
+      }
+      return "";
+    }
+
+    function writeBriefingLinkedValue(fieldName, value) {
+      const id = DTC_ICP_BRIEFING_LINKS[fieldName];
+      if (!id) return;
+      const cleanValue = cleanOffsetValue(value);
+      try {
+        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
+        saved[id] = cleanValue;
+        localStorage.setItem("contenteditables", JSON.stringify(saved));
+      } catch (error) {
+        console.warn("Unable to write linked briefing storage", id, error);
+      }
+      try {
+        const liveFrame = window.parent?.document?.getElementById("brief-frame");
+        const liveElement = liveFrame?.contentDocument?.getElementById(id);
+        if (liveElement) liveElement.textContent = cleanValue;
+      } catch (error) {
+        console.warn("Unable to write linked briefing field", id, error);
+      }
+    }
+
+    function syncDtcIcpLinkedSettings() {
+      Object.keys(DTC_ICP_BRIEFING_LINKS).forEach((fieldName) => {
+        const linkedValue = readBriefingLinkedValue(fieldName);
+        if (linkedValue !== "") dtcIcpSettings[fieldName] = formatDtcIcpDisplayValue(linkedValue);
+      });
+    }
+
+    function getDtcIcpDisplayValue(fieldName) {
+      const linkedValue = readBriefingLinkedValue(fieldName);
+      if (linkedValue !== "") return formatDtcIcpDisplayValue(linkedValue);
+      return formatDtcIcpDisplayValue(dtcIcpSettings[fieldName]);
+    }
+
+    function renderDtcIcpCycleButton(button, rawValue) {
+      const fieldName = button?.dataset?.icpField;
+      const options = DTC_ICP_CYCLE_OPTIONS[fieldName] || [];
+      renderCycleButton(button, options, "icpValue", rawValue, formatDtcIcpDisplayValue);
+    }
+
+    function formatDtcIcpStoredValue(input) {
+      if (input?.classList?.contains("dtc-icp-cycle")) {
+        return cleanOffsetValue(input.dataset.icpValue);
+      }
+      return cleanOffsetValue(input.value);
+    }
+
+    function cycleDtcIcpButton(button) {
+      const fieldName = button?.dataset?.icpField;
+      const options = DTC_ICP_CYCLE_OPTIONS[fieldName] || [];
+      cycleButton(button, options, "icpValue", () => updateDtcIcpInput(button));
+    }
+
+    function collectDtcIcpSettings() {
+      syncDtcIcpLinkedSettings();
+      const settings = { ...dtcIcpSettings };
+      document.querySelectorAll("[data-icp-field]").forEach((input) => {
+        settings[input.dataset.icpField] = formatDtcIcpStoredValue(input);
+      });
+      Object.keys(DTC_ICP_BRIEFING_LINKS).forEach((fieldName) => {
+        const linkedValue = readBriefingLinkedValue(fieldName);
+        if (linkedValue !== "") settings[fieldName] = formatDtcIcpDisplayValue(linkedValue);
+      });
+      return settings;
+    }
+
+    function normalizeDtcIcpSettings() {
+      Object.entries(DTC_ICP_DEFAULTS).forEach(([key, value]) => {
+        if (dtcIcpSettings[key] == null) dtcIcpSettings[key] = value;
+      });
+      syncDtcIcpLinkedSettings();
+    }
+
+    function renderDtcIcpSettings() {
+      syncDtcIcpLinkedSettings();
+      document.querySelectorAll("[data-icp-field]").forEach((input) => {
+        if (input.classList.contains("dtc-icp-cycle")) {
+          renderDtcIcpCycleButton(input, dtcIcpSettings[input.dataset.icpField]);
+          return;
+        }
+        input.value = getDtcIcpDisplayValue(input.dataset.icpField);
+      });
+    }
+
+    function updateDtcIcpInput(input) {
+      if (!input || !input.dataset.icpField) return;
+      const fieldName = input.dataset.icpField;
+      const value = formatDtcIcpStoredValue(input);
+      dtcIcpSettings[fieldName] = value;
+      writeBriefingLinkedValue(fieldName, value);
+      const status = document.getElementById("dtc-icp-status");
+      if (status) status.textContent = "";
+    }
+
+    async function saveDtcIcpSettings() {
+      try {
+        const icpSettings = collectDtcIcpSettings();
+        Object.assign(dtcIcpSettings, icpSettings);
+        const response = await fetch("/api/dtc/icp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ icp_settings: icpSettings })
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || response.statusText);
+        }
+        const status = document.getElementById("dtc-icp-status");
+        if (status) status.textContent = "ICP saved to callsign.ini.";
+      } catch (error) {
+        console.error("Failed to save ICP", error);
+        const status = document.getElementById("dtc-icp-status");
+        if (status) status.textContent = "Failed to save ICP.";
+      }
+    }
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "html_brief_sync_dtc_linked_fields") {
+        normalizeDtcIcpSettings();
+        renderDtcIcpSettings();
+        normalizeDtcFccSettings();
+        renderDtcFccSettings();
+      }
+    });
+
+    function normalizeDtcLaserSettings() {
+      Object.entries(DTC_LASER_DEFAULTS).forEach(([key, value]) => {
+        if (dtcLaserSettings[key] == null) dtcLaserSettings[key] = value;
+      });
+    }
+
+    function renderDtcLaserSettings() {
+      document.querySelectorAll(".dtc-laser-input[data-laser-field]").forEach((input) => {
+        input.value = formatDtcIcpDisplayValue(dtcLaserSettings[input.dataset.laserField]);
+      });
+    }
+
+    function updateDtcLaserInput(input) {
+      if (!input || !input.dataset.laserField) return;
+      dtcLaserSettings[input.dataset.laserField] = input.value.trim();
+      const status = document.getElementById("dtc-laser-status");
+      if (status) status.textContent = "";
+    }
+
+    function collectDtcLaserSettings() {
+      const settings = { ...dtcLaserSettings };
+      document.querySelectorAll(".dtc-laser-input[data-laser-field]").forEach((input) => {
+        settings[input.dataset.laserField] = input.value.trim();
+      });
+      return settings;
+    }
+
+    async function saveDtcLaserSettings() {
+      try {
+        const laserSettings = collectDtcLaserSettings();
+        Object.assign(dtcLaserSettings, laserSettings);
+        const response = await fetch("/api/dtc/laser", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ laser_settings: laserSettings })
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || response.statusText);
+        }
+        const status = document.getElementById("dtc-laser-status");
+        if (status) status.textContent = "Laser saved to callsign.ini.";
+      } catch (error) {
+        console.error("Failed to save Laser", error);
+        const status = document.getElementById("dtc-laser-status");
+        if (status) status.textContent = "Failed to save Laser.";
+      }
+    }
+
+    function getDtcFccBriefingLink(section, field) {
+      return DTC_FCC_BRIEFING_LINKS[section + ":" + field] || null;
+    }
+
+    function readDtcFccBriefingDisplayValue(section, field) {
+      const link = getDtcFccBriefingLink(section, field);
+      if (!link?.id) return "";
+      try {
+        const liveFrame = window.parent?.document?.getElementById("brief-frame");
+        const liveElement = liveFrame?.contentDocument?.getElementById(link.id);
+        if (liveElement && liveElement.textContent.trim() !== "") {
+          return liveElement.textContent.trim();
+        }
+      } catch (error) {
+        console.warn("Unable to read linked SMS field", link.id, error);
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
+        if (Object.prototype.hasOwnProperty.call(saved, link.id)) return plainTextFromHtml(saved[link.id]);
+      } catch (error) {
+        console.warn("Unable to read linked SMS storage", link.id, error);
+      }
+      return "";
+    }
+
+    function formatDtcFccLinkedStoredValue(section, field, displayValue) {
+      const link = getDtcFccBriefingLink(section, field);
+      const cleanValue = cleanOffsetValue(displayValue);
+      if (!link) return cleanValue;
+      if (link.type === "cycle") {
+        const options = DTC_FCC_CYCLE_OPTIONS[section + ":" + field] || [];
+        const displayValue = cleanValue.replace(/^MODE:\s*/i, "");
+        const selected = options.find((option) => option.value === displayValue || option.label.toUpperCase() === displayValue.toUpperCase());
+        return selected ? selected.value : cleanValue;
+      }
+      const numberValue = Number.parseFloat(cleanValue);
+      if (!Number.isFinite(numberValue)) return cleanValue;
+      const displayOffset = Number.parseFloat(link.displayOffset || "0");
+      const offset = Number.isFinite(displayOffset) ? displayOffset : 0;
+      const scale = Number.parseFloat(link.scale || "");
+      const storedValue = (numberValue - offset) * (Number.isFinite(scale) && scale !== 0 ? scale : 1);
+      const decimals = Number.parseInt(link.decimals || "0", 10);
+      if (Number.isFinite(decimals) && decimals > 0) return storedValue.toFixed(decimals);
+      if (Number.isInteger(storedValue)) return String(storedValue);
+      return String(storedValue);
+    }
+
+    function formatDtcFccLinkedDisplayValue(section, field, storedValue) {
+      const link = getDtcFccBriefingLink(section, field);
+      const cleanValue = cleanOffsetValue(storedValue);
+      if (!link) return cleanValue;
+      if (link.type === "cycle") {
+        const options = DTC_FCC_CYCLE_OPTIONS[section + ":" + field] || [];
+        const selected = options.find((option) => option.value === cleanValue) || options[0];
+        return selected ? (link.prefix || "") + selected.label : cleanValue;
+      }
+      const numberValue = Number.parseFloat(cleanValue);
+      if (!Number.isFinite(numberValue)) return cleanValue;
+      const displayOffset = Number.parseFloat(link.displayOffset || "0");
+      const offsetValue = numberValue + (Number.isFinite(displayOffset) ? displayOffset : 0);
+      const scale = Number.parseFloat(link.scale || "");
+      if (Number.isFinite(scale) && scale !== 0) {
+        return (offsetValue / scale).toFixed(2);
+      }
+      if (Number.isInteger(offsetValue)) return String(offsetValue);
+      return String(offsetValue);
+    }
+
+    function writeDtcFccBriefingValue(section, field, storedValue) {
+      const link = getDtcFccBriefingLink(section, field);
+      if (!link?.id) return;
+      const displayValue = formatDtcFccLinkedDisplayValue(section, field, storedValue);
+      try {
+        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
+        saved[link.id] = displayValue;
+        localStorage.setItem("contenteditables", JSON.stringify(saved));
+      } catch (error) {
+        console.warn("Unable to write linked SMS storage", link.id, error);
+      }
+      try {
+        const liveFrame = window.parent?.document?.getElementById("brief-frame");
+        const liveDocument = liveFrame?.contentDocument;
+        const liveElement = liveDocument?.getElementById(link.id);
+        if (liveElement) liveElement.textContent = displayValue;
+        liveFrame?.contentWindow?.bindSmsFccCycleFields?.();
+      } catch (error) {
+        console.warn("Unable to write linked SMS field", link.id, error);
+      }
+    }
+
+    function syncDtcFccLinkedSettings() {
+      Object.entries(DTC_FCC_BRIEFING_LINKS).forEach(([key, link]) => {
+        const [section, field] = key.split(":");
+        if (!section || !field || !link?.id) return;
+        const displayValue = readDtcFccBriefingDisplayValue(section, field);
+        if (displayValue === "") return;
+        dtcFccSettings[section] = dtcFccSettings[section] || {};
+        dtcFccSettings[section][field] = formatDtcFccLinkedStoredValue(section, field, displayValue);
+      });
+    }
+
+    function normalizeDtcFccSettings() {
+      Object.entries(DTC_FCC_DEFAULTS).forEach(([section, defaults]) => {
+        if (!dtcFccSettings[section] || typeof dtcFccSettings[section] !== "object") {
+          dtcFccSettings[section] = {};
+        }
+        Object.entries(defaults).forEach(([key, value]) => {
+          if (dtcFccSettings[section][key] == null) dtcFccSettings[section][key] = value;
+        });
+      });
+      syncDtcFccLinkedSettings();
+    }
+
+    function formatFccDisplayValue(input, rawValue) {
+      const value = cleanOffsetValue(rawValue);
+      const scale = Number.parseFloat(input.dataset.fccScale || "");
+      const numberValue = Number.parseFloat(value);
+      if (!Number.isFinite(numberValue)) return value;
+      const displayOffset = Number.parseFloat(input.dataset.fccDisplayOffset || "0");
+      const offset = Number.isFinite(displayOffset) ? displayOffset : 0;
+      if ((!Number.isFinite(scale) || scale === 0) && offset === 0) return value;
+      const offsetValue = numberValue + offset;
+      if (!Number.isFinite(scale) || scale === 0) return String(offsetValue);
+      return (offsetValue / scale).toFixed(2);
+    }
+
+    function formatFccStoredValue(input) {
+      if (input?.classList?.contains("dtc-fcc-cycle")) {
+        return cleanOffsetValue(input.dataset.fccValue);
+      }
+      const rawValue = input.value.trim();
+      const scale = Number.parseFloat(input.dataset.fccScale || "");
+      const numberValue = Number.parseFloat(rawValue);
+      if (!Number.isFinite(numberValue)) return rawValue;
+      const displayOffset = Number.parseFloat(input.dataset.fccDisplayOffset || "0");
+      const offset = Number.isFinite(displayOffset) ? displayOffset : 0;
+      if ((!Number.isFinite(scale) || scale === 0) && offset === 0) return rawValue;
+      const offsetValue = numberValue - offset;
+      if (!Number.isFinite(scale) || scale === 0) return String(offsetValue);
+      const decimals = Number.parseInt(input.dataset.fccDecimals || "0", 10);
+      const storedValue = offsetValue * scale;
+      return Number.isFinite(decimals) && decimals > 0 ? storedValue.toFixed(decimals) : String(Math.round(storedValue));
+    }
+
+    function getDtcFccCycleOptions(button) {
+      if (!button?.dataset?.fccSection || !button?.dataset?.fccField) return [];
+      return DTC_FCC_CYCLE_OPTIONS[`${button.dataset.fccSection}:${button.dataset.fccField}`] || [];
+    }
+
+    function renderDtcFccCycleButton(button, rawValue) {
+      const options = getDtcFccCycleOptions(button);
+      renderCycleButton(button, options, "fccValue", rawValue);
+    }
+
+    function cycleDtcFccButton(button) {
+      const options = getDtcFccCycleOptions(button);
+      cycleButton(button, options, "fccValue", () => updateDtcFccInput(button));
+    }
+
+    function renderDtcFccSettings() {
+      syncDtcFccLinkedSettings();
+      document.querySelectorAll("[data-fcc-section][data-fcc-field]").forEach((input) => {
+        const section = input.dataset.fccSection;
+        const field = input.dataset.fccField;
+        const rawValue = dtcFccSettings?.[section]?.[field] ?? DTC_FCC_DEFAULTS?.[section]?.[field] ?? "";
+        if (input.classList.contains("dtc-fcc-cycle")) {
+          renderDtcFccCycleButton(input, rawValue);
+          return;
+        }
+        input.value = formatFccDisplayValue(input, rawValue);
+      });
+    }
+
+    function updateDtcFccInput(input) {
+      if (!input || !input.dataset.fccSection || !input.dataset.fccField) return;
+      const section = input.dataset.fccSection;
+      const field = input.dataset.fccField;
+      dtcFccSettings[section] = dtcFccSettings[section] || {};
+      dtcFccSettings[section][field] = formatFccStoredValue(input);
+      writeDtcFccBriefingValue(section, field, dtcFccSettings[section][field]);
+      const status = document.getElementById("dtc-fcc-status");
+      if (status) status.textContent = "";
+    }
+
+    function collectDtcFccSettings(sectionName) {
+      syncDtcFccLinkedSettings();
+      const settings = {};
+      Object.entries(DTC_FCC_DEFAULTS).forEach(([section, defaults]) => {
+        if (sectionName && section !== sectionName) return;
+        settings[section] = { ...defaults, ...(dtcFccSettings[section] || {}) };
+      });
+      document.querySelectorAll("[data-fcc-section][data-fcc-field]").forEach((input) => {
+        const section = input.dataset.fccSection;
+        if (sectionName && section !== sectionName) return;
+        const field = input.dataset.fccField;
+        settings[section] = settings[section] || {};
+        settings[section][field] = formatFccStoredValue(input);
+      });
+      Object.entries(DTC_FCC_BRIEFING_LINKS).forEach(([key]) => {
+        const [section, field] = key.split(":");
+        if (sectionName && section !== sectionName) return;
+        const displayValue = readDtcFccBriefingDisplayValue(section, field);
+        if (displayValue === "") return;
+        settings[section] = settings[section] || {};
+        settings[section][field] = formatDtcFccLinkedStoredValue(section, field, displayValue);
+      });
+      return settings;
+    }
+
+    async function saveDtcFccSettings(sectionName) {
+      try {
+        const fccSettings = collectDtcFccSettings(sectionName);
+        Object.assign(dtcFccSettings, fccSettings);
+        const response = await fetch("/api/dtc/fcc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fcc_settings: fccSettings })
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || response.statusText);
+        }
+        const status = document.getElementById("dtc-fcc-status");
+        if (status) status.textContent = (sectionName || "FCC") + " saved to callsign.ini.";
+      } catch (error) {
+        console.error("Failed to save FCC", error);
+        const status = document.getElementById("dtc-fcc-status");
+        if (status) status.textContent = "Failed to save " + (sectionName || "FCC") + ".";
+      }
+    }
+
+    function blankOffsetRow(stptNumber) {
+      const row = { brg: "", rng: "", elev: "" };
+      if (stptNumber != null) row.stpt = cleanOffsetValue(stptNumber);
+      return row;
+    }
+
+    function getStptRow(stptNumber) {
+      const key = cleanOffsetValue(stptNumber);
+      return Array.from(document.querySelectorAll(".dtc-steerpoint-table tbody tr[data-dtc-stpt-number]"))
+        .find((candidate) => cleanOffsetValue(candidate.dataset.dtcStptNumber) === key) || null;
+    }
+
+    function getStptAltitudeFeet(stptNumber) {
+      const row = getStptRow(stptNumber);
+      if (!row) return "";
+      const rawZ = Number.parseFloat(row.dataset.dtcMapZ || "");
+      if (!Number.isFinite(rawZ)) return "";
+      return String(Math.round(-rawZ));
+    }
+
+    function blankOffsetRowWithStptAltitude(stptNumber) {
+      const row = blankOffsetRow(stptNumber);
+      row.elev = getStptAltitudeFeet(stptNumber);
+      return row;
+    }
+
+    function defaultOffsetRow(stptNumber, rowKey) {
+      const row = blankOffsetRowWithStptAltitude(stptNumber);
+      row.brg = DEFAULT_OFFSET_BEARINGS[rowKey] || "0";
+      row.rng = DEFAULT_OFFSET_RANGE_FEET;
+      return row;
+    }
+
+    function normalizeOffsetState() {
+      if (!dtcNavOffsets || typeof dtcNavOffsets !== "object") return;
+      dtcNavOffsets.modesel = ["none", "vip", "vrp"].includes(cleanOffsetValue(dtcNavOffsets.modesel).toLowerCase())
+        ? cleanOffsetValue(dtcNavOffsets.modesel).toLowerCase()
+        : "none";
+      dtcNavOffsets.oa = dtcNavOffsets.oa && typeof dtcNavOffsets.oa === "object" ? dtcNavOffsets.oa : {};
+      ["vip", "vippup", "vrp", "vrppup"].forEach((key) => {
+        if (!dtcNavOffsets[key] || typeof dtcNavOffsets[key] !== "object") {
+          dtcNavOffsets[key] = null;
+        }
+      });
+      const vipStpts = [dtcNavOffsets.vip, dtcNavOffsets.vippup].filter(Boolean).map((row) => cleanOffsetValue(row.stpt));
+      const vrpStpts = [dtcNavOffsets.vrp, dtcNavOffsets.vrppup].filter(Boolean).map((row) => cleanOffsetValue(row.stpt));
+      const overlappingStpt = vipStpts.find((stpt) => stpt && vrpStpts.includes(stpt));
+      if (overlappingStpt) {
+        if (dtcNavOffsets.modesel === "vrp") {
+          if (offsetRowMatchesStpt(dtcNavOffsets.vip, overlappingStpt)) dtcNavOffsets.vip = null;
+          if (offsetRowMatchesStpt(dtcNavOffsets.vippup, overlappingStpt)) dtcNavOffsets.vippup = null;
+        } else {
+          if (offsetRowMatchesStpt(dtcNavOffsets.vrp, overlappingStpt)) dtcNavOffsets.vrp = null;
+          if (offsetRowMatchesStpt(dtcNavOffsets.vrppup, overlappingStpt)) dtcNavOffsets.vrppup = null;
+        }
+      }
+    }
+
+    function isZeroOffsetRow(row) {
+      if (!row || typeof row !== "object") return true;
+      return ["brg", "rng", "elev"].every((field) => {
+        const value = cleanOffsetValue(row[field]);
+        if (!value) return true;
+        const numberValue = Number.parseFloat(value);
+        return Number.isFinite(numberValue) && numberValue === 0;
+      });
+    }
+
+    function offsetRowMatchesStpt(row, stptNumber) {
+      return row && cleanOffsetValue(row.stpt) === cleanOffsetValue(stptNumber);
+    }
+
+    function getBmsCoordForStpt(stptNumber) {
+      const row = getStptRow(stptNumber);
+      if (!row) return null;
+      const northFeet = Number.parseFloat(row.dataset.dtcMapX || "");
+      const eastFeet = Number.parseFloat(row.dataset.dtcMapY || "");
+      if (!Number.isFinite(northFeet) || !Number.isFinite(eastFeet)) return null;
+      return { northFeet, eastFeet };
+    }
+
+    function projectOffsetFromBmsCoord(baseCoord, offsetRow) {
+      if (!baseCoord || !offsetRow || isZeroOffsetRow(offsetRow)) return null;
+      const bearing = Number.parseFloat(offsetRow.brg);
+      const rangeFeet = Number.parseFloat(offsetRow.rng);
+      if (!Number.isFinite(bearing) || !Number.isFinite(rangeFeet)) return null;
+      const radians = bearing * Math.PI / 180;
+      return {
+        northFeet: baseCoord.northFeet + Math.cos(radians) * rangeFeet,
+        eastFeet: baseCoord.eastFeet + Math.sin(radians) * rangeFeet,
+      };
+    }
+
+    function normalizeBearing(value) {
+      if (!Number.isFinite(value)) return NaN;
+      return ((value % 360) + 360) % 360;
+    }
+
+    function projectBearingRange(baseCoord, bearing, rangeFeet) {
+      if (!baseCoord || !Number.isFinite(bearing) || !Number.isFinite(rangeFeet)) return null;
+      const radians = normalizeBearing(bearing) * Math.PI / 180;
+      return {
+        northFeet: baseCoord.northFeet + Math.cos(radians) * rangeFeet,
+        eastFeet: baseCoord.eastFeet + Math.sin(radians) * rangeFeet,
+      };
+    }
+
+    function bearingRangeBetween(fromCoord, toCoord) {
+      if (!fromCoord || !toCoord) return null;
+      const deltaNorth = toCoord.northFeet - fromCoord.northFeet;
+      const deltaEast = toCoord.eastFeet - fromCoord.eastFeet;
+      const rangeFeet = Math.hypot(deltaNorth, deltaEast);
+      let bearing = Math.atan2(deltaEast, deltaNorth) * 180 / Math.PI;
+      if (bearing < 0) bearing += 360;
+      return {
+        brg: formatDraggedBearing(bearing),
+        rng: formatDraggedRange(rangeFeet),
+      };
+    }
+
+    function coordDistanceFeet(fromCoord, toCoord) {
+      if (!fromCoord || !toCoord) return NaN;
+      return Math.hypot(toCoord.northFeet - fromCoord.northFeet, toCoord.eastFeet - fromCoord.eastFeet);
+    }
+
+    function getTurnDelta(startHeading, endHeading, turnDirection) {
+      if (turnDirection === "left") return -normalizeBearing(startHeading - endHeading);
+      return normalizeBearing(endHeading - startHeading);
+    }
+
+    function buildTurnArcCoords(startCoord, startHeading, endHeading, radiusFeet, turnDirection) {
+      if (!startCoord || !Number.isFinite(startHeading) || !Number.isFinite(endHeading) || !Number.isFinite(radiusFeet) || radiusFeet <= 0) {
+        return [];
+      }
+      const turnDelta = getTurnDelta(startHeading, endHeading, turnDirection);
+      if (!Number.isFinite(turnDelta) || Math.abs(turnDelta) < 0.1) return [startCoord];
+      const startRadians = normalizeBearing(startHeading) * Math.PI / 180;
+      const rightNormal = {
+        northFeet: -Math.sin(startRadians),
+        eastFeet: Math.cos(startRadians),
+      };
+      const centerCoord = turnDelta >= 0
+        ? {
+          northFeet: startCoord.northFeet + rightNormal.northFeet * radiusFeet,
+          eastFeet: startCoord.eastFeet + rightNormal.eastFeet * radiusFeet,
+        }
+        : {
+          northFeet: startCoord.northFeet - rightNormal.northFeet * radiusFeet,
+          eastFeet: startCoord.eastFeet - rightNormal.eastFeet * radiusFeet,
+        };
+      const relative = {
+        northFeet: startCoord.northFeet - centerCoord.northFeet,
+        eastFeet: startCoord.eastFeet - centerCoord.eastFeet,
+      };
+      const steps = Math.max(8, Math.ceil(Math.abs(turnDelta) / 6));
+      const points = [];
+      for (let index = 0; index <= steps; index += 1) {
+        const radians = (turnDelta * index / steps) * Math.PI / 180;
+        const cos = Math.cos(radians);
+        const sin = Math.sin(radians);
+        const eastFeet = relative.eastFeet * cos + relative.northFeet * sin;
+        const northFeet = -relative.eastFeet * sin + relative.northFeet * cos;
+        points.push({
+          northFeet: centerCoord.northFeet + northFeet,
+          eastFeet: centerCoord.eastFeet + eastFeet,
+        });
+      }
+      return points;
+    }
+
+    function getTurnCenterAtFinalPoint(finalCoord, finalHeading, radiusFeet, turnDirection) {
+      if (!finalCoord || !Number.isFinite(finalHeading) || !Number.isFinite(radiusFeet) || radiusFeet <= 0) return null;
+      const radians = normalizeBearing(finalHeading) * Math.PI / 180;
+      const rightNormal = {
+        northFeet: -Math.sin(radians),
+        eastFeet: Math.cos(radians),
+      };
+      return turnDirection === "left"
+        ? {
+          northFeet: finalCoord.northFeet - rightNormal.northFeet * radiusFeet,
+          eastFeet: finalCoord.eastFeet - rightNormal.eastFeet * radiusFeet,
+        }
+        : {
+          northFeet: finalCoord.northFeet + rightNormal.northFeet * radiusFeet,
+          eastFeet: finalCoord.eastFeet + rightNormal.eastFeet * radiusFeet,
+        };
+    }
+
+    function getCircleTangentsFromPoint(pointCoord, centerCoord, radiusFeet) {
+      if (!pointCoord || !centerCoord || !Number.isFinite(radiusFeet) || radiusFeet <= 0) return [];
+      const dx = pointCoord.eastFeet - centerCoord.eastFeet;
+      const dy = pointCoord.northFeet - centerCoord.northFeet;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared <= radiusFeet * radiusFeet) return [];
+      const root = Math.sqrt(distanceSquared - radiusFeet * radiusFeet);
+      return [1, -1].map((sign) => {
+        const eastFeet = centerCoord.eastFeet + (radiusFeet * radiusFeet * dx + sign * radiusFeet * root * -dy) / distanceSquared;
+        const northFeet = centerCoord.northFeet + (radiusFeet * radiusFeet * dy + sign * radiusFeet * root * dx) / distanceSquared;
+        return { northFeet, eastFeet };
+      });
+    }
+
+    function solvePopupTurnGeometry(actionCoord, mapCoord, attackHeading, turnRadius, turnDirection) {
+      const centerCoord = getTurnCenterAtFinalPoint(mapCoord, attackHeading, turnRadius, turnDirection);
+      if (!centerCoord) return null;
+      const candidates = getCircleTangentsFromPoint(actionCoord, centerCoord, turnRadius)
+        .map((pdpCoord) => {
+          const offsetLegMetrics = bearingRangeBetween(actionCoord, pdpCoord);
+          if (!offsetLegMetrics) return null;
+          const offsetLegHeading = Number.parseFloat(offsetLegMetrics.brg);
+          const turnArcCoords = buildTurnArcCoords(pdpCoord, offsetLegHeading, attackHeading, turnRadius, turnDirection);
+          const arcEndCoord = turnArcCoords.length ? turnArcCoords[turnArcCoords.length - 1] : null;
+          return {
+            pdpCoord,
+            offsetLegMetrics,
+            offsetLegHeading,
+            turnArcCoords,
+            errorFeet: coordDistanceFeet(arcEndCoord, mapCoord),
+          };
+        })
+        .filter((candidate) => candidate && Number.isFinite(candidate.errorFeet));
+      if (!candidates.length) return null;
+      candidates.sort((a, b) => a.errorFeet - b.errorFeet);
+      return candidates[0];
+    }
+
+    function bmsCoordToMapLatLng(coord) {
+      if (!coord || typeof convertCoord !== "function") return null;
+      const latlng = convertCoord([coord.northFeet, coord.eastFeet]);
+      if (typeof validLatLng === "function" && !validLatLng(latlng)) return null;
+      return latlng;
+    }
+
+    function forwardTransverseMercator(latDegrees, lonDegrees, projection) {
+      const lat = latDegrees * Math.PI / 180;
+      const lon = lonDegrees * Math.PI / 180;
+      const lon0 = projection.lon0 * Math.PI / 180;
+      const ep2 = WGS84_E2 / (1 - WGS84_E2);
+      const sinLat = Math.sin(lat);
+      const cosLat = Math.cos(lat);
+      const tanLat = Math.tan(lat);
+      const n = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinLat ** 2);
+      const t = tanLat ** 2;
+      const c = ep2 * cosLat ** 2;
+      const a = (lon - lon0) * cosLat;
+      const m = meridionalArc(lat);
+      const eastingMeters = projection.falseEasting + projection.k0 * n * (
+        a
+        + (1 - t + c) * a ** 3 / 6
+        + (5 - 18 * t + t ** 2 + 72 * c - 58 * ep2) * a ** 5 / 120
+      );
+      const northingMeters = projection.falseNorthing + projection.k0 * (
+        m + n * tanLat * (
+          a ** 2 / 2
+          + (5 - t + 9 * c + 4 * c ** 2) * a ** 4 / 24
+          + (61 - 58 * t + t ** 2 + 600 * c - 330 * ep2) * a ** 6 / 720
+        )
+      );
+      return { eastingMeters, northingMeters };
+    }
+
+    function mapLatLngToBmsCoord(latlng) {
+      const point = L.latLng(latlng);
+      if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return null;
+      if (!IS_WEB_MAP) {
+        return {
+          northFeet: ((point.lat + imageHeight) / imageHeight) * fHeight,
+          eastFeet: (point.lng / imageHeight) * fHeight,
+        };
+      }
+      const projection = getTheaterProjection();
+      const projected = forwardTransverseMercator(point.lat, point.lng, projection);
+      const meterRes = getTheaterSizeMeters() / BMS_HEIGHTMAP_SAMPLES;
+      return {
+        northFeet: (projected.northingMeters - meterRes) * METERS_TO_FEET,
+        eastFeet: projected.eastingMeters * METERS_TO_FEET,
+      };
+    }
+
+    function formatDraggedBearing(value) {
+      if (!Number.isFinite(value)) return "";
+      const rounded = Math.round(value * 10) / 10;
+      return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+    }
+
+    function formatDraggedRange(value) {
+      if (!Number.isFinite(value)) return "";
+      return String(Math.round(value));
+    }
+
+    function getDraggedOffsetMetrics(latlng, baseCoord) {
+      const draggedCoord = mapLatLngToBmsCoord(latlng);
+      if (!draggedCoord || !baseCoord) return null;
+      const deltaNorth = draggedCoord.northFeet - baseCoord.northFeet;
+      const deltaEast = draggedCoord.eastFeet - baseCoord.eastFeet;
+      const rangeFeet = Math.hypot(deltaNorth, deltaEast);
+      let bearing = Math.atan2(deltaEast, deltaNorth) * 180 / Math.PI;
+      if (bearing < 0) bearing += 360;
+      return {
+        brg: formatDraggedBearing(bearing),
+        rng: formatDraggedRange(rangeFeet),
+      };
+    }
+
+    function getOffsetDragTooltipContent(metrics) {
+      if (!metrics) return "";
+      return "BRG " + escapeHtml(metrics.brg) + "<br>RNG " + escapeHtml(metrics.rng);
+    }
+
+    async function fetchTerrainElevationFeet(coord) {
+      if (!coord || !Number.isFinite(coord.northFeet) || !Number.isFinite(coord.eastFeet)) return null;
+      const params = new URLSearchParams({
+        north_ft: String(coord.northFeet),
+        east_ft: String(coord.eastFeet),
+      });
+      const response = await fetch("/api/dtc/elevation?" + params.toString());
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || response.statusText);
+      }
+      const payload = await response.json();
+      const elevation = Number.parseFloat(payload.elevation_ft);
+      return Number.isFinite(elevation) ? String(Math.round(elevation)) : null;
+    }
+
+    function getPopupElevationCacheKey(coord) {
+      if (!coord || !Number.isFinite(coord.northFeet) || !Number.isFinite(coord.eastFeet)) return "";
+      return Math.round(coord.northFeet) + ":" + Math.round(coord.eastFeet);
+    }
+
+    function getCachedPopupTerrainElevationFeet(coord) {
+      const key = getPopupElevationCacheKey(coord);
+      if (!key) return null;
+      if (dtcPopupElevationCache.has(key)) return dtcPopupElevationCache.get(key);
+      if (!dtcPopupElevationRequests.has(key)) {
+        dtcPopupElevationRequests.add(key);
+        fetchTerrainElevationFeet(coord)
+          .then((elevation) => {
+            dtcPopupElevationCache.set(key, elevation == null ? null : Number.parseFloat(elevation));
+            dtcPopupElevationRequests.delete(key);
+            const panel = document.getElementById("dtc-left-popup");
+            if (panel && !panel.hidden && dtcPopupLastPlan) renderPopupComputer();
+          })
+          .catch((error) => {
+            dtcPopupElevationCache.set(key, null);
+            dtcPopupElevationRequests.delete(key);
+            console.warn("Failed to resolve pop-up terrain elevation", error);
+          });
+      }
+      return null;
+    }
+
+    async function updateOffsetRowElevationFromCoord(offsetRow, coord) {
+      if (!offsetRow || !coord) return;
+      try {
+        const elevation = await fetchTerrainElevationFeet(coord);
+        if (elevation == null) return;
+        offsetRow.elev = elevation;
+        renderOffsetPanel();
+      } catch (error) {
+        console.warn("Failed to resolve terrain elevation", error);
+      }
+    }
+
+    function updateOffsetRowElevationFromOffset(baseCoord, offsetRow) {
+      const offsetCoord = projectOffsetFromBmsCoord(baseCoord, offsetRow);
+      if (!offsetCoord) return;
+      updateOffsetRowElevationFromCoord(offsetRow, offsetCoord);
+    }
+
+    function getConnectorMidpointLatLng(baseCoord, markerLatLng) {
+      const baseLatLng = bmsCoordToMapLatLng(baseCoord);
+      if (!baseLatLng || !markerLatLng) return markerLatLng;
+      const markerPoint = L.latLng(markerLatLng);
+      return L.latLng(
+        (L.latLng(baseLatLng).lat + markerPoint.lat) / 2,
+        (L.latLng(baseLatLng).lng + markerPoint.lng) / 2
+      );
+    }
+
+    function updateOffsetDragTooltip(marker, baseCoord, connector) {
+      if (!connector) return;
+      const metrics = getDraggedOffsetMetrics(marker.getLatLng(), baseCoord);
+      if (!metrics) return;
+      const tooltipContent = getOffsetDragTooltipContent(metrics);
+      const tooltipLatLng = getConnectorMidpointLatLng(baseCoord, marker.getLatLng());
+      if (!connector.getTooltip()) {
+        connector.bindTooltip(tooltipContent, {
+          permanent: true,
+          direction: "center",
+          className: "dtc-drag-offset-tooltip",
+          opacity: 1,
+        });
+      } else {
+        connector.setTooltipContent(tooltipContent);
+      }
+      connector.openTooltip(tooltipLatLng);
+    }
+
+    function updateOffsetRowFromDraggedMarker(marker, baseCoord, offsetRow, dragOptions) {
+      const metrics = getDraggedOffsetMetrics(marker.getLatLng(), baseCoord);
+      if (!metrics || !offsetRow) return;
+      const rowKey = dragOptions?.rowKey || "";
+      if (rowKey === "vip") dtcPopupStatusText = "";
+      offsetRow.brg = metrics.brg;
+      offsetRow.rng = metrics.rng;
+      const draggedCoord = mapLatLngToBmsCoord(marker.getLatLng());
+      renderOffsetPanel();
+      updateOffsetRowElevationFromCoord(offsetRow, draggedCoord);
+      const stptNumber = cleanOffsetValue(dragOptions?.stptNumber);
+      if (stptNumber === cleanOffsetValue(dtcSelectedStptNumber) && ["oa1", "vippup", "vrppup"].includes(rowKey)) {
+        renderPopupComputer("PUP/OA was moved manually; recompute before reusing the pop-up plan.");
+      }
+    }
+
+    function makeDtcOffsetIcon(kind, label) {
+      return L.divIcon({
+        className: "dtc-offset-map-icon is-" + kind,
+        html: escapeHtml(label),
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+    }
+
+    function addDtcOffsetMapMarker(kind, label, coord, title, dragOptions) {
+      if (!dtcOffsetMapLayer) return null;
+      const latlng = bmsCoordToMapLatLng(coord);
+      if (!latlng) return null;
+      const draggable = Boolean(dragOptions && dragOptions.offsetRow && dragOptions.baseCoord);
+      const marker = L.marker(latlng, {
+        icon: makeDtcOffsetIcon(kind, label),
+        draggable,
+        interactive: draggable,
+        keyboard: false,
+        title: title || label,
+      }).addTo(dtcOffsetMapLayer);
+      if (draggable) {
+        marker.on("dragstart", () => updateOffsetDragTooltip(marker, dragOptions.baseCoord, dragOptions.connector));
+        marker.on("drag", () => {
+          if (!dragOptions.connector) return;
+          const baseLatLng = bmsCoordToMapLatLng(dragOptions.baseCoord);
+          if (!baseLatLng) return;
+          dragOptions.connector.setLatLngs([baseLatLng, marker.getLatLng()]);
+          updateOffsetDragTooltip(marker, dragOptions.baseCoord, dragOptions.connector);
+        });
+        marker.on("dragend", () => updateOffsetRowFromDraggedMarker(marker, dragOptions.baseCoord, dragOptions.offsetRow, dragOptions));
+      }
+      return marker;
+    }
+
+    function addDtcOffsetConnector(fromCoord, toCoord) {
+      if (!dtcOffsetMapLayer) return null;
+      const fromLatLng = bmsCoordToMapLatLng(fromCoord);
+      const toLatLng = bmsCoordToMapLatLng(toCoord);
+      if (!fromLatLng || !toLatLng) return null;
+      return L.polyline([fromLatLng, toLatLng], {
+        color: "#e8f3ff",
+        weight: 1.5,
+        opacity: 0.85,
+        dashArray: "6 5",
+        interactive: false,
+      }).addTo(dtcOffsetMapLayer);
+    }
+
+    function addTgtMarkerOnce(renderedTargets, stptNumber, coord, labelSuffix) {
+      const key = cleanOffsetValue(stptNumber);
+      if (!coord || renderedTargets.has(key)) return;
+      renderedTargets.add(key);
+      addDtcOffsetMapMarker("tgt", "", coord, "TGT STPT " + key + (labelSuffix || ""));
+    }
+
+    function renderDtcOffsetMapLayer() {
+      if (typeof L === "undefined" || typeof map === "undefined") return;
+      if (!dtcOffsetMapLayer) {
+        dtcOffsetMapLayer = L.layerGroup().addTo(map);
+      }
+      dtcOffsetMapLayer.clearLayers();
+      const renderedTargets = new Set();
+      const renderedVip = new Set();
+
+      Object.entries(dtcNavOffsets.oa || {}).forEach(([stptNumber, rows]) => {
+        const baseCoord = getBmsCoordForStpt(stptNumber);
+        if (!baseCoord || !rows || typeof rows !== "object") return;
+        ["oa1", "oa2"].forEach((rowKey) => {
+          const offsetCoord = projectOffsetFromBmsCoord(baseCoord, rows[rowKey]);
+          if (!offsetCoord) return;
+          const connector = addDtcOffsetConnector(baseCoord, offsetCoord);
+          addDtcOffsetMapMarker("oa", rowKey === "oa1" ? "1" : "2", offsetCoord, rowKey.toUpperCase() + " STPT " + stptNumber, {
+            baseCoord,
+            offsetRow: rows[rowKey],
+            connector,
+            rowKey,
+            stptNumber,
+          });
+        });
+      });
+
+      if (dtcNavOffsets.vip && !isZeroOffsetRow(dtcNavOffsets.vip)) {
+        const stptNumber = cleanOffsetValue(dtcNavOffsets.vip.stpt);
+        const vipCoord = getBmsCoordForStpt(stptNumber);
+        const tgtCoord = projectOffsetFromBmsCoord(vipCoord, dtcNavOffsets.vip);
+        if (vipCoord && tgtCoord) {
+          if (!renderedVip.has(stptNumber)) {
+            renderedVip.add(stptNumber);
+            addDtcOffsetMapMarker("vip", "", vipCoord, "VIP STPT " + stptNumber);
+          }
+          const connector = addDtcOffsetConnector(vipCoord, tgtCoord);
+          addDtcOffsetMapMarker("tgt", "", tgtCoord, "TGT from VIP STPT " + stptNumber, {
+            baseCoord: vipCoord,
+            offsetRow: dtcNavOffsets.vip,
+            connector,
+            rowKey: "vip",
+            stptNumber,
+          });
+        }
+      }
+      if (dtcNavOffsets.vippup && !isZeroOffsetRow(dtcNavOffsets.vippup)) {
+        const stptNumber = cleanOffsetValue(dtcNavOffsets.vippup.stpt);
+        const vipCoord = getBmsCoordForStpt(stptNumber);
+        const pupCoord = projectOffsetFromBmsCoord(vipCoord, dtcNavOffsets.vippup);
+        if (vipCoord && pupCoord) {
+          if (!renderedVip.has(stptNumber)) {
+            renderedVip.add(stptNumber);
+            addDtcOffsetMapMarker("vip", "", vipCoord, "VIP STPT " + stptNumber);
+          }
+          const connector = addDtcOffsetConnector(vipCoord, pupCoord);
+          addDtcOffsetMapMarker("pup", "", pupCoord, "PUP from VIP STPT " + stptNumber, {
+            baseCoord: vipCoord,
+            offsetRow: dtcNavOffsets.vippup,
+            connector,
+            rowKey: "vippup",
+            stptNumber,
+          });
+        }
+      }
+
+      if (dtcNavOffsets.vrp && !isZeroOffsetRow(dtcNavOffsets.vrp)) {
+        const stptNumber = cleanOffsetValue(dtcNavOffsets.vrp.stpt);
+        const tgtCoord = getBmsCoordForStpt(stptNumber);
+        const vrpCoord = projectOffsetFromBmsCoord(tgtCoord, dtcNavOffsets.vrp);
+        if (tgtCoord && vrpCoord) {
+          addTgtMarkerOnce(renderedTargets, stptNumber, tgtCoord);
+          const connector = addDtcOffsetConnector(tgtCoord, vrpCoord);
+          addDtcOffsetMapMarker("vrp", "", vrpCoord, "VRP from TGT STPT " + stptNumber, {
+            baseCoord: tgtCoord,
+            offsetRow: dtcNavOffsets.vrp,
+            connector,
+            rowKey: "vrp",
+            stptNumber,
+          });
+        }
+      }
+      if (dtcNavOffsets.vrppup && !isZeroOffsetRow(dtcNavOffsets.vrppup)) {
+        const stptNumber = cleanOffsetValue(dtcNavOffsets.vrppup.stpt);
+        const tgtCoord = getBmsCoordForStpt(stptNumber);
+        const pupCoord = projectOffsetFromBmsCoord(tgtCoord, dtcNavOffsets.vrppup);
+        if (tgtCoord && pupCoord) {
+          addTgtMarkerOnce(renderedTargets, stptNumber, tgtCoord);
+          const connector = addDtcOffsetConnector(tgtCoord, pupCoord);
+          addDtcOffsetMapMarker("pup", "", pupCoord, "PUP from TGT STPT " + stptNumber, {
+            baseCoord: tgtCoord,
+            offsetRow: dtcNavOffsets.vrppup,
+            connector,
+            rowKey: "vrppup",
+            stptNumber,
+          });
+        }
+      }
+    }
+
+    function getSelectedPopupMode() {
+      return getPopupValue("referenceMode") === "vip" ? "vip" : "vrp";
+    }
+
+    function getPopupNumber(fieldName) {
+      const input = document.querySelector("[data-popup-field='" + fieldName + "']");
+      const value = Number.parseFloat(input?.value || "");
+      return Number.isFinite(value) ? value : NaN;
+    }
+
+    function getPopupValue(fieldName) {
+      const control = document.querySelector("[data-popup-field='" + fieldName + "']");
+      return cleanOffsetValue(control?.dataset?.popupValue ?? control?.value);
+    }
+
+    function renderPopupClicker(button) {
+      const fieldName = button?.dataset?.popupField;
+      const options = DTC_POPUP_CLICKER_OPTIONS[fieldName] || [];
+      renderCycleButton(button, options, "popupValue", button?.dataset?.popupValue);
+    }
+
+    function cyclePopupClicker(button) {
+      const fieldName = button?.dataset?.popupField;
+      const options = DTC_POPUP_CLICKER_OPTIONS[fieldName] || [];
+      cycleButton(button, options, "popupValue");
+    }
+
+    function renderPopupClickers() {
+      document.querySelectorAll(".dtc-popup-clicker[data-popup-field]").forEach(renderPopupClicker);
+    }
+
+    function formatSliderValue(input) {
+      const value = Number.parseFloat(input.value || "");
+      if (!Number.isFinite(value)) return "";
+      const step = Number.parseFloat(input.step || "1");
+      const decimals = Number.isFinite(step) && step > 0 && !Number.isInteger(step) ? String(step).split(".")[1].length : 0;
+      return decimals > 0 ? value.toFixed(decimals) : String(Math.round(value));
+    }
+
+    function updatePopupSliderDisplays() {
+      document.querySelectorAll(".dtc-popup-slider[data-popup-field]").forEach((input) => {
+        const output = document.querySelector("[data-slider-value-for='" + input.dataset.popupField + "']");
+        if (output && document.activeElement !== output) output.value = formatSliderValue(input);
+      });
+    }
+
+    function syncPopupSliderFromReadout(readout) {
+      const fieldName = readout?.dataset?.sliderValueFor;
+      const slider = fieldName ? document.querySelector(".dtc-popup-slider[data-popup-field='" + fieldName + "']") : null;
+      if (!slider) return;
+      let value = Number.parseFloat(readout.value || "");
+      if (!Number.isFinite(value)) return;
+      const min = Number.parseFloat(slider.min || "");
+      const max = Number.parseFloat(slider.max || "");
+      if (Number.isFinite(min)) value = Math.max(min, value);
+      if (Number.isFinite(max)) value = Math.min(max, value);
+      slider.value = String(value);
+      readout.value = formatSliderValue(slider);
+    }
+
+    function formatPopupNumber(value, decimals) {
+      if (!Number.isFinite(value)) return "";
+      const rounded = decimals > 0 ? Math.round(value * (10 ** decimals)) / (10 ** decimals) : Math.round(value);
+      return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(decimals);
+    }
+
+    function popupLine(label, value, unit) {
+      return label + ": " + value + (unit ? " " + unit : "");
+    }
+
+    function formatPopupFeet(value) {
+      return formatPopupNumber(value, 0) + " ft";
+    }
+
+    function formatPopupNmFromFeet(value) {
+      return formatPopupNumber(value / FEET_PER_NM, 1) + " NM";
+    }
+
+    function getRangeModelLabel(rangeModel) {
+      if (rangeModel === "manual") return "Manual";
+      if (rangeModel === "high_drag") return "High drag approximation";
+      return "Low drag approximation";
+    }
+
+    function computeDragBombRangeFeet(releaseAltitude, releaseSpeed, diveAngle, rangeModel) {
+      const stepSeconds = 0.1;
+      const dragScale = rangeModel === "high_drag" ? 1.0 : 0.165;
+      const gravity = rangeModel === "high_drag" ? 20.91505 : 32.177;
+      const diveRadians = diveAngle * Math.PI / 180;
+      let horizontalSpeed = Math.round(Math.cos(diveRadians) * releaseSpeed * FEET_PER_KNOT_SECOND * 100) / 100;
+      let verticalSpeedDown = Math.round(Math.sin(diveRadians) * releaseSpeed * FEET_PER_KNOT_SECOND * 100) / 100;
+      let rangeFeet = horizontalSpeed;
+      let altitude = releaseAltitude - verticalSpeedDown - 0.5 * 32.177;
+      verticalSpeedDown += 32.177;
+      let lastStepRange = rangeFeet;
+      let lastStepAltitudeChange = -verticalSpeedDown - 0.5 * gravity * stepSeconds;
+      let guard = 0;
+      while (altitude > 0 && guard < 10000) {
+        guard += 1;
+        const horizontalDrag = dragScale * 140 * Math.abs(horizontalSpeed) / Math.sqrt(horizontalSpeed * horizontalSpeed + 0.1);
+        const acceleration = horizontalSpeed > 0 ? -horizontalDrag : 0;
+        horizontalSpeed = Math.max(0, horizontalSpeed + acceleration * stepSeconds);
+        verticalSpeedDown += gravity * stepSeconds;
+        lastStepRange = horizontalSpeed * stepSeconds + 0.5 * acceleration * stepSeconds * stepSeconds;
+        lastStepAltitudeChange = -verticalSpeedDown * stepSeconds - 0.5 * gravity * stepSeconds * stepSeconds;
+        rangeFeet += lastStepRange;
+        altitude += lastStepAltitudeChange;
+      }
+      if (guard >= 10000 || !Number.isFinite(altitude) || !Number.isFinite(lastStepAltitudeChange) || lastStepAltitudeChange === 0) return NaN;
+      const stepFraction = altitude / lastStepAltitudeChange;
+      return rangeFeet + stepFraction * lastStepRange;
+    }
+
+    function updatePopupInputState() {
+      const rangeModel = getPopupValue("rangeModel") === "manual" ? "manual" : "computed";
+      const bombRangeInput = document.querySelector("[data-popup-field='bombRange']");
+      if (bombRangeInput) {
+        bombRangeInput.disabled = rangeModel !== "manual";
+        bombRangeInput.title = rangeModel === "manual" ? "Manual bomb range / table value" : "Computed from the selected drag approximation";
+      }
+    }
+
+    function computePopupPlan() {
+      const mode = getSelectedPopupMode();
+      const stptNumber = cleanOffsetValue(dtcSelectedStptNumber);
+      if (!stptNumber || !mode) return { error: "Select a VIP or VRP steerpoint." };
+
+      const diveAngle = getPopupNumber("diveAngle");
+      const releaseAltitude = getPopupNumber("releaseAltitude");
+      const ingressAltitude = getPopupNumber("ingressAltitude");
+      const releaseSpeed = getPopupNumber("releaseSpeed");
+      const timeOnFinal = getPopupNumber("timeOnFinal");
+      const actionRangeNm = getPopupNumber("actionRangeNm");
+      const heading = getPopupNumber("heading");
+      const requestedRangeModel = getPopupValue("rangeModel");
+      const rangeModel = requestedRangeModel === "manual" || requestedRangeModel === "high_drag" ? requestedRangeModel : "low_drag";
+      const headingMode = getPopupValue("headingMode") === "ingress" ? "ingress" : "attack";
+      const side = getPopupValue("side") === "left" ? "left" : "right";
+      const gProfile = getPopupValue("gProfile") === "high" ? "high" : "low";
+      const manualBombRange = getPopupNumber("bombRange");
+      const required = [diveAngle, releaseAltitude, ingressAltitude, releaseSpeed, timeOnFinal, actionRangeNm, heading];
+      if (rangeModel === "manual") required.push(manualBombRange);
+      if (required.some((value) => !Number.isFinite(value))) return { error: "Enter all pop-up parameters." };
+      if (
+        diveAngle <= 0 ||
+        diveAngle >= 89 ||
+        releaseAltitude <= 0 ||
+        ingressAltitude < 0 ||
+        releaseSpeed <= 0 ||
+        timeOnFinal < 0 ||
+        actionRangeNm <= 0 ||
+        (rangeModel === "manual" && manualBombRange < 0)
+      ) {
+        return { error: "Pop-up parameters are outside valid ranges." };
+      }
+      const bombRange = rangeModel === "manual"
+        ? manualBombRange
+        : computeDragBombRangeFeet(releaseAltitude, releaseSpeed, diveAngle, rangeModel);
+      if (!Number.isFinite(bombRange) || bombRange <= 0) return { error: "Could not compute bomb range." };
+      if (rangeModel !== "manual") {
+        const bombRangeInput = document.querySelector("[data-popup-field='bombRange']");
+        if (bombRangeInput) bombRangeInput.value = String(Math.round(bombRange));
+      }
+
+      const selectedCoord = getBmsCoordForStpt(stptNumber);
+      if (!selectedCoord) return { error: "Selected steerpoint coordinates are invalid." };
+      let targetCoord = selectedCoord;
+      if (mode === "vip") {
+        targetCoord = projectOffsetFromBmsCoord(selectedCoord, dtcNavOffsets.vip);
+        if (!targetCoord) return { error: "VIP-TO-TGT is required before computing pop-up geometry." };
+      }
+
+      const diveRadians = diveAngle * Math.PI / 180;
+      const groundSpeed = releaseSpeed * Math.cos(diveRadians);
+      const horizontalTrackingDistance = groundSpeed * 1.69 * timeOnFinal;
+      const verticalTrackingDistance = releaseSpeed * 1.69 * timeOnFinal * Math.sin(diveRadians);
+      const mapDistance = bombRange + horizontalTrackingDistance;
+      const actionRangeFeet = actionRangeNm * FEET_PER_NM;
+      const aod = releaseAltitude / Math.tan(diveRadians) - bombRange;
+      if (aod <= 0) return { error: "AOD is negative for this profile. Increase release altitude or reduce bomb range." };
+      const climbAngle = diveAngle <= 15 ? diveAngle + 5 : diveAngle + 10;
+      const climbRadians = climbAngle * Math.PI / 180;
+      const angleOff = 2 * climbAngle;
+      const turnG = gProfile === "high" ? 5 : 3.5;
+      const trackAltitude = releaseAltitude + verticalTrackingDistance;
+      const turnRadius = ((releaseSpeed * 1.69) ** 2) / (32.2 * turnG);
+      const recoveryPullDelay = 2;
+      const recoveryPullG = 5;
+      const releaseSpeedFps = releaseSpeed * FEET_PER_KNOT_SECOND;
+      const recoveryDelayAltitudeLoss = releaseSpeedFps * Math.sin(diveRadians) * recoveryPullDelay;
+      const recoveryPullRadius = (releaseSpeedFps ** 2) / (32.2 * recoveryPullG);
+      const recoveryPullAltitudeLoss = recoveryPullRadius * (1 - Math.cos(diveRadians));
+      const recoveryAltitudeLoss = recoveryDelayAltitudeLoss + recoveryPullAltitudeLoss;
+      const recoveryGroundClearance = releaseAltitude - recoveryAltitudeLoss;
+      const pullDownAltitude = trackAltitude - turnRadius * (Math.cos(diveRadians) - Math.cos(climbRadians));
+      const apexAltitude = pullDownAltitude + turnRadius * (1 - Math.cos(climbRadians));
+      const popToPullDownDistance = (pullDownAltitude - ingressAltitude) / Math.tan(climbRadians);
+      if (popToPullDownDistance <= 0) return { error: "Ingress altitude is above the computed pull-down altitude." };
+
+      let attackHeading;
+      let ingressHeading;
+      if (headingMode === "attack") {
+        attackHeading = normalizeBearing(heading);
+        ingressHeading = normalizeBearing(attackHeading + (side === "right" ? -angleOff : angleOff));
+      } else {
+        ingressHeading = normalizeBearing(heading);
+        attackHeading = normalizeBearing(ingressHeading + (side === "right" ? angleOff : -angleOff));
+      }
+
+      const turnDirection = side === "left" ? "left" : "right";
+      const actionCoord = projectBearingRange(targetCoord, ingressHeading + 180, actionRangeFeet);
+      const mapCoord = projectBearingRange(targetCoord, attackHeading + 180, mapDistance);
+      const releaseCoord = projectBearingRange(targetCoord, attackHeading + 180, bombRange);
+      const turnGeometry = solvePopupTurnGeometry(actionCoord, mapCoord, attackHeading, turnRadius, turnDirection);
+      if (!turnGeometry) return { error: "Could not solve action-to-MAP turn geometry." };
+      const pdpCoord = turnGeometry.pdpCoord;
+      const offsetLegMetrics = turnGeometry.offsetLegMetrics;
+      const offsetLegHeading = turnGeometry.offsetLegHeading;
+      const offsetLegDistance = coordDistanceFeet(actionCoord, pdpCoord);
+      if (popToPullDownDistance > offsetLegDistance) {
+        return { error: "PUP would fall before the action point. Increase action range or adjust the vertical profile." };
+      }
+      const pupCoord = projectBearingRange(pdpCoord, offsetLegHeading + 180, popToPullDownDistance);
+      const oaCoord = projectBearingRange(targetCoord, attackHeading, aod);
+      if (!actionCoord || !pdpCoord || !pupCoord || !oaCoord) return { error: "Could not compute pop-up geometry." };
+      const turnArcCoords = turnGeometry.turnArcCoords;
+      const rolloutCoord = mapCoord;
+
+      const pupMetrics = bearingRangeBetween(selectedCoord, pupCoord);
+      const oaMetrics = bearingRangeBetween(selectedCoord, oaCoord);
+      if (!pupMetrics || !oaMetrics) return { error: "Could not compute NAV offset rows." };
+      const ingressToOffset = Math.abs(normalizeBearing(offsetLegHeading - ingressHeading));
+      const offsetAngle = ingressToOffset > 180 ? 360 - ingressToOffset : ingressToOffset;
+
+      return {
+        mode,
+        stptNumber,
+        selectedCoord,
+        targetCoord,
+        actionCoord,
+        mapCoord,
+        releaseCoord,
+        pdpCoord,
+        pupCoord,
+        oaCoord,
+        rolloutCoord,
+        turnArcCoords,
+        offsetLegMetrics,
+        pupMetrics,
+        oaMetrics,
+        values: {
+          diveAngle,
+          releaseAltitude,
+          ingressAltitude,
+          releaseSpeed,
+          bombRange,
+          rangeModel,
+          timeOnFinal,
+          actionRangeNm,
+          actionRangeFeet,
+          groundSpeed,
+          horizontalTrackingDistance,
+          verticalTrackingDistance,
+          mapDistance,
+          aod,
+          climbAngle,
+          angleOff,
+          trackAltitude,
+          apexAltitude,
+          pullDownAltitude,
+          popToPullDownDistance,
+          turnRadius,
+          recoveryPullDelay,
+          recoveryPullG,
+          recoveryPullRadius,
+          recoveryDelayAltitudeLoss,
+          recoveryPullAltitudeLoss,
+          recoveryAltitudeLoss,
+          recoveryGroundClearance,
+          recoveryMraAltitude: recoveryAltitudeLoss + POPUP_MRA_BUFFER_FEET,
+          recoveryMraBuffer: POPUP_MRA_BUFFER_FEET,
+          attackHeading,
+          ingressHeading,
+          offsetLegHeading,
+          offsetAngle,
+          turnDirection,
+          headingMode,
+          side,
+          gProfile,
+        },
+      };
+    }
+
+    function formatPopupOutput(plan) {
+      if (!plan || plan.error) return plan?.error || "";
+      const v = plan.values;
+      const pdpTerrainFeet = getCachedPopupTerrainElevationFeet(plan.pdpCoord);
+      const releaseTerrainFeet = getCachedPopupTerrainElevationFeet(plan.releaseCoord || plan.targetCoord);
+      const referenceToPupFeet = coordDistanceFeet(plan.selectedCoord, plan.pupCoord);
+      const pupToPdpFeet = coordDistanceFeet(plan.pupCoord, plan.pdpCoord);
+      const pdpToTargetFeet = coordDistanceFeet(plan.pdpCoord, plan.targetCoord);
+      const pupToTargetFeet = coordDistanceFeet(plan.pupCoord, plan.targetCoord);
+      const mapToTargetFeet = coordDistanceFeet(plan.mapCoord, plan.targetCoord);
+      return [
+        "POP-UP STPT " + plan.stptNumber + " " + plan.mode.toUpperCase(),
+        popupLine("POP", formatPopupNumber(v.offsetAngle, 1) + " deg / " + formatPopupNmFromFeet(referenceToPupFeet), ""),
+        popupLine("DA", formatPopupNumber(v.diveAngle, 1), "deg"),
+        popupLine("CA", formatPopupNumber(v.climbAngle, 1), "deg"),
+        formatPopupAglMslLine("PDWN", v.pullDownAltitude, pdpTerrainFeet),
+        formatPopupAglMslLine("APEX", v.apexAltitude, pdpTerrainFeet),
+        formatPopupAglMslLine("RALT", v.releaseAltitude, releaseTerrainFeet),
+        formatPopupAglMslLine("MRA", v.recoveryMraAltitude, releaseTerrainFeet),
+        popupLine("AOD", formatPopupFeet(v.aod), ""),
+        popupLine("PUP", formatPopupFeet(pupToPdpFeet), ""),
+        popupLine("RADIUS", formatPopupFeet(v.turnRadius), ""),
+        popupLine("MAP", formatPopupFeet(v.mapDistance), ""),
+        popupLine("ALTLOSS", formatPopupFeet(v.recoveryAltitudeLoss), ""),
+        popupLine("GNDC", formatPopupFeet(v.recoveryGroundClearance) + " AGL", ""),
+        popupLine("TOF STICK", formatPopupNumber(v.timeOnFinal, 1), "sec"),
+        "",
+        "SUPPORT",
+        "",
+        "AP",
+        popupLine("Action range", formatPopupNumber(v.actionRangeNm, 1), "NM"),
+        popupLine("Ingress HDG", formatPopupNumber(v.ingressHeading, 1), "deg"),
+        "",
+        "PUP",
+        popupLine("Ref-to-PUP", formatPopupFeet(referenceToPupFeet), ""),
+        popupLine("PUP-to-PDP", formatPopupFeet(pupToPdpFeet), ""),
+        popupLine("PUP-to-TGT", formatPopupFeet(pupToTargetFeet), ""),
+        popupLine("HDG to PDP", formatPopupNumber(v.offsetLegHeading, 1), "deg"),
+        popupLine("PUP offset", "BRG " + plan.pupMetrics.brg + " RNG " + plan.pupMetrics.rng, ""),
+        "",
+        "PDP",
+        popupLine("PDP-to-TGT", formatPopupFeet(pdpToTargetFeet), ""),
+        popupLine("Angle off", formatPopupNumber(v.angleOff, 1) + " deg " + v.side.toUpperCase(), ""),
+        popupLine("Action-to-PDP", plan.offsetLegMetrics.rng, "ft"),
+        "",
+        "MAP",
+        popupLine("MAP-to-TGT", formatPopupFeet(mapToTargetFeet), ""),
+        popupLine("Attack HDG", formatPopupNumber(v.attackHeading, 1), "deg"),
+        popupLine("Tracking distance", formatPopupFeet(v.horizontalTrackingDistance), ""),
+        popupLine("Bomb range", formatPopupFeet(v.bombRange), ""),
+        "",
+        "RECOVERY",
+        popupLine("Model", formatPopupNumber(v.recoveryPullG, 0) + "G pull after " + formatPopupNumber(v.recoveryPullDelay, 0) + " sec", ""),
+        popupLine("MRA buffer", formatPopupFeet(v.recoveryMraBuffer), ""),
+        popupLine("Delay loss", formatPopupFeet(v.recoveryDelayAltitudeLoss), ""),
+        popupLine("Pull loss", formatPopupFeet(v.recoveryPullAltitudeLoss), ""),
+        popupLine("Pull radius", formatPopupFeet(v.recoveryPullRadius), ""),
+        "",
+        "OTHER",
+        popupLine("Range model", getRangeModelLabel(v.rangeModel), ""),
+        popupLine("Ingress alt", formatPopupNumber(v.ingressAltitude, 0), "ft AGL"),
+        popupLine("Release speed", formatPopupNumber(v.releaseSpeed, 0), "KTAS"),
+        popupLine("Ground speed", formatPopupNumber(v.groundSpeed, 0), "KTAS"),
+        popupLine("Track altitude", formatPopupNumber(v.trackAltitude, 0), "ft AGL"),
+        popupLine("Pop-to-pull-down", formatPopupNumber(v.popToPullDownDistance, 0), "ft"),
+        popupLine("OA1 offset", "BRG " + plan.oaMetrics.brg + " RNG " + plan.oaMetrics.rng, ""),
+        "",
+        "========",
+        "LEGEND:",
+        "AOD: Aim-off distance",
+        "AP: Action point",
+        "APEX: Apex altitude",
+        "BRG: Bearing",
+        "CA: Climb angle",
+        "DA: Dive angle",
+        "GNDC: Ground clearance after recovery",
+        "HDG: Heading",
+        "MAP: Maneuver aim point",
+        "MRA: Minimum recovery altitude",
+        "OA: Offset aimpoint",
+        "PDP: Pull-down point",
+        "PDWN: Pull-down altitude",
+        "PUP: Pull-up point",
+        "RALT: Release altitude",
+        "RNG: Range",
+        "TOF: Time on final",
+      ].join("\n");
+    }
+
+    function addDtcPopupConnector(coords, options) {
+      if (!dtcPopupMapLayer) return null;
+      const latlngs = coords.map((coord) => bmsCoordToMapLatLng(coord)).filter(Boolean);
+      if (latlngs.length < 2) return null;
+      const connector = L.polyline(latlngs, {
+        color: options?.color || "#ffe680",
+        weight: options?.weight || 2,
+        opacity: 0.92,
+        dashArray: options?.dashArray || null,
+        interactive: false,
+      }).addTo(dtcPopupMapLayer);
+      return connector;
+    }
+
+    function formatPopupPointContent(title, lines) {
+      const content = ["<b>" + escapeHtml(title) + "</b>"];
+      lines.filter(Boolean).forEach((line) => content.push(escapeHtml(line)));
+      return content.join("<br>");
+    }
+
+    function formatPopupAglMslLine(label, aglFeet, terrainFeet) {
+      const aglText = formatPopupNumber(aglFeet, 0) + " ft AGL";
+      const mslText = Number.isFinite(terrainFeet)
+        ? formatPopupNumber(aglFeet + terrainFeet, 0) + " ft MSL"
+        : "MSL pending";
+      return label + ": " + aglText + " / " + mslText;
+    }
+
+    function addDtcPopupMarker(kind, label, coord, title, popupContent, markerOptions) {
+      if (!dtcPopupMapLayer) return null;
+      const latlng = bmsCoordToMapLatLng(coord);
+      if (!latlng) return null;
+      const dragOptions = markerOptions?.dragOptions || null;
+      const draggable = Boolean(dragOptions && dragOptions.offsetRow && dragOptions.baseCoord);
+      const marker = L.marker(latlng, {
+        icon: L.divIcon({
+          className: "dtc-offset-map-icon dtc-popup-map-icon is-" + kind,
+          html: escapeHtml(label || ""),
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+        }),
+        draggable,
+        interactive: Boolean(popupContent || draggable),
+        keyboard: false,
+        bubblingMouseEvents: false,
+        title: title || label || "",
+      }).addTo(dtcPopupMapLayer);
+      if (popupContent) {
+        marker.bindPopup(popupContent, {
+          className: "target-stpt-popup",
+          closeButton: false,
+          autoPan: false,
+        });
+      }
+      if (draggable) {
+        marker.on("dragstart", () => {
+          marker.closePopup();
+          updateOffsetDragTooltip(marker, dragOptions.baseCoord, dragOptions.connector);
+        });
+        marker.on("drag", () => {
+          if (!dragOptions.connector) return;
+          const baseLatLng = bmsCoordToMapLatLng(dragOptions.baseCoord);
+          if (!baseLatLng) return;
+          dragOptions.connector.setLatLngs([baseLatLng, marker.getLatLng()]);
+          updateOffsetDragTooltip(marker, dragOptions.baseCoord, dragOptions.connector);
+        });
+        marker.on("dragend", () => updateOffsetRowFromDraggedMarker(marker, dragOptions.baseCoord, dragOptions.offsetRow, dragOptions));
+      }
+      return marker;
+    }
+
+    function renderPopupMapLayer(plan) {
+      if (typeof L === "undefined" || typeof map === "undefined") return;
+      if (!dtcPopupMapLayer) {
+        dtcPopupMapLayer = L.layerGroup().addTo(map);
+      }
+      dtcPopupMapLayer.clearLayers();
+      if (!plan || plan.error) return;
+      const routeStartCoord = plan.mode === "vip"
+        ? plan.selectedCoord
+        : projectBearingRange(plan.actionCoord, plan.values.ingressHeading + 180, Math.min(plan.values.actionRangeFeet * 0.5, 12000));
+      if (routeStartCoord) {
+        addDtcPopupConnector([routeStartCoord, plan.actionCoord]);
+      }
+      addDtcPopupConnector([plan.actionCoord, plan.pupCoord, plan.pdpCoord]);
+      if (Array.isArray(plan.turnArcCoords) && plan.turnArcCoords.length > 1) {
+        addDtcPopupConnector(plan.turnArcCoords, { color: "#ffb347", weight: 2.25 });
+      }
+      addDtcPopupConnector([plan.mapCoord || plan.rolloutCoord || plan.pdpCoord, plan.targetCoord]);
+      addDtcPopupConnector([plan.targetCoord, plan.oaCoord], { dashArray: "4 4", weight: 1.5 });
+      const pdpTerrainFeet = getCachedPopupTerrainElevationFeet(plan.pdpCoord);
+      const releaseTerrainFeet = getCachedPopupTerrainElevationFeet(plan.releaseCoord || plan.targetCoord);
+      addDtcPopupMarker("action", "", plan.actionCoord, "Action point", formatPopupPointContent("AP", [
+        "Offset: " + formatPopupNumber(plan.values.offsetAngle, 1) + "°",
+        "Action range: " + formatPopupNumber(plan.values.actionRangeNm, 1) + " NM",
+        "Ingress HDG: " + formatPopupNumber(plan.values.ingressHeading, 1) + "°",
+      ]));
+      addDtcPopupMarker("pup", "", plan.pupCoord, "Computed PUP", formatPopupPointContent("PUP", [
+        "Climb angle: " + formatPopupNumber(plan.values.climbAngle, 1) + "°",
+        "HDG to PDP: " + formatPopupNumber(plan.values.offsetLegHeading, 1) + "°",
+      ]));
+      addDtcPopupMarker("pdp", "", plan.pdpCoord, "PDP", formatPopupPointContent("PDP", [
+        formatPopupAglMslLine("PDP", plan.values.pullDownAltitude, pdpTerrainFeet),
+        formatPopupAglMslLine("APEX", plan.values.apexAltitude, pdpTerrainFeet),
+        "Angle off: " + formatPopupNumber(plan.values.angleOff, 1) + "° " + plan.values.side.toUpperCase(),
+      ]));
+      addDtcPopupMarker("action", "", plan.mapCoord, "MAP / rollout", formatPopupPointContent("MAP", [
+        "Tracking time: " + formatPopupNumber(plan.values.timeOnFinal, 0) + " sec",
+        formatPopupAglMslLine("Release ALT", plan.values.releaseAltitude, releaseTerrainFeet),
+        "Attack HDG: " + formatPopupNumber(plan.values.attackHeading, 1) + "°",
+        "Dive angle: " + formatPopupNumber(plan.values.diveAngle, 1) + "°",
+      ]));
+      const vipTargetDragOptions = plan.mode === "vip" && dtcNavOffsets.vip
+        ? {
+          dragOptions: {
+            baseCoord: plan.selectedCoord,
+            offsetRow: dtcNavOffsets.vip,
+            rowKey: "vip",
+            stptNumber: plan.stptNumber,
+          },
+        }
+        : null;
+      addDtcPopupMarker("tgt", "", plan.targetCoord, "Target", formatPopupPointContent("TGT", [
+        "STPT " + plan.stptNumber + " " + plan.mode.toUpperCase(),
+        "Attack HDG: " + formatPopupNumber(plan.values.attackHeading, 1) + "°",
+      ]), vipTargetDragOptions);
+      addDtcPopupMarker("oa", "1", plan.oaCoord, "Computed OA1", formatPopupPointContent("OA1", [
+        "AOD: " + formatPopupNumber(plan.values.aod, 0) + " ft",
+        "Offset: BRG " + plan.oaMetrics.brg + " RNG " + plan.oaMetrics.rng,
+      ]));
+    }
+
+    function renderPopupComputer(statusText) {
+      renderPopupClickers();
+      updatePopupSliderDisplays();
+      updatePopupInputState();
+      const panel = document.getElementById("dtc-left-popup");
+      if (!panel) return;
+      if (statusText != null) dtcPopupStatusText = statusText;
+      const hasSelection = cleanOffsetValue(dtcSelectedStptNumber) !== "";
+      if (panel.hidden || !hasSelection) {
+        dtcPopupLastPlan = null;
+        renderPopupMapLayer(null);
+        const output = document.getElementById("dtc-popup-output");
+        if (output && !hasSelection) output.value = "Select a steerpoint.";
+        const applyButton = document.getElementById("dtc-popup-apply");
+        if (applyButton) applyButton.disabled = true;
+        return;
+      }
+
+      const mode = getSelectedPopupMode();
+      const label = document.getElementById("dtc-popup-stpt-label");
+      if (label) label.textContent = "STPT " + dtcSelectedStptNumber + " " + mode.toUpperCase();
+      const plan = computePopupPlan();
+      dtcPopupLastPlan = plan && !plan.error ? plan : null;
+      const output = document.getElementById("dtc-popup-output");
+      if (output) output.value = formatPopupOutput(plan);
+      const applyButton = document.getElementById("dtc-popup-apply");
+      if (applyButton) applyButton.disabled = !dtcPopupLastPlan;
+      const status = document.getElementById("dtc-popup-status");
+      if (status) status.textContent = dtcPopupStatusText;
+      renderPopupMapLayer(plan);
+    }
+
+    async function applyPopupPlan() {
+      const plan = dtcPopupLastPlan || computePopupPlan();
+      if (!plan || plan.error) {
+        renderPopupComputer(plan?.error || "Could not compute pop-up geometry.");
+        return;
+      }
+
+      const stptKey = cleanOffsetValue(plan.stptNumber);
+      dtcNavOffsets.oa[stptKey] = dtcNavOffsets.oa[stptKey] || {};
+      const oaRow = blankOffsetRow(stptKey);
+      oaRow.brg = plan.oaMetrics.brg;
+      oaRow.rng = plan.oaMetrics.rng;
+      dtcNavOffsets.oa[stptKey].oa1 = oaRow;
+
+      const pupRow = blankOffsetRow(stptKey);
+      pupRow.brg = plan.pupMetrics.brg;
+      pupRow.rng = plan.pupMetrics.rng;
+      let defaultVrpRow = null;
+      if (plan.mode === "vip") {
+        dtcNavOffsets.vippup = pupRow;
+      } else {
+        if (!offsetRowMatchesStpt(dtcNavOffsets.vrp, stptKey) || isZeroOffsetRow(dtcNavOffsets.vrp)) {
+          defaultVrpRow = defaultOffsetRow(stptKey, "vrp");
+          dtcNavOffsets.vrp = defaultVrpRow;
+        }
+        dtcNavOffsets.vrppup = pupRow;
+      }
+
+      renderOffsetPanel();
+      updateOffsetRowElevationFromCoord(oaRow, plan.oaCoord);
+      updateOffsetRowElevationFromCoord(pupRow, plan.pupCoord);
+      if (defaultVrpRow) updateOffsetRowElevationFromOffset(plan.targetCoord, defaultVrpRow);
+      renderPopupComputer("PUP/OA applied to NAV OFFSETS.");
+    }
+
+    function selectDtcSteerpointPane(tabName) {
+      const normalized = tabName === "popup" ? "popup" : "steerpoints";
+      document.body.classList.toggle("is-popup-active", normalized === "popup");
+      document.querySelectorAll(".dtc-left-pane").forEach((pane) => {
+        pane.hidden = pane.id !== "dtc-left-" + normalized;
+      });
+      if (normalized === "popup") {
+        renderPopupComputer("");
+      } else {
+        dtcPopupLastPlan = null;
+        renderPopupMapLayer(null);
+      }
+      if (typeof map !== "undefined") setTimeout(() => map.invalidateSize(), 50);
+    }
+
+    function selectDtcPageTab(tabName) {
+      const normalized = ["popup", "icp-fcc"].includes(tabName) ? tabName : "steerpoints";
+      const pageName = normalized === "popup" ? "steerpoints" : normalized;
+      document.querySelectorAll(".dtc-page-pane").forEach((pane) => {
+        pane.hidden = pane.id !== "dtc-page-" + pageName;
+      });
+      document.querySelectorAll(".dtc-main-tabs .dtc-tab-button").forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.dtcPageTab === normalized);
+      });
+      if (normalized === "steerpoints" || normalized === "popup") {
+        selectDtcSteerpointPane(normalized);
+      } else {
+        selectDtcSteerpointPane("steerpoints");
+      }
+      if (normalized === "icp-fcc") {
+        normalizeDtcIcpSettings();
+        renderDtcIcpSettings();
+        normalizeDtcFccSettings();
+        renderDtcFccSettings();
+      }
+      if ((normalized === "steerpoints" || normalized === "popup") && typeof map !== "undefined") {
+        setTimeout(() => map.invalidateSize(), 50);
+      }
+    }
+
+    function renderDtcStptSelectionLayer() {
+      if (typeof L === "undefined" || typeof map === "undefined" || typeof convertCoord !== "function") return;
+      if (!dtcStptSelectionLayer) {
+        dtcStptSelectionLayer = L.layerGroup().addTo(map);
+      }
+      dtcStptSelectionLayer.clearLayers();
+      document.querySelectorAll(".dtc-steerpoint-table tbody tr[data-dtc-map-x]").forEach((row) => {
+        const x = Number.parseFloat(row.dataset.dtcMapX || "");
+        const y = Number.parseFloat(row.dataset.dtcMapY || "");
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        const latlng = convertCoord([x, y]);
+        if (typeof validLatLng === "function" && !validLatLng(latlng)) return;
+        L.marker(latlng, {
+          icon: L.divIcon({
+            className: "dtc-stpt-hit-icon",
+            iconSize: [34, 34],
+            iconAnchor: [17, 17],
+          }),
+          interactive: true,
+          bubblingMouseEvents: false,
+        })
+          .on("click", (event) => {
+            if (event && event.originalEvent) L.DomEvent.stop(event.originalEvent);
+            focusDtcRow(row);
+          })
+          .addTo(dtcStptSelectionLayer);
+      });
+      if (typeof dtcStptSelectionLayer.bringToFront === "function") {
+        dtcStptSelectionLayer.bringToFront();
+      }
+    }
+
+    function selectedHasVip() {
+      return offsetRowMatchesStpt(dtcNavOffsets.vip, dtcSelectedStptNumber) ||
+        offsetRowMatchesStpt(dtcNavOffsets.vippup, dtcSelectedStptNumber);
+    }
+
+    function selectedHasVrp() {
+      return offsetRowMatchesStpt(dtcNavOffsets.vrp, dtcSelectedStptNumber) ||
+        offsetRowMatchesStpt(dtcNavOffsets.vrppup, dtcSelectedStptNumber);
+    }
+
+    function stptHasOa(stptNumber) {
+      const rows = dtcNavOffsets.oa[cleanOffsetValue(stptNumber)];
+      if (!rows || typeof rows !== "object") return false;
+      return ["oa1", "oa2"].some((rowKey) => rows[rowKey] && !isZeroOffsetRow(rows[rowKey]));
+    }
+
+    function selectedOaRows() {
+      const rows = dtcNavOffsets.oa[cleanOffsetValue(dtcSelectedStptNumber)];
+      return rows && typeof rows === "object" ? rows : {};
+    }
+
+    function stptHasVip(stptNumber) {
+      return offsetRowMatchesStpt(dtcNavOffsets.vip, stptNumber) ||
+        offsetRowMatchesStpt(dtcNavOffsets.vippup, stptNumber);
+    }
+
+    function stptHasVrp(stptNumber) {
+      return offsetRowMatchesStpt(dtcNavOffsets.vrp, stptNumber) ||
+        offsetRowMatchesStpt(dtcNavOffsets.vrppup, stptNumber);
+    }
+
+    function renderSteerpointMarkers() {
+      document.querySelectorAll(".dtc-steerpoint-table tbody tr[data-dtc-stpt-number]").forEach((row) => {
+        const stptNumber = cleanOffsetValue(row.dataset.dtcStptNumber);
+        const marker = row.querySelector(".dtc-stpt-marker");
+        if (!marker) return;
+        const hasOffset = stptHasOa(stptNumber) || stptHasVip(stptNumber) || stptHasVrp(stptNumber);
+        marker.textContent = hasOffset ? "*" : "";
+        marker.title = hasOffset ? "DTC offset attached" : "";
+      });
+    }
+
+    function ensureOaOffsetRow(stptNumber, rowKey) {
+      const stptKey = cleanOffsetValue(stptNumber);
+      if (!dtcNavOffsets.oa[stptKey]) dtcNavOffsets.oa[stptKey] = {};
+      if (!dtcNavOffsets.oa[stptKey][rowKey]) dtcNavOffsets.oa[stptKey][rowKey] = blankOffsetRow();
+      return dtcNavOffsets.oa[stptKey][rowKey];
+    }
+
+    function ensureSingletonOffsetRow(rowKey) {
+      const row = dtcNavOffsets[rowKey];
+      if (!offsetRowMatchesStpt(row, dtcSelectedStptNumber)) {
+        dtcNavOffsets[rowKey] = blankOffsetRow(dtcSelectedStptNumber);
+      }
+      return dtcNavOffsets[rowKey];
+    }
+
+    function getDisplayedOffsetRow(rowKey) {
+      if (rowKey === "oa1" || rowKey === "oa2") {
+        const stptRows = dtcNavOffsets.oa[cleanOffsetValue(dtcSelectedStptNumber)] || {};
+        return stptRows[rowKey] || blankOffsetRow();
+      }
+      return offsetRowMatchesStpt(dtcNavOffsets[rowKey], dtcSelectedStptNumber) ? dtcNavOffsets[rowKey] : blankOffsetRow(dtcSelectedStptNumber);
+    }
+
+    function renderOffsetPanel() {
+      const panel = document.getElementById("dtc-offset-panel");
+      if (!panel) return;
+      const hasSelection = cleanOffsetValue(dtcSelectedStptNumber) !== "";
+      panel.hidden = !hasSelection;
+      if (!hasSelection) {
+        renderPopupComputer();
+        return;
+      }
+
+      const stptLabel = document.getElementById("dtc-offset-stpt-label");
+      if (stptLabel) stptLabel.textContent = "STPT " + dtcSelectedStptNumber;
+
+      const vipActive = selectedHasVip();
+      const vrpActive = selectedHasVrp();
+      const oaRows = selectedOaRows();
+      const oa1Active = Boolean(oaRows.oa1 && !isZeroOffsetRow(oaRows.oa1));
+      const oa2Active = Boolean(oaRows.oa2 && !isZeroOffsetRow(oaRows.oa2));
+      const addOaButton = document.getElementById("dtc-add-oa");
+      if (addOaButton) addOaButton.disabled = oa1Active && oa2Active;
+      document.getElementById("dtc-vip-toggle")?.classList.toggle("is-active", vipActive);
+      document.getElementById("dtc-vrp-toggle")?.classList.toggle("is-active", vrpActive);
+
+      const modeselButton = document.getElementById("dtc-modesel-toggle");
+      if (modeselButton) {
+        modeselButton.hidden = !(vipActive || vrpActive);
+        const modeselText = cleanOffsetValue(dtcNavOffsets.modesel).toUpperCase() || "NONE";
+        modeselButton.textContent = modeselText;
+        modeselButton.title = "VIP/VRP mode selector. Current: " + modeselText + ". Click to cycle NONE, VIP, VRP.";
+      }
+
+      document.querySelectorAll(".dtc-offset-row").forEach((tableRow) => {
+        const rowKey = tableRow.dataset.offsetRow;
+        const visible = (rowKey === "oa1" && oa1Active) ||
+          (rowKey === "oa2" && oa2Active) ||
+          (rowKey.startsWith("vip") && vipActive) ||
+          (rowKey.startsWith("vrp") && vrpActive);
+        tableRow.hidden = !visible;
+        const dataRow = getDisplayedOffsetRow(rowKey);
+        tableRow.querySelectorAll(".dtc-offset-input").forEach((input) => {
+          input.value = cleanOffsetValue(dataRow[input.dataset.offsetField]);
+        });
+      });
+      renderSteerpointMarkers();
+      renderDtcOffsetMapLayer();
+      renderPopupComputer();
+    }
+
+    function addOaOffset() {
+      const stptKey = cleanOffsetValue(dtcSelectedStptNumber);
+      if (!stptKey) return;
+      dtcPopupStatusText = "";
+      dtcNavOffsets.oa[stptKey] = dtcNavOffsets.oa[stptKey] || {};
+      const rows = dtcNavOffsets.oa[stptKey];
+      const rowKey = !rows.oa1 || isZeroOffsetRow(rows.oa1) ? "oa1" : (!rows.oa2 || isZeroOffsetRow(rows.oa2) ? "oa2" : "");
+      if (!rowKey) return;
+      rows[rowKey] = defaultOffsetRow(dtcSelectedStptNumber, rowKey);
+      const baseCoord = getBmsCoordForStpt(dtcSelectedStptNumber);
+      renderOffsetPanel();
+      updateOffsetRowElevationFromOffset(baseCoord, rows[rowKey]);
+    }
+
+    function setVipActive(active) {
+      dtcPopupStatusText = "";
+      if (active) {
+        if (offsetRowMatchesStpt(dtcNavOffsets.vrp, dtcSelectedStptNumber)) dtcNavOffsets.vrp = null;
+        if (offsetRowMatchesStpt(dtcNavOffsets.vrppup, dtcSelectedStptNumber)) dtcNavOffsets.vrppup = null;
+        dtcNavOffsets.vip = defaultOffsetRow(dtcSelectedStptNumber, "vip");
+        dtcNavOffsets.vippup = defaultOffsetRow(dtcSelectedStptNumber, "vippup");
+        const baseCoord = getBmsCoordForStpt(dtcSelectedStptNumber);
+        updateOffsetRowElevationFromOffset(baseCoord, dtcNavOffsets.vip);
+        updateOffsetRowElevationFromOffset(baseCoord, dtcNavOffsets.vippup);
+      } else {
+        if (offsetRowMatchesStpt(dtcNavOffsets.vip, dtcSelectedStptNumber)) dtcNavOffsets.vip = null;
+        if (offsetRowMatchesStpt(dtcNavOffsets.vippup, dtcSelectedStptNumber)) dtcNavOffsets.vippup = null;
+        if (!selectedHasVrp()) dtcNavOffsets.modesel = "none";
+      }
+      renderOffsetPanel();
+    }
+
+    function setVrpActive(active) {
+      dtcPopupStatusText = "";
+      if (active) {
+        if (offsetRowMatchesStpt(dtcNavOffsets.vip, dtcSelectedStptNumber)) dtcNavOffsets.vip = null;
+        if (offsetRowMatchesStpt(dtcNavOffsets.vippup, dtcSelectedStptNumber)) dtcNavOffsets.vippup = null;
+        dtcNavOffsets.vrp = defaultOffsetRow(dtcSelectedStptNumber, "vrp");
+        dtcNavOffsets.vrppup = defaultOffsetRow(dtcSelectedStptNumber, "vrppup");
+        const baseCoord = getBmsCoordForStpt(dtcSelectedStptNumber);
+        updateOffsetRowElevationFromOffset(baseCoord, dtcNavOffsets.vrp);
+        updateOffsetRowElevationFromOffset(baseCoord, dtcNavOffsets.vrppup);
+      } else {
+        if (offsetRowMatchesStpt(dtcNavOffsets.vrp, dtcSelectedStptNumber)) dtcNavOffsets.vrp = null;
+        if (offsetRowMatchesStpt(dtcNavOffsets.vrppup, dtcSelectedStptNumber)) dtcNavOffsets.vrppup = null;
+        if (!selectedHasVip()) dtcNavOffsets.modesel = "none";
+      }
+      renderOffsetPanel();
+    }
+
+    function updateOffsetInput(input) {
+      dtcPopupStatusText = "";
+      const tableRow = input.closest(".dtc-offset-row");
+      if (!tableRow) return;
+      const rowKey = tableRow.dataset.offsetRow;
+      const field = input.dataset.offsetField;
+      let dataRow;
+      if (rowKey === "oa1" || rowKey === "oa2") {
+        dataRow = ensureOaOffsetRow(dtcSelectedStptNumber, rowKey);
+      } else {
+        dataRow = ensureSingletonOffsetRow(rowKey);
+      }
+      dataRow[field] = input.value;
+      renderOffsetPanel();
+    }
+
+    function refreshOffsetElevationForInput(input) {
+      if (!input || input.dataset.offsetField === "elev") return;
+      const tableRow = input.closest(".dtc-offset-row");
+      if (!tableRow || tableRow.hidden) return;
+      const rowKey = tableRow.dataset.offsetRow;
+      const dataRow = getDisplayedOffsetRow(rowKey);
+      const baseCoord = getBmsCoordForStpt(dtcSelectedStptNumber);
+      updateOffsetRowElevationFromOffset(baseCoord, dataRow);
+    }
+
+    function clearOffsetRow(tableRow) {
+      dtcPopupStatusText = "";
+      const rowKey = tableRow.dataset.offsetRow;
+      if (rowKey === "oa1" || rowKey === "oa2") {
+        dtcNavOffsets.oa[cleanOffsetValue(dtcSelectedStptNumber)] = dtcNavOffsets.oa[cleanOffsetValue(dtcSelectedStptNumber)] || {};
+        delete dtcNavOffsets.oa[cleanOffsetValue(dtcSelectedStptNumber)][rowKey];
+        if (Object.keys(dtcNavOffsets.oa[cleanOffsetValue(dtcSelectedStptNumber)]).length === 0) {
+          delete dtcNavOffsets.oa[cleanOffsetValue(dtcSelectedStptNumber)];
+        }
+      } else if (offsetRowMatchesStpt(dtcNavOffsets[rowKey], dtcSelectedStptNumber)) {
+        dtcNavOffsets[rowKey] = null;
+      }
+      if (!selectedHasVip() && !selectedHasVrp()) dtcNavOffsets.modesel = "none";
+      renderOffsetPanel();
+    }
+
+    async function saveDtcNavOffsets() {
+      try {
+        const response = await fetch("/api/dtc/nav-offsets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nav_offsets: dtcNavOffsets })
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || response.statusText);
+        }
+      } catch (error) {
+        console.error("Failed to save NAV OFFSETS", error);
+      }
+    }
+
+    function formatDtcDegrees(value, positiveSuffix, negativeSuffix) {
+      if (!Number.isFinite(value)) return "";
+      const suffix = value < 0 ? negativeSuffix : positiveSuffix;
+      const absoluteValue = Math.abs(value);
+      let degrees = Math.floor(absoluteValue);
+      let minutes = (absoluteValue - degrees) * 60;
+      if (minutes >= 59.99995) {
+        degrees += 1;
+        minutes = 0;
+      }
+      return suffix + degrees.toString().padStart(2, "0") + "° " + minutes.toFixed(3).padStart(6, "0") + "'";
+    }
+
+    function formatDtcZ(value) {
+      if (!Number.isFinite(value)) return "";
+      return Math.round(-value).toString();
+    }
+
+    function formatDtcCoordinateRows() {
+      if (typeof convertBmsCoordToLatLng !== "function") return;
+      document.querySelectorAll(".dtc-steerpoint-table tbody tr[data-dtc-map-x], .dtc-steerpoint-table tbody tr[data-dtc-display-x]").forEach((row) => {
+        const x = Number.parseFloat(row.dataset.dtcMapX || row.dataset.dtcDisplayX || "");
+        const y = Number.parseFloat(row.dataset.dtcMapY || row.dataset.dtcDisplayY || "");
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        const latlng = convertBmsCoordToLatLng(x, y);
+        if (!Array.isArray(latlng) || latlng.length < 2 || !Number.isFinite(latlng[0]) || !Number.isFinite(latlng[1])) {
+          return;
+        }
+        const latCell = row.querySelector(".dtc-lat");
+        const lonCell = row.querySelector(".dtc-lon");
+        const zCell = row.querySelector(".dtc-z");
+        if (latCell) latCell.textContent = formatDtcDegrees(latlng[0], "N", "S");
+        if (lonCell) lonCell.textContent = formatDtcDegrees(latlng[1], "E", "W");
+        if (zCell) {
+          const z = Number.parseFloat(zCell.textContent || "");
+          const formattedZ = formatDtcZ(z);
+          if (formattedZ) zCell.textContent = formattedZ;
+        }
+      });
+    }
+
+    function focusDtcRow(row) {
+      const x = Number.parseFloat(row.dataset.dtcMapX || "");
+      const y = Number.parseFloat(row.dataset.dtcMapY || "");
+      if (!Number.isFinite(x) || !Number.isFinite(y) || typeof convertCoord !== "function") return;
+      const latlng = convertCoord([x, y]);
+      if (typeof validLatLng === "function" && !validLatLng(latlng)) return;
+      document.querySelectorAll(".dtc-steerpoint-table tbody tr").forEach((candidate) => {
+        candidate.classList.toggle("is-selected", candidate === row);
+      });
+      const targetZoom = IS_WEB_MAP ? Math.max(map.getZoom(), 11) : Math.max(map.getZoom(), 1);
+      map.setView(latlng, targetZoom, { animate: true });
+      if (dtcSelectedLayer && map.hasLayer(dtcSelectedLayer)) {
+        map.removeLayer(dtcSelectedLayer);
+      }
+      dtcSelectedLayer = L.circleMarker(latlng, {
+        radius: 14,
+        color: "#66baff",
+        weight: 3,
+        fillOpacity: 0,
+        interactive: false,
+        className: "dtc-selected-point"
+      }).addTo(map);
+      dtcSelectedStptNumber = cleanOffsetValue(row.dataset.dtcStptNumber);
+      dtcPopupStatusText = "";
+      renderOffsetPanel();
+    }
+
+    normalizeOffsetState();
+    normalizeDtcIcpSettings();
+    normalizeDtcLaserSettings();
+    normalizeDtcFccSettings();
+    document.querySelectorAll(".dtc-tab-button").forEach((button) => {
+      if (button.dataset.dtcPageTab) {
+        button.addEventListener("click", () => selectDtcPageTab(button.dataset.dtcPageTab));
+      }
+    });
+    document.querySelectorAll(".dtc-steerpoint-table tbody tr[data-dtc-map-x]").forEach((row) => {
+      row.addEventListener("click", () => focusDtcRow(row));
+    });
+    document.getElementById("dtc-add-oa")?.addEventListener("click", addOaOffset);
+    document.getElementById("dtc-vip-toggle")?.addEventListener("click", () => setVipActive(!selectedHasVip()));
+    document.getElementById("dtc-vrp-toggle")?.addEventListener("click", () => setVrpActive(!selectedHasVrp()));
+    document.getElementById("dtc-modesel-toggle")?.addEventListener("click", () => {
+      const modes = ["none", "vip", "vrp"];
+      const currentIndex = modes.indexOf(cleanOffsetValue(dtcNavOffsets.modesel).toLowerCase());
+      dtcNavOffsets.modesel = modes[(currentIndex + 1) % modes.length];
+      renderOffsetPanel();
+    });
+    document.querySelectorAll(".dtc-offset-input").forEach((input) => {
+      input.addEventListener("input", () => updateOffsetInput(input));
+      input.addEventListener("change", () => refreshOffsetElevationForInput(input));
+    });
+    document.querySelectorAll(".dtc-offset-clear").forEach((button) => {
+      button.addEventListener("click", () => clearOffsetRow(button.closest(".dtc-offset-row")));
+    });
+    document.getElementById("dtc-save-nav-offsets")?.addEventListener("click", saveDtcNavOffsets);
+    document.querySelectorAll(".dtc-icp-input[data-icp-field]").forEach((input) => {
+      input.addEventListener("input", () => updateDtcIcpInput(input));
+    });
+    document.querySelectorAll(".dtc-icp-cycle[data-icp-field]").forEach((button) => {
+      button.addEventListener("click", () => cycleDtcIcpButton(button));
+    });
+    document.getElementById("dtc-save-icp")?.addEventListener("click", saveDtcIcpSettings);
+    document.querySelectorAll(".dtc-laser-input[data-laser-field]").forEach((input) => {
+      input.addEventListener("input", () => updateDtcLaserInput(input));
+    });
+    document.getElementById("dtc-save-laser")?.addEventListener("click", saveDtcLaserSettings);
+    document.querySelectorAll("[data-fcc-section][data-fcc-field]:not(.dtc-fcc-cycle)").forEach((input) => {
+      input.addEventListener("input", () => updateDtcFccInput(input));
+      input.addEventListener("change", () => updateDtcFccInput(input));
+    });
+    document.querySelectorAll(".dtc-fcc-cycle[data-fcc-section][data-fcc-field]").forEach((button) => {
+      button.addEventListener("click", () => cycleDtcFccButton(button));
+    });
+    document.querySelectorAll("[data-fcc-save-section]").forEach((button) => {
+      button.addEventListener("click", () => saveDtcFccSettings(button.dataset.fccSaveSection));
+    });
+    document.querySelectorAll("[data-popup-field]:not(.dtc-popup-clicker)").forEach((input) => {
+      input.addEventListener("input", () => renderPopupComputer(""));
+      input.addEventListener("change", () => renderPopupComputer(""));
+    });
+    document.querySelectorAll(".dtc-popup-clicker[data-popup-field]").forEach((button) => {
+      button.addEventListener("click", () => {
+        cyclePopupClicker(button);
+        renderPopupComputer("");
+      });
+    });
+    document.querySelectorAll("[data-slider-value-for]").forEach((input) => {
+      input.addEventListener("input", () => {
+        syncPopupSliderFromReadout(input);
+        renderPopupComputer("");
+      });
+      input.addEventListener("change", () => {
+        syncPopupSliderFromReadout(input);
+        renderPopupComputer("");
+      });
+    });
+    document.getElementById("dtc-popup-apply")?.addEventListener("click", applyPopupPlan);
+    renderSteerpointMarkers();
+    renderDtcIcpSettings();
+    renderDtcLaserSettings();
+    renderDtcFccSettings();
+    formatDtcCoordinateRows();
+    renderDtcStptSelectionLayer();
+    renderDtcOffsetMapLayer();
+    if (typeof map !== "undefined") {
+      setTimeout(() => map.invalidateSize(), 50);
+    }
+  </script>
+</body>
+</html>

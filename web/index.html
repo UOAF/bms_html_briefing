@@ -50,7 +50,9 @@
       --panel-strong: #15273d;
       --text: #d8e7f5;
       --line: #66baff;
-      --input: #0c1829;
+      --preview-panel: #0d0d0d;
+      --preview-text: #d4d4d4;
+      --preview-line: #3f3f3f;
       --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
       font-family: "Viper";
       background: var(--bg);
@@ -120,10 +122,7 @@
       box-sizing: border-box;
       width: 100%;
       padding: 0.52rem 0.65rem;
-      border: 1px solid #ffffff;
       border-radius: 0;
-      background: var(--bg);
-      color: #ffffff;
       font-family: "IBMPlexMono";
       font-size: 0.95rem;
       font-weight: 700;
@@ -131,27 +130,14 @@
       transition: border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
     }
 
-    input:not([type="checkbox"])::placeholder {
-      color: rgba(255, 255, 255, 0.56);
-    }
-
-    input:not([type="checkbox"]):focus,
-    select:focus {
-      outline: none;
-      border-color: var(--line);
-      box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.45);
-    }
-
-    input:not([type="checkbox"])[readonly] {
-      color: rgba(255, 255, 255, 0.82);
-      border-color: rgba(255, 255, 255, 0.72);
-    }
-
     select {
       appearance: none;
       -webkit-appearance: none;
       -moz-appearance: none;
       padding-right: 1.9rem;
+      border: 1px solid #ffffff;
+      background-color: var(--bg);
+      color: #ffffff;
       background-image:
         linear-gradient(45deg, transparent 50%, #ffffff 50%),
         linear-gradient(135deg, #ffffff 50%, transparent 50%);
@@ -160,6 +146,12 @@
         calc(100% - 0.62rem) calc(50% - 0.1rem);
       background-size: 0.33rem 0.33rem, 0.33rem 0.33rem;
       background-repeat: no-repeat;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--line);
+      box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.45);
     }
 
     select option {
@@ -222,7 +214,7 @@
       box-shadow: inset 0 0 0 1px rgba(58, 167, 255, 0.08);
     }
 
-    #brief-frame {
+    .preview-frame {
       display: block;
       width: 850px;
       max-width: 100%;
@@ -234,8 +226,15 @@
       box-shadow: 0 0 0 1px rgba(58, 167, 255, 0.1);
     }
 
-    .layout.dtc-active #brief-frame {
+    .preview-frame[hidden] {
+      display: none;
+    }
+
+    .layout.dtc-active .preview-frame {
       width: 100%;
+      border: 0;
+      box-shadow: none;
+      background: var(--bg);
     }
 
     .layout {
@@ -828,6 +827,7 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="/templates/interface.css">
 </head>
 <body>
   <div class="page-wrap">
@@ -869,7 +869,8 @@
             </div>
             <div class="page-shortcuts" id="page-shortcuts"></div>
           </div>
-          <iframe id="brief-frame" src="/brief" title="Briefing preview"></iframe>
+          <iframe id="brief-frame" class="preview-frame" src="/brief" title="Briefing preview"></iframe>
+          <iframe id="dtc-frame" class="preview-frame" data-src="/dtc" title="DTC management" hidden></iframe>
         </section>
 
         <section class="mfd-box mfd-flow mfd-with-bottom-btn no-print">
@@ -891,7 +892,7 @@
           </div>
           <div class="spacer-sm">
             <label for="page-select">Page</label>
-            <select id="page-select" class="page-select"></select>
+            <select id="page-select" class="page-select interface-select"></select>
           </div>
           <div class="grid two grid-start">
             <div>
@@ -955,30 +956,30 @@
           <form id="config-form" class="grid two">
             <div>
               <label for="bms_version">BMS version</label>
-              <select id="bms_version" name="bms_version"></select>
+              <select id="bms_version" class="interface-select" name="bms_version"></select>
             </div>
             <div>
               <label for="bms_available_versions">Available versions</label>
-              <input id="bms_available_versions" name="bms_available_versions" placeholder="4.37, 4.38">
+              <input class="interface-text-input" id="bms_available_versions" name="bms_available_versions" placeholder="4.37, 4.38">
             </div>
             <div>
               <label for="default_airframe">Airframe</label>
-              <select id="default_airframe" name="default_airframe">
+              <select id="default_airframe" class="interface-select" name="default_airframe">
                 <option value="F-16">F-16</option>
                 <option value="F-15">F-15</option>
               </select>
             </div>
             <div>
               <label for="wine_prefix">Wine prefix (Linux)</label>
-              <input id="wine_prefix" name="wine_prefix" placeholder="/path/to/wineprefix">
+              <input class="interface-text-input" id="wine_prefix" name="wine_prefix" placeholder="/path/to/wineprefix">
             </div>
             <div>
               <label for="output_dir">Output dir</label>
-              <input id="output_dir" name="output_dir" placeholder="./output">
+              <input class="interface-text-input" id="output_dir" name="output_dir" placeholder="./output">
             </div>
             <div>
               <label for="pdf_output_dir">PDF output dir</label>
-              <input id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards">
+              <input class="interface-text-input" id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards">
             </div>
           </form>
         </section>
@@ -994,7 +995,7 @@
           <div class="grid">
             <div>
               <label for="cam-save-select">Campaign save (.cam/.trn/.tac)</label>
-              <select id="cam-save-select">
+              <select id="cam-save-select" class="interface-select">
                 <option value="">No saves found</option>
               </select>
             </div>
@@ -1014,21 +1015,21 @@
           <div class="grid two">
             <div>
               <label>Theater</label>
-              <input id="theater_name" readonly>
+              <input class="interface-text-input" id="theater_name" readonly>
             </div>
             <div>
               <label for="target_folder">Target folder</label>
-              <input id="target_folder_field" placeholder="/path/to/theater/target">
+              <input class="interface-text-input" id="target_folder_field" placeholder="/path/to/theater/target">
             </div>
             <div>
               <label for="map_file">Map file</label>
-              <input id="map_file_field" placeholder="/path/to/map.png">
+              <input class="interface-text-input" id="map_file_field" placeholder="/path/to/map.png">
             </div>
           </div>
           <button id="copy_to_kto_btn" class="auto-export-mode-btn mfd-bottom-btn" type="button">COPY TO KTO<br>OFF</button>
         </section>
         <div class="settings-meta">
-          <span>v0.8</span>
+          <span>v1.0</span>
           <span aria-hidden="true">|</span>
           <a href="https://codeberg.org/wsywsy/bms_html_briefing" target="_blank" rel="noopener noreferrer">source</a>
         </div>
@@ -1058,12 +1059,67 @@
     const camRefreshBtn = document.getElementById("cam-refresh-btn");
     const camLoadBtn = document.getElementById("cam-load-btn");
     const camUnloadBtn = document.getElementById("cam-unload-btn");
+    const briefFrame = document.getElementById("brief-frame");
+    const dtcFrame = document.getElementById("dtc-frame");
     const CAM_PREVIEW_PACKAGE_SELECT_ID = "cam-support-package-select";
     const CAM_PREVIEW_PACKAGE_QUERY_ID = "cam-support-package-query";
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
     const CAM_LAST_SAVE_PATH_KEY = "cam_last_save_path";
     const APP_INSTANCE_SEEN_KEY = "app_instance_id_seen";
     const MAIN_VIEW_STORAGE_KEY = "main_view";
+    const BRIEFING_DTC_LINKED_FIELDS = {
+      "Bingo_Fuel": "admin_6",
+      "Alow AGL": "admin_1",
+      "Alow MSL": "admin_2",
+    };
+    const BRIEFING_FCC_AGB_LINKS = {
+      "Profile1_Submode": { id: "sms_mode_1", type: "cycle", prefix: "MODE: " },
+      "Profile1_Fuze": { id: "sms_1", type: "cycle" },
+      "Profile1_SGL/PAIR": { id: "sms_2", type: "cycle" },
+      "Profile1_C1_AD1": { id: "sms_7", scale: 100, decimals: 2 },
+      "Profile1_Release_Spacing": { id: "sms_8" },
+      "Profile1_C2_BA": { id: "sms_14" },
+      "Profile1_Release_Pulse": { id: "sms_15", displayOffset: 1 },
+      "Profile2_Submode": { id: "sms_mode_2", type: "cycle", prefix: "MODE: " },
+      "Profile2_Fuze": { id: "sms_3", type: "cycle" },
+      "Profile2_SGL/PAIR": { id: "sms_4", type: "cycle" },
+      "Profile2_C1_AD1": { id: "sms_9", scale: 100, decimals: 2 },
+      "Profile2_Release_Spacing": { id: "sms_10" },
+      "Profile2_C2_BA": { id: "sms_16" },
+      "Profile2_Release_Pulse": { id: "sms_17", displayOffset: 1 },
+    };
+    const BRIEFING_FCC_CYCLE_OPTIONS = {
+      "Profile1_Submode": [
+        { value: "7", label: "CCIP" },
+        { value: "8", label: "CCRP" },
+        { value: "9", label: "DTOS" },
+        { value: "10", label: "LADD" },
+      ],
+      "Profile2_Submode": [
+        { value: "7", label: "CCIP" },
+        { value: "8", label: "CCRP" },
+        { value: "9", label: "DTOS" },
+        { value: "10", label: "LADD" },
+      ],
+      "Profile1_Fuze": [
+        { value: "1", label: "NOSE" },
+        { value: "2", label: "TAIL" },
+        { value: "0", label: "NSTL" },
+      ],
+      "Profile2_Fuze": [
+        { value: "1", label: "NOSE" },
+        { value: "2", label: "TAIL" },
+        { value: "0", label: "NSTL" },
+      ],
+      "Profile1_SGL/PAIR": [
+        { value: "0", label: "SGL" },
+        { value: "1", label: "PAIR" },
+      ],
+      "Profile2_SGL/PAIR": [
+        { value: "0", label: "SGL" },
+        { value: "1", label: "PAIR" },
+      ],
+    };
     const CAM_SUPPORT_CELL_IDS = [
       "package_1", "package_2", "package_3", "package_4", "package_5", "package_6", "package_7", "package_30",
       "package_8", "package_9", "package_10", "package_11", "package_12", "package_13", "package_14", "package_31",
@@ -1354,6 +1410,61 @@
       return res.json();
     }
 
+    function setSavedBriefingValue(id, value) {
+      if (!id || value == null) return;
+      const saved = getSavedEdits();
+      saved[id] = String(value).trim();
+      localStorage.setItem("contenteditables", JSON.stringify(saved));
+    }
+
+    function formatBriefingFccValue(fieldName, rawValue) {
+      const meta = BRIEFING_FCC_AGB_LINKS[fieldName] || {};
+      const cleanValue = String(rawValue ?? "").trim();
+      if (meta.type === "cycle") {
+        const options = BRIEFING_FCC_CYCLE_OPTIONS[fieldName] || [];
+        const selected = options.find((option) => option.value === cleanValue) || options[0];
+        return selected ? (meta.prefix || "") + selected.label : cleanValue;
+      }
+      const numberValue = Number.parseFloat(cleanValue);
+      if (!Number.isFinite(numberValue)) return cleanValue;
+      const displayOffset = Number.parseFloat(meta.displayOffset || "0");
+      const offsetValue = numberValue + (Number.isFinite(displayOffset) ? displayOffset : 0);
+      const scale = Number.parseFloat(meta.scale || "");
+      if (Number.isFinite(scale) && scale !== 0) {
+        const decimals = Number.parseInt(meta.decimals || "0", 10);
+        return (offsetValue / scale).toFixed(Number.isFinite(decimals) ? decimals : 0);
+      }
+      if (Number.isInteger(offsetValue)) return String(offsetValue);
+      return String(offsetValue);
+    }
+
+    async function seedBriefingDtcLinkedValues() {
+      try {
+        const data = await fetchJSON("/api/dtc/icp");
+        const icpSettings = data.icp_settings || {};
+        Object.entries(BRIEFING_DTC_LINKED_FIELDS).forEach(([fieldName, id]) => {
+          const value = icpSettings[fieldName];
+          if (value != null && String(value).trim() !== "") {
+            setSavedBriefingValue(id, value);
+          }
+        });
+      } catch (err) {
+        log(`Briefing ICP link load failed: ${err.message}`);
+      }
+      try {
+        const data = await fetchJSON("/api/dtc/fcc");
+        const fccAgbSettings = data.fcc_settings?.FCC_AGB || {};
+        Object.entries(BRIEFING_FCC_AGB_LINKS).forEach(([fieldName, meta]) => {
+          const value = fccAgbSettings[fieldName];
+          if (value != null && String(value).trim() !== "") {
+            setSavedBriefingValue(meta.id, formatBriefingFccValue(fieldName, value));
+          }
+        });
+      } catch (err) {
+        log(`Briefing FCC link load failed: ${err.message}`);
+      }
+    }
+
     function updateBadges({ briefChanged, callsignChanged, pdfOverflow }) {
       if (fileBadge) {
         fileBadge.classList.remove("ok", "error", "warn", "muted");
@@ -1629,7 +1740,18 @@
       if (nextMapSource === selectedMapSourceId) return;
       setSelectedMapSource(nextMapSource);
       clearSavedCamRenderedValues({ clearBullseye: true });
-      await doPreview(currentOverrides());
+      if (currentMainView === "dtc") {
+        try {
+          await fetchJSON("/api/config/runtime", { method: "POST", body: JSON.stringify(currentOverrides()) });
+          refreshDtc();
+          await pollStatusBadges();
+          log(`DTC map source changed to ${getMapSourceById(nextMapSource).label}`);
+        } catch (err) {
+          log(`DTC map source change failed: ${err.message}`);
+        }
+      } else {
+        await doPreview(currentOverrides());
+      }
     });
 
     // Hide Linux-specific wine prefix field for Windows users to reduce confusion.
@@ -1928,8 +2050,7 @@
 
     async function captureMapImage() {
       if (!layoutIncludesMap()) return null;
-      const frame = document.getElementById("brief-frame");
-      const cw = frame?.contentWindow;
+      const cw = briefFrame?.contentWindow;
       if (!cw || typeof cw.exportMapImage !== "function") {
         throw new Error("Map capture unavailable: preview frame is not ready");
       }
@@ -2153,12 +2274,24 @@
       });
     }
 
-    const briefFrame = document.getElementById("brief-frame");
     const briefingViewBtn = document.getElementById("briefing-view-btn");
     const dtcViewBtn = document.getElementById("dtc-view-btn");
 
-    function previewFramePath(view = currentMainView) {
-      return view === "dtc" ? "/dtc" : "/brief";
+    function ensureDtcFrameLoaded() {
+      if (!dtcFrame) return;
+      const currentSrc = dtcFrame.getAttribute("src") || "";
+      if (!currentSrc) {
+        dtcFrame.src = dtcFrame.dataset.src || "/dtc";
+      }
+    }
+
+    function syncDtcLinkedFields() {
+      if (!dtcFrame?.contentWindow) return;
+      try {
+        dtcFrame.contentWindow.postMessage({ type: "html_brief_sync_dtc_linked_fields" }, window.location.origin);
+      } catch (err) {
+        log(`DTC linked field sync failed: ${err.message}`);
+      }
     }
 
     function updateMainViewControls() {
@@ -2169,20 +2302,22 @@
       document.body.classList.toggle("dtc-active", isDtc);
       const shortcutBar = document.getElementById("page-shortcuts");
       if (shortcutBar) shortcutBar.style.display = isDtc ? "none" : "";
-      if (briefFrame) briefFrame.title = isDtc ? "DTC management" : "Briefing preview";
+      if (briefFrame) briefFrame.hidden = isDtc;
+      if (dtcFrame) dtcFrame.hidden = !isDtc;
     }
 
     function setMainView(view, options = {}) {
       const nextView = view === "dtc" ? "dtc" : "briefing";
-      const changed = nextView !== currentMainView;
       currentMainView = nextView;
       localStorage.setItem(MAIN_VIEW_STORAGE_KEY, currentMainView);
       updateMainViewControls();
-      if (!briefFrame) return;
-      const path = previewFramePath();
-      const framePath = new URL(briefFrame.src || path, window.location.origin).pathname;
-      if (changed || options.reload || framePath !== path) {
-        briefFrame.src = path + "?ts=" + Date.now();
+      if (options.reload) {
+        if (currentMainView === "dtc") refreshDtc();
+        else refreshBrief();
+      }
+      if (currentMainView === "dtc") {
+        ensureDtcFrameLoaded();
+        syncDtcLinkedFields();
       }
     }
 
@@ -2191,6 +2326,16 @@
       const cw = briefFrame?.contentWindow;
       if (!cw) { log("Preview not ready"); return; }
       if (typeof cw[fnName] !== "function") { log(`Function ${fnName} not found in briefing page`); return; }
+      try {
+        return cw[fnName]();
+      } catch (err) {
+        log(`${fnName} failed: ${err.message}`);
+      }
+    }
+
+    function callBriefingLoadedFrame(fnName) {
+      const cw = briefFrame?.contentWindow;
+      if (!cw || typeof cw[fnName] !== "function") return;
       try {
         return cw[fnName]();
       } catch (err) {
@@ -2213,14 +2358,20 @@
       }
     }
 
-    briefFrame.addEventListener("load", () => {
-      callBriefing("loadChangedData");
-      bindCamPackageSelectorInPreview();
-      const selectedIndex = getSelectedCamPackageIndex();
-      if (Number.isFinite(selectedIndex)) {
-        saveCamSupportPackageIndex(selectedIndex);
-      }
-    });
+    if (briefFrame) {
+      briefFrame.addEventListener("load", async () => {
+        await seedBriefingDtcLinkedValues();
+        callBriefingLoadedFrame("loadChangedData");
+        bindCamPackageSelectorInPreview();
+        const selectedIndex = getSelectedCamPackageIndex();
+        if (Number.isFinite(selectedIndex)) {
+          saveCamSupportPackageIndex(selectedIndex);
+        }
+      });
+    }
+    if (dtcFrame) {
+      dtcFrame.addEventListener("load", syncDtcLinkedFields);
+    }
 
     if (briefingViewBtn) {
       briefingViewBtn.addEventListener("click", () => setMainView("briefing"));
@@ -2228,7 +2379,7 @@
     if (dtcViewBtn) {
       dtcViewBtn.addEventListener("click", () => setMainView("dtc"));
     }
-    setMainView(currentMainView, { reload: currentMainView === "dtc" });
+    setMainView(currentMainView);
 
     document.getElementById("save-edits-btn").addEventListener("click", () => {
       callBriefing("saveChangedData");
@@ -2257,10 +2408,9 @@
       }
     }
 
-    function refreshBrief(waitForLoad = false) {
-      const frame = document.getElementById("brief-frame");
+    function refreshFrame(frame, path, waitForLoad = false, { preserveScroll = true } = {}) {
       if (!frame) return waitForLoad ? Promise.resolve(false) : undefined;
-      const prevScroll = getFrameScroll(frame);
+      const prevScroll = preserveScroll ? getFrameScroll(frame) : 0;
       let resolveLoad = null;
       let timeoutId = null;
       const loadPromise = waitForLoad ? new Promise((resolve) => { resolveLoad = resolve; }) : null;
@@ -2284,8 +2434,16 @@
       if (resolveLoad) {
         timeoutId = setTimeout(() => resolveLoad(false), 6000);
       }
-      frame.src = previewFramePath() + "?ts=" + Date.now();
+      frame.src = path + "?ts=" + Date.now();
       return loadPromise;
+    }
+
+    function refreshBrief(waitForLoad = false) {
+      return refreshFrame(briefFrame, "/brief", waitForLoad, { preserveScroll: true });
+    }
+
+    function refreshDtc(waitForLoad = false) {
+      return refreshFrame(dtcFrame, "/dtc", waitForLoad, { preserveScroll: false });
     }
 
     async function pollLogs() {

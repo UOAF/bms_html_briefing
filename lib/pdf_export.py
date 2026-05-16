@@ -127,6 +127,12 @@ def apply_content_edits(
                 arrow = header.find(class_="arrow")
                 if arrow:
                     arrow.string = "▸" if value == "none" else "▼"
+                if str(value).strip().lower() == "none":
+                    header_table = header.find_parent("table")
+                    if header_table:
+                        header_table["style"] = "display:none"
+                    else:
+                        header["style"] = "display:none"
             continue
 
         el = soup.find(id=key)

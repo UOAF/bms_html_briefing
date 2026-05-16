@@ -83,6 +83,47 @@
 		    cursor: pointer;
 		    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
 		}
+		.threat-stpt-icon {
+		    width: 18px !important;
+		    height: 18px !important;
+		    margin-left: -9px !important;
+		    margin-top: -9px !important;
+		    border-radius: 50%;
+		    border: 1px solid #000000;
+		    background: #ff5a3d;
+		    color: #000000;
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-size: 10px;
+		    font-weight: 700;
+		    line-height: 1;
+		    text-align: center;
+		    display: flex;
+		    align-items: center;
+		    justify-content: center;
+		    box-sizing: border-box;
+		    cursor: pointer;
+		    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+		}
+		.weapon-target-icon {
+		    width: 20px !important;
+		    height: 20px !important;
+		    margin-left: -10px !important;
+		    margin-top: -10px !important;
+		    border: 1px solid #000000;
+		    background: #b18cff;
+		    color: #000000;
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-size: 10px;
+		    font-weight: 700;
+		    line-height: 1;
+		    text-align: center;
+		    display: flex;
+		    align-items: center;
+		    justify-content: center;
+		    box-sizing: border-box;
+		    cursor: pointer;
+		    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+		}
 		.target-stpt-popup .leaflet-popup-content-wrapper {
 		    padding: 2px 4px;
 		    border-radius: 4px;
@@ -137,11 +178,58 @@
 		    font-size: 0.9rem;
 		    font-weight: 700;
 		}
+		.leaflet-control-map-ruler a {
+		    position: relative;
+		    display: block;
+		    width: 30px;
+		    height: 30px;
+		    background: #ffffff;
+		    color: #111111;
+		    text-decoration: none;
+		}
+		.leaflet-control-map-ruler a:hover,
+		.leaflet-control-map-ruler a.is-active {
+		    background: #f4f4f4;
+		}
+		.leaflet-control-map-ruler a.is-active {
+		    box-shadow: inset 0 0 0 2px #555555;
+		}
+		.leaflet-control-map-ruler a.map-ruler-toggle::before {
+		    content: "";
+		    position: absolute;
+		    inset: 5px;
+		    background: center / 20px 20px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 15l11-11 5 5L9 20z'/%3E%3Cpath d='M13 6l2 2'/%3E%3Cpath d='M10 9l2 2'/%3E%3Cpath d='M7 12l2 2'/%3E%3C/svg%3E");
+		}
+		.leaflet-control-map-ruler a.map-ruler-clear::before {
+		    content: "";
+		    position: absolute;
+		    inset: 6px;
+		    background: center / 18px 18px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6L6 18'/%3E%3Cpath d='M6 6l12 12'/%3E%3C/svg%3E");
+		}
+		.leaflet-control-map-ruler a::after {
+		    display: none;
+		}
+		.map-ruler-tooltip {
+		    padding: 2px 4px;
+		    border: 1px solid #000000;
+		    background: rgba(255, 255, 255, 0.92);
+		    color: #000000;
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-size: 11px;
+		    font-weight: 700;
+		    line-height: 1.15;
+		    white-space: nowrap;
+		    box-shadow: none;
+		    z-index: 1000;
+		}
+		.map-ruler-tooltip::before {
+		    display: none;
+		}
 	</style>
 <table width="100%">
   <colgroup>
-    <col style="width:14%;">
-    <col style="width:86%;">
+    <col style="width:{% if enable_map_collapse|default(true) %}14{% else %}20{% endif %}%;">
+    <col style="width:{% if enable_map_collapse|default(true) %}86{% else %}80{% endif %}%;">
   </colgroup>
       <tr>
 	<th class="header" height="1.7em">
@@ -151,7 +239,11 @@
 	    {% endfor %}
 	  </select>
 	</th>
+{% if enable_map_collapse|default(true) %}
 <th class="header clickable" onclick="toggleVisHeader(this)" id="map_header"><span class="arrow">▼</span>Map</th>
+{% else %}
+<th class="header" id="map_header">Map</th>
+{% endif %}
   </tr>
 </table>
 <table width="100%" id="map" class="hidable">
@@ -166,6 +258,7 @@
 <script>
 const MAP_BASE_MODE = {{ map_base_mode|default("local_tiles")|tojson }};
 const IS_WEB_MAP = MAP_BASE_MODE === "web";
+const MAP_ENABLE_BULLSEYE_EDIT = {{ enable_map_bullseye_edit|default(true)|tojson }};
 const THEATER_NAME = {{ theater_name|default("")|tojson }};
 const WEB_TILE_URL_TEMPLATE = {{ web_tile_url_template|tojson }};
 const WEB_TILE_ATTRIBUTION = {{ web_tile_attribution|default("Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community")|tojson }};
@@ -215,6 +308,10 @@ if (!IS_WEB_MAP) {
     webOverlayCanvasPane.style.zIndex = 700;
     webOverlayCanvasPane.style.pointerEvents = "none";
 }
+map.createPane("rulerPane");
+const rulerPane = map.getPane("rulerPane");
+rulerPane.style.zIndex = 760;
+if (IS_WEB_MAP) rulerPane.style.zIndex = 780;
 
 let mapBaseDataUrl = null;
 map_overlay = IS_WEB_MAP ? null : L.imageOverlay("", bounds, { crossOrigin: true }).addTo(map);
@@ -226,6 +323,14 @@ bullseye_overlay.getCenter = function() {
 let map_tile_layers = [];
 let mapBaseMode = IS_WEB_MAP ? "web" : "image";
 let mapCanvasOverlay = null;
+let mapRulerMode = false;
+let mapRulerStartLatLng = null;
+let mapRulerHaloLine = null;
+let mapRulerLine = null;
+let mapRulerStartMarker = null;
+let mapRulerEndMarker = null;
+let mapRulerTooltipLayer = null;
+const mapRulerLayer = L.layerGroup([], { pane: "rulerPane" }).addTo(map);
 
 function getBullseyeSpokeLatLngs(centerLatLng, bearingDegrees) {
     const centerPoint = map.latLngToLayerPoint(centerLatLng);
@@ -333,6 +438,26 @@ const MAP_STYLE = {
         canvasStrokeStyle: "#000000",
         canvasTextStyle: "#000000"
     },
+    threatSteerpoint: {
+        radius: 8.8,
+        color: "#ff5a3d",
+        weight: 1,
+        fillColor: "#ff5a3d",
+        fillOpacity: 1,
+        canvasFillStyle: "#ff5a3d",
+        canvasStrokeStyle: "#000000",
+        canvasTextStyle: "#000000"
+    },
+    weaponTarget: {
+        radius: 10,
+        color: "#b18cff",
+        weight: 1,
+        fillColor: "#b18cff",
+        fillOpacity: 1,
+        canvasFillStyle: "#b18cff",
+        canvasStrokeStyle: "#000000",
+        canvasTextStyle: "#000000"
+    },
     threatCircle: {
         color: "red",
         fillColor: "red",
@@ -379,7 +504,7 @@ const MAP_STYLE = {
         textAlign: "center",
         textBaseline: "middle",
         offsetX: 0,
-        offsetY: 10
+        offsetY: 18
     }
 };
 
@@ -387,7 +512,7 @@ const MAP_EXPORT_SCALE = 1;
 
 const LEAFLET_TOOLTIP_OPTS = {
     flightPoint: { direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp" },
-    threat: { direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat" },
+    threat: { direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-threat", offset: [0, 10] },
     alt: { direction: "bottom", permanent: true, opacity: 1, className: "leaflet-tooltip-anchor" }
 };
 
@@ -456,6 +581,36 @@ function getTheaterProjection() {
         center: center,
         sizeMeters: theaterSizeMeters
     };
+}
+
+function forwardTransverseMercator(latDegrees, lonDegrees, projection) {
+    if (!projection) return null;
+    const lat = Number(latDegrees) * Math.PI / 180;
+    const lon = Number(lonDegrees) * Math.PI / 180;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    const lon0 = projection.lon0 * Math.PI / 180;
+    const ep2 = WGS84_E2 / (1 - WGS84_E2);
+    const sinLat = Math.sin(lat);
+    const cosLat = Math.cos(lat);
+    const tanLat = Math.tan(lat);
+    const n = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinLat ** 2);
+    const t = tanLat ** 2;
+    const c = ep2 * cosLat ** 2;
+    const a = cosLat * (lon - lon0);
+    const m = meridionalArc(lat);
+    const eastingMeters = projection.falseEasting + projection.k0 * n * (
+        a
+        + (1 - t + c) * a ** 3 / 6
+        + (5 - 18 * t + t ** 2 + 72 * c - 58 * ep2) * a ** 5 / 120
+    );
+    const northingMeters = projection.falseNorthing + projection.k0 * (
+        m + n * tanLat * (
+            a ** 2 / 2
+            + (5 - t + 9 * c + 4 * c ** 2) * a ** 4 / 24
+            + (61 - 58 * t + t ** 2 + 600 * c - 330 * ep2) * a ** 6 / 720
+        )
+    );
+    return { eastingMeters, northingMeters };
 }
 
 function inverseTransverseMercator(eastingMeters, northingMeters, projection) {
@@ -545,18 +700,62 @@ function convertCoord(iniCoord) {
     return [convertScalar(x) - imageHeight, convertScalar(y)];
 }
 
+function mapLatLngToRulerCoord(latlng) {
+    const point = L.latLng(latlng);
+    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return null;
+    if (!IS_WEB_MAP) {
+        return {
+            northFeet: ((point.lat + imageHeight) / imageHeight) * fHeight,
+            eastFeet: (point.lng / imageHeight) * fHeight,
+        };
+    }
+    const projected = forwardTransverseMercator(point.lat, point.lng, getTheaterProjection());
+    if (!projected) return null;
+    const meterRes = getTheaterSizeMeters() / BMS_HEIGHTMAP_SAMPLES;
+    return {
+        northFeet: (projected.northingMeters - meterRes) * METERS_TO_FEET,
+        eastFeet: projected.eastingMeters * METERS_TO_FEET,
+    };
+}
+
+function getRulerMetrics(fromLatLng, toLatLng) {
+    const fromCoord = mapLatLngToRulerCoord(fromLatLng);
+    const toCoord = mapLatLngToRulerCoord(toLatLng);
+    if (!fromCoord || !toCoord) return null;
+    const deltaNorth = toCoord.northFeet - fromCoord.northFeet;
+    const deltaEast = toCoord.eastFeet - fromCoord.eastFeet;
+    const rangeFeet = Math.hypot(deltaNorth, deltaEast);
+    let bearing = Math.atan2(deltaEast, deltaNorth) * 180 / Math.PI;
+    if (bearing < 0) bearing += 360;
+    return { bearing, rangeFeet, rangeNm: rangeFeet / NM_TO_FEET };
+}
+
+function formatRulerNumber(value, decimals) {
+    if (!Number.isFinite(value)) return "";
+    return value.toFixed(decimals);
+}
+
+function getRulerTooltipContent(metrics) {
+    if (!metrics) return "";
+    return "BRG " + formatRulerNumber(metrics.bearing, 1) + "°<br>RNG " + formatRulerNumber(metrics.rangeNm, 2) + " NM";
+}
+
 window.exportMapLastError = null;
 window.exportMapLog = [];
+const IS_DTC_PAGE = document.body.classList.contains("dtc-page");
 
 
   let stptIniCoords = [{% for point in stpt_coords %}
 		       [ {{point.coord_x}}, {{point.coord_y}}],
 		       {% endfor %}]
+let stptIniIsAlternate = [{% for point in stpt_coords %}
+               {{ point.is_alternate|default(false)|tojson }},
+               {% endfor %}]
 
     stptMapCoords = [];
 
 let tstptIniCoords = [{% for point in tstpt_coords %}
-		      [ [{{point.coord_x}}, {{point.coord_y}}], "{{point.radius}}", "{{point.name}}" ],
+		      [ [{{point.coord_x}}, {{point.coord_y}}], "{{point.radius}}", "{{point.name}}", "{{point.number}}" ],
 		       {% endfor %}]
 tstptMapCoords = [];
 
@@ -564,6 +763,11 @@ let tgtStptIniCoords = [{% for point in tgtsteerpoints %}
               [ [{{point.coord_x}}, {{point.coord_y}}], {{point.number}}, {{point.name|tojson}} ],
                {% endfor %}]
 tgtStptMapCoords = [];
+
+let weaponTargetIniCoords = [{% for point in wpntgts %}
+              [ [{{point.coord_x}}, {{point.coord_y}}], {{point.number}}, {{point.name|tojson}} ],
+               {% endfor %}]
+weaponTargetMapCoords = [];
 
 let stptLineIniCoords = [{% for line in stpt_lines %}
 			 [{% for point in line %}
@@ -584,10 +788,16 @@ function rebuildMapCoords() {
         return [
             convertCoord(entry[0]),
             Number.isFinite(radiusVal) ? convertDistance(radiusVal) : 0,
-            entry[2] || ""
+            entry[2] || "",
+            entry[3] || ""
         ];
     });
     tgtStptMapCoords = tgtStptIniCoords.map((entry) => [
+        convertCoord(entry[0]),
+        entry[1],
+        entry[2] || ""
+    ]);
+    weaponTargetMapCoords = weaponTargetIniCoords.map((entry) => [
         convertCoord(entry[0]),
         entry[1],
         entry[2] || ""
@@ -596,19 +806,44 @@ function rebuildMapCoords() {
 }
 
 function getFlightRouteCoords() {
-    return stptMapCoords.slice(0, -1).filter(validLatLng);
+    return stptMapCoords.slice(0, getRouteEndExclusiveIndex()).filter(validLatLng);
+}
+
+function getAlternateIndex() {
+    for (let index = stptIniIsAlternate.length - 1; index >= 0; index -= 1) {
+        if (stptIniIsAlternate[index]) return index;
+    }
+    return -1;
+}
+
+function getRouteEndExclusiveIndex() {
+    const alternateIndex = getAlternateIndex();
+    return alternateIndex >= 0 ? alternateIndex : stptMapCoords.length;
+}
+
+function getRouteEndIndex() {
+    return getRouteEndExclusiveIndex() - 1;
 }
 
 function getFlightPointEntries() {
+    const alternateIndex = getAlternateIndex();
+    const routeEndExclusiveIndex = getRouteEndExclusiveIndex();
+    const routeEndIndex = getRouteEndIndex();
     return stptMapCoords
         .map((latlng, index) => ({ latlng, index }))
-        .filter((entry) => entry.index > 0 && entry.index < stptMapCoords.length - 1 && validLatLng(entry.latlng));
+        .filter((entry) => {
+            if (!validLatLng(entry.latlng) || entry.index <= 0 || entry.index >= routeEndExclusiveIndex) return false;
+            if (alternateIndex < 0 && entry.index === routeEndIndex) return false;
+            return true;
+        });
 }
 
 function getEndpointEntries() {
     const entries = [];
     const startLatLng = stptMapCoords[0];
-    const endLatLng = stptMapCoords[stptMapCoords.length - 1];
+    const alternateIndex = getAlternateIndex();
+    const endIndex = alternateIndex >= 0 ? alternateIndex : getRouteEndIndex();
+    const endLatLng = stptMapCoords[endIndex];
     if (validLatLng(startLatLng)) {
         entries.push({ kind: "start", latlng: startLatLng });
     }
@@ -619,15 +854,18 @@ function getEndpointEntries() {
 }
 
 function getPenultimateEntry() {
-    if (stptMapCoords.length < 2) return null;
-    const latlng = stptMapCoords[stptMapCoords.length - 2];
+    if (getAlternateIndex() < 0) return null;
+    const routeEndIndex = getRouteEndIndex();
+    if (routeEndIndex < 1) return null;
+    const latlng = stptMapCoords[routeEndIndex];
     if (!validLatLng(latlng)) return null;
-    return { latlng, index: stptMapCoords.length - 2 };
+    return { latlng, index: routeEndIndex };
 }
 
 function getAnchorLabels() {
     const labels = [];
-    const altLatLng = stptMapCoords[stptMapCoords.length - 1];
+    const alternateIndex = getAlternateIndex();
+    const altLatLng = alternateIndex >= 0 ? stptMapCoords[alternateIndex] : null;
     if (validLatLng(altLatLng)) {
         labels.push({ text: "ALT", latlng: altLatLng, tooltipOptions: LEAFLET_TOOLTIP_OPTS.alt });
     }
@@ -639,13 +877,24 @@ function getThreatEntries() {
         .map((entry) => ({
             latlng: entry && entry[0],
             radius: entry && Number.isFinite(entry[1]) ? entry[1] : 0,
-            label: entry && entry.length > 2 ? entry[2] : ""
+            label: entry && entry.length > 2 ? entry[2] : "",
+            number: entry && entry.length > 3 ? entry[3] : ""
         }))
         .filter((entry) => validLatLng(entry.latlng));
 }
 
 function getTargetSteerpointEntries() {
     return tgtStptMapCoords
+        .map((entry) => ({
+            latlng: entry && entry[0],
+            number: entry && entry.length > 1 ? entry[1] : "",
+            name: entry && entry.length > 2 ? entry[2] : ""
+        }))
+        .filter((entry) => validLatLng(entry.latlng));
+}
+
+function getWeaponTargetEntries() {
+    return weaponTargetMapCoords
         .map((entry) => ({
             latlng: entry && entry[0],
             number: entry && entry.length > 1 ? entry[1] : "",
@@ -728,14 +977,34 @@ function renderFlightPlanLeaflet() {
 
 function renderThreatsLeaflet() {
     getThreatEntries().forEach((entry) => {
-        addTooltipMarker(entry.latlng, "<b>" + entry.label + "</b>", LEAFLET_TOOLTIP_OPTS.threat);
-        L.circleMarker(entry.latlng, {
-            radius: MAP_STYLE.threatCenter.radius,
-            color: MAP_STYLE.threatCenter.strokeColor,
-            weight: MAP_STYLE.threatCenter.strokeWidth,
-            fillColor: MAP_STYLE.threatCenter.color,
-            fillOpacity: 1
-        }).addTo(drawings);
+        if (IS_DTC_PAGE) {
+            const label = entry.number || "!";
+            const marker = L.marker(entry.latlng, {
+                icon: L.divIcon({
+                    className: "threat-stpt-icon",
+                    html: escapeHtml(String(label)),
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                }),
+                keyboard: true,
+                title: entry.label || ("Threat " + String(label))
+            }).addTo(drawings);
+            marker.bindPopup("<b>Threat " + escapeHtml(String(label)) + "</b>" + (entry.label ? " " + escapeHtml(entry.label) : ""), {
+                className: "target-stpt-popup"
+            });
+            if (entry.label) {
+                addTooltipMarker(entry.latlng, "<b>" + entry.label + "</b>", LEAFLET_TOOLTIP_OPTS.threat);
+            }
+        } else {
+            addTooltipMarker(entry.latlng, "<b>" + entry.label + "</b>", LEAFLET_TOOLTIP_OPTS.threat);
+            L.circleMarker(entry.latlng, {
+                radius: MAP_STYLE.threatCenter.radius,
+                color: MAP_STYLE.threatCenter.strokeColor,
+                weight: MAP_STYLE.threatCenter.strokeWidth,
+                fillColor: MAP_STYLE.threatCenter.color,
+                fillOpacity: 1
+            }).addTo(drawings);
+        }
         if (entry.radius > 0) {
             L.circle(entry.latlng, {
                 radius: entry.radius,
@@ -768,6 +1037,25 @@ function renderTargetSteerpointsLeaflet() {
                 className: "target-stpt-popup"
             });
         }
+    });
+}
+
+function renderWeaponTargetsLeaflet() {
+    getWeaponTargetEntries().forEach((entry) => {
+        const label = "W" + String(entry.number || "");
+        const marker = L.marker(entry.latlng, {
+            icon: L.divIcon({
+                className: "weapon-target-icon",
+                html: escapeHtml(label),
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            }),
+            keyboard: true,
+            title: entry.name || label
+        }).addTo(drawings);
+        marker.bindPopup("<b>" + escapeHtml(label) + "</b>" + (entry.name ? " " + escapeHtml(entry.name) : ""), {
+            className: "target-stpt-popup"
+        });
     });
 }
 
@@ -987,17 +1275,33 @@ function renderFlightPlanCanvas(ctx) {
 function renderThreatsCanvas(ctx) {
     getThreatEntries().forEach((entry) => {
         const center = latLngToCanvasPoint(entry.latlng);
-        drawCanvasCircle(ctx, center, MAP_STYLE.threatCenter.radius, {
-            fillStyle: MAP_STYLE.threatCenter.color,
-            strokeStyle: MAP_STYLE.threatCenter.strokeColor,
-            lineWidth: MAP_STYLE.threatCenter.strokeWidth
-        });
         if (entry.radius > 0) {
             drawCanvasCircle(ctx, center, getThreatRadiusPx(entry.latlng, entry.radius), {
                 fillStyle: MAP_STYLE.threatCircle.canvasFillStyle,
                 strokeStyle: MAP_STYLE.threatCircle.color,
                 lineWidth: MAP_STYLE.threatCircle.weight,
                 dashPattern: MAP_STYLE.threatCircle.dashPattern
+            });
+        }
+        if (IS_DTC_PAGE) {
+            drawCanvasCircle(ctx, center, MAP_STYLE.threatSteerpoint.radius, {
+                fillStyle: MAP_STYLE.threatSteerpoint.canvasFillStyle,
+                strokeStyle: MAP_STYLE.threatSteerpoint.canvasStrokeStyle,
+                lineWidth: MAP_STYLE.threatSteerpoint.weight
+            });
+            drawCanvasText(ctx, String(entry.number || "!"), center, {
+                fillStyle: MAP_STYLE.threatSteerpoint.canvasTextStyle,
+                font: '700 10px "Map Overlay Mono"',
+                textAlign: "center",
+                textBaseline: "middle",
+                offsetX: 0,
+                offsetY: 0
+            });
+        } else {
+            drawCanvasCircle(ctx, center, MAP_STYLE.threatCenter.radius, {
+                fillStyle: MAP_STYLE.threatCenter.color,
+                strokeStyle: MAP_STYLE.threatCenter.strokeColor,
+                lineWidth: MAP_STYLE.threatCenter.strokeWidth
             });
         }
         if (entry.label) {
@@ -1025,6 +1329,25 @@ function renderTargetSteerpointsCanvas(ctx) {
     });
 }
 
+function renderWeaponTargetsCanvas(ctx) {
+    getWeaponTargetEntries().forEach((entry) => {
+        const point = latLngToCanvasPoint(entry.latlng);
+        drawCanvasCircle(ctx, point, MAP_STYLE.weaponTarget.radius, {
+            fillStyle: MAP_STYLE.weaponTarget.canvasFillStyle,
+            strokeStyle: MAP_STYLE.weaponTarget.canvasStrokeStyle,
+            lineWidth: MAP_STYLE.weaponTarget.weight
+        });
+        drawCanvasText(ctx, "W" + String(entry.number || ""), point, {
+            fillStyle: MAP_STYLE.weaponTarget.canvasTextStyle,
+            font: '700 10px "Map Overlay Mono"',
+            textAlign: "center",
+            textBaseline: "middle",
+            offsetX: 0,
+            offsetY: 0
+        });
+    });
+}
+
 function renderSteerpointLinesCanvas(ctx) {
     getSteerpointLines().forEach((line) => {
         drawCanvasPolyline(ctx, line, MAP_STYLE.steerpointLine);
@@ -1037,6 +1360,7 @@ function renderMapOverlayCanvas(ctx) {
     renderThreatsCanvas(ctx);
     renderSteerpointLinesCanvas(ctx);
     renderTargetSteerpointsCanvas(ctx);
+    renderWeaponTargetsCanvas(ctx);
 }
 
 const MapCanvasOverlay = L.Layer.extend({
@@ -1098,6 +1422,7 @@ function renderLeafletDrawings() {
     clearLeafletDrawings();
     renderFlightPlanLeaflet();
     renderTargetSteerpointsLeaflet();
+    renderWeaponTargetsLeaflet();
     renderThreatsLeaflet();
     renderSteerpointLinesLeaflet();
     drawings.addTo(map);
@@ -1142,6 +1467,7 @@ function getCanvasTargetSteerpointAt(latlng) {
 }
 
 function openWebTargetSteerpointPopup(ev) {
+    if (mapRulerMode || ev?.originalEvent?._mapRulerHandled) return;
     if (!IS_WEB_MAP) return;
     const entry = getCanvasTargetSteerpointAt(ev.latlng);
     if (!entry || !entry.name) return;
@@ -1150,6 +1476,153 @@ function openWebTargetSteerpointPopup(ev) {
         .setLatLng(entry.latlng)
         .setContent("<b>" + label + "</b> " + escapeHtml(entry.name))
         .openOn(map);
+}
+
+function setMapRulerButtonActive(active) {
+    const button = document.getElementById("mapRulerButton");
+    if (button) button.classList.toggle("is-active", active);
+}
+
+const MapRulerControl = L.Control.extend({
+    options: { position: "topleft" },
+    onAdd: function() {
+        const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-map-ruler");
+        const button = L.DomUtil.create("a", "map-ruler-toggle", container);
+        button.href = "#";
+        button.id = "mapRulerButton";
+        button.title = "Ruler";
+        button.setAttribute("role", "button");
+        button.setAttribute("aria-label", "Ruler");
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+        L.DomEvent.on(button, "click", function(ev) {
+            L.DomEvent.stop(ev);
+            setMapRulerMode(!mapRulerMode);
+        });
+        const clearButton = L.DomUtil.create("a", "map-ruler-clear", container);
+        clearButton.href = "#";
+        clearButton.id = "mapRulerClearButton";
+        clearButton.title = "Clear ruler";
+        clearButton.setAttribute("role", "button");
+        clearButton.setAttribute("aria-label", "Clear ruler");
+        L.DomEvent.on(clearButton, "click", function(ev) {
+            L.DomEvent.stop(ev);
+            clearMapRuler();
+        });
+        return container;
+    }
+});
+
+new MapRulerControl().addTo(map);
+
+function resetMapRuler({ clearFixed = true } = {}) {
+    mapRulerStartLatLng = null;
+    if (clearFixed) mapRulerLayer.clearLayers();
+    mapRulerHaloLine = null;
+    mapRulerLine = null;
+    mapRulerStartMarker = null;
+    mapRulerEndMarker = null;
+    mapRulerTooltipLayer = null;
+}
+
+function setMapRulerMode(active) {
+    mapRulerMode = Boolean(active);
+    setMapRulerButtonActive(mapRulerMode);
+    map.getContainer().style.cursor = mapRulerMode ? "crosshair" : "";
+    if (mapRulerMode) {
+        resetMapRuler({ clearFixed: true });
+    } else if (!mapRulerEndMarker) {
+        resetMapRuler({ clearFixed: true });
+    }
+}
+
+function clearMapRuler() {
+    mapRulerMode = false;
+    setMapRulerButtonActive(false);
+    map.getContainer().style.cursor = "";
+    resetMapRuler({ clearFixed: true });
+}
+
+function addMapRulerEndpoint(latlng) {
+    return L.circleMarker(latlng, {
+        radius: 4,
+        color: "#000000",
+        weight: 1,
+        fillColor: "#ffffff",
+        fillOpacity: 1,
+        interactive: false,
+        pane: "rulerPane",
+    }).addTo(mapRulerLayer);
+}
+
+function updateMapRuler(toLatLng, fixed = false) {
+    if (!mapRulerStartLatLng || !toLatLng) return;
+    const metrics = getRulerMetrics(mapRulerStartLatLng, toLatLng);
+    if (!metrics) return;
+    if (!mapRulerLine) {
+        mapRulerHaloLine = L.polyline([mapRulerStartLatLng, toLatLng], {
+            color: "#000000",
+            weight: 5,
+            opacity: 0.72,
+            dashArray: "7 5",
+            interactive: false,
+            pane: "rulerPane",
+        }).addTo(mapRulerLayer);
+        mapRulerLine = L.polyline([mapRulerStartLatLng, toLatLng], {
+            color: "#ffffff",
+            weight: 2,
+            opacity: 1,
+            dashArray: "7 5",
+            interactive: false,
+            pane: "rulerPane",
+        }).addTo(mapRulerLayer);
+    } else {
+        if (mapRulerHaloLine) mapRulerHaloLine.setLatLngs([mapRulerStartLatLng, toLatLng]);
+        mapRulerLine.setLatLngs([mapRulerStartLatLng, toLatLng]);
+    }
+    const midpoint = L.latLng(
+        (L.latLng(mapRulerStartLatLng).lat + L.latLng(toLatLng).lat) / 2,
+        (L.latLng(mapRulerStartLatLng).lng + L.latLng(toLatLng).lng) / 2
+    );
+    if (!mapRulerTooltipLayer) {
+        mapRulerTooltipLayer = L.tooltip({
+            permanent: true,
+            direction: "center",
+            className: "map-ruler-tooltip",
+            opacity: 1,
+            pane: "rulerPane",
+        })
+            .setLatLng(midpoint)
+            .setContent(getRulerTooltipContent(metrics))
+            .addTo(mapRulerLayer);
+    } else {
+        mapRulerTooltipLayer.setLatLng(midpoint);
+        mapRulerTooltipLayer.setContent(getRulerTooltipContent(metrics));
+    }
+    if (fixed && !mapRulerEndMarker) {
+        mapRulerEndMarker = addMapRulerEndpoint(toLatLng);
+    }
+}
+
+function handleMapRulerClick(ev) {
+    if (!mapRulerMode) return;
+    if (ev.originalEvent) {
+        ev.originalEvent._mapRulerHandled = true;
+        L.DomEvent.stop(ev.originalEvent);
+    }
+    if (!mapRulerStartLatLng) {
+        mapRulerStartLatLng = ev.latlng;
+        mapRulerStartMarker = addMapRulerEndpoint(ev.latlng);
+        updateMapRuler(ev.latlng);
+        return;
+    }
+    updateMapRuler(ev.latlng, true);
+    setMapRulerMode(false);
+}
+
+function handleMapRulerMouseMove(ev) {
+    if (!mapRulerMode || !mapRulerStartLatLng) return;
+    updateMapRuler(ev.latlng);
 }
 
 function resetMapView(force) {
@@ -1338,9 +1811,15 @@ map.on("zoomend", function() {
     }
 });
 
-map.on("dblclick", function(ev) {
-    setBullseye(ev.latlng);
-});
+map.on("click", handleMapRulerClick);
+map.on("mousemove", handleMapRulerMouseMove);
+
+if (MAP_ENABLE_BULLSEYE_EDIT) {
+    map.on("dblclick", function(ev) {
+        if (mapRulerMode || ev?.originalEvent?._mapRulerHandled) return;
+        setBullseye(ev.latlng);
+    });
+}
 
 map.on("click", openWebTargetSteerpointPopup);
 

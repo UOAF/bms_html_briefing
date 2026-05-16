@@ -49,7 +49,8 @@
 - pycairo==1.29.0
 
 ## Python license files
-- files in `licenses/python/`: 40
+- files in `licenses/python/`: 41
+- `falcon-bms-tacview-converter-LICENSE` covers the heightmap elevation lookup algorithm adapted from the Falcon BMS Tacview Converter.
 
 ## Bundled asset licenses
 - `ibm-plex-mono-OFL-1.1.txt`
