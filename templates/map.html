@@ -509,6 +509,8 @@ const MAP_STYLE = {
 };
 
 const MAP_EXPORT_SCALE = 1;
+const MAP_EXPORT_IMAGE_TYPE = "image/jpeg";
+const MAP_EXPORT_JPEG_QUALITY = 0.82;
 
 const LEAFLET_TOOLTIP_OPTS = {
     flightPoint: { direction: "center", permanent: true, opacity: 0.9, className: "leaflet-tooltip-fp" },
@@ -2016,7 +2018,7 @@ async function exportMapImage() {
         renderSteerpointLinesCanvas(ctx);
         renderTargetSteerpointsCanvas(ctx);
 
-        const dataUrl = canvas.toDataURL("image/png");
+        const dataUrl = canvas.toDataURL(MAP_EXPORT_IMAGE_TYPE, MAP_EXPORT_JPEG_QUALITY);
         window.exportMapLastError = "ok:" + (dataUrl ? dataUrl.length : 0);
         window.exportMapLog.push(window.exportMapLastError);
         return dataUrl;

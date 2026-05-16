@@ -1278,6 +1278,9 @@
       const saved = getSavedEdits();
       if (clearBullseye) {
         delete saved.bullseyePos;
+        delete saved.mapCenter;
+        delete saved.mapZoom;
+        delete saved.mapBaseMode;
       }
       if (clearSupportPackage) {
         CAM_SUPPORT_CELL_IDS.forEach((id) => {

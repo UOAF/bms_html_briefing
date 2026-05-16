@@ -291,10 +291,18 @@ function loadImages() {
 function restoreMapView(contentData) {
     try {
 	const currentMapBaseMode = typeof MAP_BASE_MODE != 'undefined' ? MAP_BASE_MODE : "local_tiles";
-	const savedMapBaseMode = contentData["mapBaseMode"] || "local_tiles";
+	const savedMapBaseMode = contentData["mapBaseMode"];
+	const mapCenter = contentData["mapCenter"];
+	const mapZoom = Number(contentData["mapZoom"]);
+	const bullseyePos = contentData["bullseyePos"];
+	const hasValidLatLng = (value) => value && Number.isFinite(Number(value.lat)) && Number.isFinite(Number(value.lng));
 	if (savedMapBaseMode === currentMapBaseMode) {
-	    map.setView(contentData["mapCenter"], contentData["mapZoom"]);
-	    setBullseye(contentData['bullseyePos']);
+	    if (hasValidLatLng(mapCenter) && Number.isFinite(mapZoom)) {
+		map.setView(mapCenter, mapZoom);
+	    }
+	    if (hasValidLatLng(bullseyePos)) {
+		setBullseye(bullseyePos);
+	    }
 	}
     }
     catch (error) {
