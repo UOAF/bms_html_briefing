@@ -607,16 +607,138 @@
       font-size: 0.78rem;
       white-space: nowrap;
     }
+    .dtc-popup-stick-row {
+      display: grid;
+      grid-template-columns: 3.2em minmax(120px, 15em) max-content;
+      gap: 10px;
+      align-items: end;
+    }
+    .dtc-popup-stick-row .dtc-popup-field {
+      min-width: 0;
+    }
+    .dtc-popup-stick-row .dtc-popup-input {
+      width: 100%;
+    }
+    .dtc-popup-stick-row .dtc-slider-field {
+      grid-template-columns: minmax(80px, 8em) 4.4em auto;
+    }
+    .dtc-page.is-popup-active .dtc-popup-stick-row .dtc-slider-field {
+      grid-template-columns: minmax(80px, 8em) 4.4em auto;
+    }
+    #dtc-popup-stick-mode {
+      width: 6.2em;
+      justify-content: center;
+    }
     .dtc-popup-output {
+      position: relative;
       min-height: 8.5rem;
       margin-top: 8px;
-      padding: 8px;
-      resize: vertical;
+      padding: 8px 8px 34px;
       line-height: 1.28;
+      overflow: auto;
     }
     .dtc-page.is-popup-active .dtc-popup-output {
       flex: 1 1 auto;
       height: auto;
+    }
+    .dtc-popup-output-title {
+      margin-bottom: 8px;
+      color: var(--preview-accent);
+      font-weight: 700;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .dtc-popup-output-line {
+      display: grid;
+      grid-template-columns: 8.6rem minmax(0, 1fr);
+      gap: 8px;
+      align-items: baseline;
+      padding: 2px 0;
+    }
+    .dtc-popup-output-line-label {
+      color: var(--dtc-muted);
+      font-size: 0.88rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .dtc-popup-output-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 14px;
+      min-width: 0;
+    }
+    .dtc-popup-output-metric {
+      color: var(--preview-text);
+      white-space: nowrap;
+    }
+    .dtc-popup-output-metric-label {
+      color: var(--dtc-muted);
+      margin-right: 4px;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+    }
+    .dtc-popup-output-metric strong {
+      color: #f2f2f2;
+      font-weight: 700;
+    }
+    .dtc-popup-output-metric.is-primary strong {
+      color: #ffffff;
+    }
+    .dtc-popup-output-section-title {
+      margin: 10px 0 3px;
+      color: var(--preview-accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .dtc-popup-output-message {
+      color: var(--dtc-muted);
+      text-align: center;
+    }
+    .dtc-popup-output-support {
+      margin-top: 10px;
+      color: var(--dtc-muted);
+      display: none;
+    }
+    .dtc-popup-output-support.is-open {
+      display: block;
+    }
+    .dtc-popup-output-actions {
+      margin-top: 10px;
+    }
+    .dtc-popup-output-copy,
+    .dtc-popup-output-help {
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--preview-line);
+      background: transparent;
+      color: #ffffff;
+      cursor: pointer;
+      font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+      font-weight: 700;
+      user-select: none;
+    }
+    .dtc-popup-output-copy {
+      min-width: 4.8rem;
+      height: 1.7rem;
+      padding: 0 10px;
+      font-size: 0.76rem;
+    }
+    .dtc-popup-output-copy:hover,
+    .dtc-popup-output-help:hover,
+    .dtc-popup-output-help.is-open {
+      background: #121212;
+    }
+    .dtc-popup-output-help {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      width: 1.7rem;
+      height: 1.7rem;
+      font-size: 0.9rem;
+    }
+    .dtc-popup-output-support .dtc-popup-output-line {
+      opacity: 0.82;
     }
     .dtc-popup-status {
       min-height: 1.2rem;
@@ -901,7 +1023,7 @@
               <div class="dtc-popup-field">
                 <label for="dtc-popup-release-alt">Release alt AGL</label>
                 <div class="dtc-slider-field">
-                  <input class="dtc-popup-slider" id="dtc-popup-release-alt" data-popup-field="releaseAltitude" type="range" min="500" max="10000" step="100" value="2000" data-slider-unit=" ft">
+                  <input class="dtc-popup-slider" id="dtc-popup-release-alt" data-popup-field="releaseAltitude" type="range" min="100" max="10000" step="100" value="2000" data-slider-unit=" ft">
                   <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="releaseAltitude" inputmode="decimal"><span class="dtc-popup-slider-unit">ft</span>
                 </div>
               </div>
@@ -924,6 +1046,23 @@
                 <div class="dtc-slider-field">
                   <input class="dtc-popup-slider" id="dtc-popup-final-time" data-popup-field="timeOnFinal" type="range" min="0" max="20" step="1" value="5" data-slider-unit=" sec">
                   <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="timeOnFinal" inputmode="decimal"><span class="dtc-popup-slider-unit">sec</span>
+                </div>
+              </div>
+              <div class="dtc-popup-stick-row">
+                <div class="dtc-popup-field">
+                  <label for="dtc-popup-ripple">RPL</label>
+                  <input class="dtc-popup-input interface-text-input" id="dtc-popup-ripple" data-popup-field="ripplePulses" inputmode="numeric" value="1">
+                </div>
+                <div class="dtc-popup-field">
+                  <label for="dtc-popup-spacing">SPC</label>
+                  <div class="dtc-slider-field">
+                    <input class="dtc-popup-slider" id="dtc-popup-spacing" data-popup-field="stickSpacing" type="range" min="0" max="1000" step="25" value="0" data-slider-unit=" ft">
+                    <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="stickSpacing" inputmode="decimal"><span class="dtc-popup-slider-unit">ft</span>
+                  </div>
+                </div>
+                <div class="dtc-popup-field">
+                  <label for="dtc-popup-stick-mode">Stick</label>
+                  <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-stick-mode" data-popup-field="stickMode" data-popup-value="mid">MID</button>
                 </div>
               </div>
             </div>
@@ -954,7 +1093,7 @@
               </div>
             </div>
           </div>
-          <textarea class="dtc-popup-output" id="dtc-popup-output" readonly></textarea>
+          <div class="dtc-popup-output" id="dtc-popup-output" role="status" aria-live="polite"></div>
           <div class="dtc-offset-actions">
             <button type="button" class="dtc-offset-button" id="dtc-popup-apply">SET PUP/OA</button>
           </div>
@@ -1200,6 +1339,7 @@
     let dtcPopupMapLayer = null;
     let dtcPopupLastPlan = null;
     let dtcPopupStatusText = "";
+    let dtcPopupSupportOpen = false;
     const dtcPopupElevationCache = new Map();
     const dtcPopupElevationRequests = new Set();
     const FEET_PER_NM = 6076.12;
@@ -1366,6 +1506,10 @@
       gProfile: [
         { value: "low", label: "3-3.5 G" },
         { value: "high", label: "4.5-5 G" },
+      ],
+      stickMode: [
+        { value: "mid", label: "MID" },
+        { value: "start", label: "START" },
       ],
     };
 
@@ -2481,8 +2625,146 @@
       return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(decimals);
     }
 
-    function popupLine(label, value, unit) {
-      return label + ": " + value + (unit ? " " + unit : "");
+    function formatPopupDegrees(value, decimals = 1) {
+      const formatted = formatPopupNumber(value, decimals);
+      return formatted ? formatted + "°" : "";
+    }
+
+    function formatPopupBearingText(value) {
+      return value ? value + "°" : "---";
+    }
+
+    const POPUP_OUTPUT_LABEL_TITLES = {
+      ACTION: "Action range and derived ingress heading used to place the action point from the target.",
+      "ACTION-TO-PDP": "Straight offset-leg distance from the action point to the computed pull-down point.",
+      ALTLOSS: "Estimated altitude lost during recovery: stick duration plus 2 seconds at dive angle, then a 5G pull to level.",
+      "ANGLE OFF": "Lateral turn angle; currently computed as two times climb angle, applied left or right.",
+      AOD: "Aim-off distance: release altitude divided by tan(dive angle), minus first-release range.",
+      APEX: "Apex altitude from pull-down altitude plus the climb-arc vertical gain.",
+      "ATTACK HDG": "Attack heading after applying angle-off to ingress heading, or the entered heading in attack-heading mode.",
+      "BOMB RANGE": "Manual bomb range, or the range from the selected low/high-drag bomb trajectory approximation.",
+      CA: "Climb angle heuristic: dive angle plus 5 degrees up to 15 degrees dive, otherwise plus 10 degrees.",
+      DA: "Entered dive angle.",
+      "DELAY LOSS": "Altitude lost before pullout during stick duration plus the 2 second recovery delay.",
+      GNDC: "Estimated ground clearance after recovery: release altitude minus recovery altitude loss.",
+      "GROUND SPEED": "Horizontal speed component: release speed times cos(dive angle).",
+      "HDG TO PDP": "Offset-leg heading from PUP toward the computed pull-down point.",
+      "INGRESS HDG": "Ingress heading used to project the action point behind the target.",
+      "INGRESS ALT": "Entered ingress altitude AGL.",
+      MAP: "Distance from MAP to target: first-release range plus aircraft tracking distance during time on final.",
+      "MAP-TO-TGT": "Straight distance from maneuver aim point to target.",
+      MRA: "Minimum recovery altitude: estimated recovery altitude loss plus the configured safety buffer.",
+      "MRA BUFFER": "Safety buffer added to recovery altitude loss when computing MRA.",
+      "OA1 OFFSET": "Bearing/range from selected steerpoint reference to the computed OA1 offset aimpoint.",
+      "PDP-TO-TGT": "Straight distance from pull-down point to target.",
+      PDWN: "Pull-down altitude from final-track altitude and vertical turn geometry.",
+      POP: "Bearing/range from computed PUP to target.",
+      "POP-TO-PDWN": "Ground distance from PUP to pull-down point from climb altitude gain and climb angle.",
+      PUP: "Distance from computed PUP to pull-down point.",
+      "PUP OFFSET": "Bearing/range from selected steerpoint reference to computed PUP, used for the NAV offset row.",
+      "PUP-TO-PDP": "Straight distance from computed PUP to pull-down point.",
+      "PUP-TO-TGT": "Straight distance from computed PUP to target.",
+      "PULL LOSS": "Altitude lost during the 5G recovery pull from dive angle to level.",
+      "PULL RADIUS": "Recovery pull radius from release speed and 5G pull assumption.",
+      PULL: "Recovery pull G assumption.",
+      RANGE: "Distance or range for this row.",
+      RADIUS: "Horizontal turn radius from release speed and selected G profile.",
+      RALT: "Entered release altitude AGL, shown with terrain-derived MSL when available.",
+      "RANGE MODEL": "Bomb range source: manual entry or selected low/high-drag approximation.",
+      "RECOVERY MODEL": "Recovery assumption used for MRA and ground-clearance estimates: hold through stick, then wait 2 seconds and pull.",
+      "REF-TO-PUP": "Straight distance from selected steerpoint reference to computed PUP.",
+      "RELEASE SPEED": "Entered release speed in KTAS.",
+      "RELEASE RANGE": "Range from target to first release. MID adds half stick length so the stick center lands on target.",
+      RPL: "Ripple pulses in the release stick.",
+      SIDE: "Turn direction used to apply angle-off.",
+      SPC: "Requested spacing between release pulses.",
+      STICK: "Stick reference. START targets the first pulse; MID targets the stick center.",
+      "STICK DUR": "Release stick duration from stick length divided by aircraft ground speed.",
+      "STICK LEN": "Release stick length: (RPL - 1) times SPC.",
+      TOF: "Time of fall.",
+      "TOF STICK": "Time from first pulse release to final pulse impact: bomb time of fall plus stick duration.",
+      "TRACK ALT": "Release altitude plus altitude lost during the final tracking segment.",
+      "TRACK TIME": "Entered time on final used to compute MAP distance and track altitude.",
+      TRACKING: "Horizontal distance flown during time on final.",
+    };
+
+    const POPUP_OUTPUT_TOKEN_TITLES = {
+      AGL: "Above ground level.",
+      BRG: "Bearing.",
+      DELAY: "Time delay before recovery pull, or altitude lost during that delay.",
+      HDG: "Heading.",
+      MSL: "Mean sea level.",
+      RNG: "Range.",
+    };
+
+    function getPopupOutputLabelTitle(label) {
+      const normalized = cleanOffsetValue(label).toUpperCase();
+      if (!normalized) return "";
+      if (POPUP_OUTPUT_LABEL_TITLES[normalized]) return POPUP_OUTPUT_LABEL_TITLES[normalized];
+      if (POPUP_OUTPUT_TOKEN_TITLES[normalized]) return POPUP_OUTPUT_TOKEN_TITLES[normalized];
+      const titles = normalized
+        .split(/[^A-Z0-9]+/)
+        .map((token) => POPUP_OUTPUT_TOKEN_TITLES[token])
+        .filter(Boolean);
+      return [...new Set(titles)].join("; ");
+    }
+
+    function popupTitleAttr(label) {
+      const title = getPopupOutputLabelTitle(label);
+      return title ? " title=\"" + escapeHtml(title) + "\"" : "";
+    }
+
+    function popupMetric(label, value, tone) {
+      const className = tone ? " is-" + tone : "";
+      const labelHtml = label
+        ? "<span class=\"dtc-popup-output-metric-label\"" + popupTitleAttr(label) + ">" + escapeHtml(label) + "</span>"
+        : "";
+      return "<span class=\"dtc-popup-output-metric" + className + "\">"
+        + labelHtml
+        + "<strong>" + escapeHtml(value) + "</strong>"
+        + "</span>";
+    }
+
+    function popupLine(label, ...metrics) {
+      return "<div class=\"dtc-popup-output-line\">"
+        + "<span class=\"dtc-popup-output-line-label\"" + popupTitleAttr(label) + ">" + escapeHtml(label) + "</span>"
+        + "<span class=\"dtc-popup-output-values\">" + metrics.filter(Boolean).join("") + "</span>"
+        + "</div>";
+    }
+
+    function popupSection(title, lines) {
+      return "<div class=\"dtc-popup-output-section\">"
+        + "<div class=\"dtc-popup-output-section-title\">" + escapeHtml(title) + "</div>"
+        + lines.join("")
+        + "</div>";
+    }
+
+    function popupMessage(message) {
+      return "<div class=\"dtc-popup-output-message\">" + escapeHtml(message) + "</div>";
+    }
+
+    function popupAglMslLine(label, aglFeet, terrainFeet) {
+      const aglText = formatPopupNumber(aglFeet, 0) + " ft";
+      const mslText = Number.isFinite(terrainFeet)
+        ? formatPopupNumber(aglFeet + terrainFeet, 0) + " ft"
+        : "MSL pending";
+      return popupLine(label, popupMetric("AGL", aglText), popupMetric("MSL", mslText));
+    }
+
+    function formatPopupAglMslText(label, aglFeet, terrainFeet) {
+      const aglText = formatPopupNumber(aglFeet, 0) + " ft AGL";
+      const mslText = Number.isFinite(terrainFeet)
+        ? formatPopupNumber(aglFeet + terrainFeet, 0) + " ft MSL"
+        : "MSL pending";
+      return label + " " + aglText + " / " + mslText;
+    }
+
+    function formatPopupAglMslCopyText(label, aglFeet, terrainFeet) {
+      const aglText = formatPopupNumber(aglFeet, 0) + " AGL";
+      const mslText = Number.isFinite(terrainFeet)
+        ? formatPopupNumber(aglFeet + terrainFeet, 0) + " MSL"
+        : "MSL pending";
+      return label + " " + aglText + " / " + mslText;
     }
 
     function formatPopupFeet(value) {
@@ -2493,39 +2775,52 @@
       return formatPopupNumber(value / FEET_PER_NM, 1) + " NM";
     }
 
+    function formatPopupNmCopyFromFeet(value) {
+      return formatPopupNumber(value / FEET_PER_NM, 1) + " NM";
+    }
+
+    function formatPopupSeconds(value, decimals = 1) {
+      const formatted = formatPopupNumber(value, decimals);
+      return formatted ? formatted + " sec" : "N/A";
+    }
+
     function getRangeModelLabel(rangeModel) {
       if (rangeModel === "manual") return "Manual";
       if (rangeModel === "high_drag") return "High drag approximation";
       return "Low drag approximation";
     }
 
-    function computeDragBombRangeFeet(releaseAltitude, releaseSpeed, diveAngle, rangeModel) {
+    function computeDragBombTrajectory(releaseAltitude, releaseSpeed, diveAngle, rangeModel) {
       const stepSeconds = 0.1;
       const dragScale = rangeModel === "high_drag" ? 1.0 : 0.165;
       const gravity = rangeModel === "high_drag" ? 20.91505 : 32.177;
       const diveRadians = diveAngle * Math.PI / 180;
       let horizontalSpeed = Math.round(Math.cos(diveRadians) * releaseSpeed * FEET_PER_KNOT_SECOND * 100) / 100;
       let verticalSpeedDown = Math.round(Math.sin(diveRadians) * releaseSpeed * FEET_PER_KNOT_SECOND * 100) / 100;
-      let rangeFeet = horizontalSpeed;
-      let altitude = releaseAltitude - verticalSpeedDown - 0.5 * 32.177;
-      verticalSpeedDown += 32.177;
-      let lastStepRange = rangeFeet;
-      let lastStepAltitudeChange = -verticalSpeedDown - 0.5 * gravity * stepSeconds;
+      let rangeFeet = 0;
+      let altitude = releaseAltitude;
+      let lastStepRange = 0;
+      let lastStepAltitudeChange = 0;
+      let timeSeconds = 0;
       let guard = 0;
       while (altitude > 0 && guard < 10000) {
         guard += 1;
         const horizontalDrag = dragScale * 140 * Math.abs(horizontalSpeed) / Math.sqrt(horizontalSpeed * horizontalSpeed + 0.1);
         const acceleration = horizontalSpeed > 0 ? -horizontalDrag : 0;
-        horizontalSpeed = Math.max(0, horizontalSpeed + acceleration * stepSeconds);
-        verticalSpeedDown += gravity * stepSeconds;
         lastStepRange = horizontalSpeed * stepSeconds + 0.5 * acceleration * stepSeconds * stepSeconds;
         lastStepAltitudeChange = -verticalSpeedDown * stepSeconds - 0.5 * gravity * stepSeconds * stepSeconds;
         rangeFeet += lastStepRange;
         altitude += lastStepAltitudeChange;
+        timeSeconds += stepSeconds;
+        horizontalSpeed = Math.max(0, horizontalSpeed + acceleration * stepSeconds);
+        verticalSpeedDown += gravity * stepSeconds;
       }
-      if (guard >= 10000 || !Number.isFinite(altitude) || !Number.isFinite(lastStepAltitudeChange) || lastStepAltitudeChange === 0) return NaN;
-      const stepFraction = altitude / lastStepAltitudeChange;
-      return rangeFeet + stepFraction * lastStepRange;
+      if (guard >= 10000 || !Number.isFinite(altitude) || !Number.isFinite(lastStepAltitudeChange) || lastStepAltitudeChange === 0) return null;
+      const overshootFraction = altitude / lastStepAltitudeChange;
+      return {
+        rangeFeet: rangeFeet - overshootFraction * lastStepRange,
+        timeSeconds: timeSeconds - overshootFraction * stepSeconds,
+      };
     }
 
     function updatePopupInputState() {
@@ -2547,6 +2842,8 @@
       const ingressAltitude = getPopupNumber("ingressAltitude");
       const releaseSpeed = getPopupNumber("releaseSpeed");
       const timeOnFinal = getPopupNumber("timeOnFinal");
+      const ripplePulsesRaw = getPopupNumber("ripplePulses");
+      const stickSpacing = getPopupNumber("stickSpacing");
       const actionRangeNm = getPopupNumber("actionRangeNm");
       const heading = getPopupNumber("heading");
       const requestedRangeModel = getPopupValue("rangeModel");
@@ -2554,10 +2851,12 @@
       const headingMode = getPopupValue("headingMode") === "ingress" ? "ingress" : "attack";
       const side = getPopupValue("side") === "left" ? "left" : "right";
       const gProfile = getPopupValue("gProfile") === "high" ? "high" : "low";
+      const stickMode = getPopupValue("stickMode") === "start" ? "start" : "mid";
       const manualBombRange = getPopupNumber("bombRange");
-      const required = [diveAngle, releaseAltitude, ingressAltitude, releaseSpeed, timeOnFinal, actionRangeNm, heading];
+      const required = [diveAngle, releaseAltitude, ingressAltitude, releaseSpeed, timeOnFinal, ripplePulsesRaw, stickSpacing, actionRangeNm, heading];
       if (rangeModel === "manual") required.push(manualBombRange);
       if (required.some((value) => !Number.isFinite(value))) return { error: "Enter all pop-up parameters." };
+      const ripplePulses = Math.max(1, Math.round(ripplePulsesRaw));
       if (
         diveAngle <= 0 ||
         diveAngle >= 89 ||
@@ -2565,14 +2864,18 @@
         ingressAltitude < 0 ||
         releaseSpeed <= 0 ||
         timeOnFinal < 0 ||
+        ripplePulses < 1 ||
+        stickSpacing < 0 ||
         actionRangeNm <= 0 ||
         (rangeModel === "manual" && manualBombRange < 0)
       ) {
         return { error: "Pop-up parameters are outside valid ranges." };
       }
-      const bombRange = rangeModel === "manual"
-        ? manualBombRange
-        : computeDragBombRangeFeet(releaseAltitude, releaseSpeed, diveAngle, rangeModel);
+      const bombTrajectory = rangeModel === "manual"
+        ? null
+        : computeDragBombTrajectory(releaseAltitude, releaseSpeed, diveAngle, rangeModel);
+      const bombRange = rangeModel === "manual" ? manualBombRange : bombTrajectory?.rangeFeet;
+      const bombTimeOfFall = bombTrajectory?.timeSeconds ?? NaN;
       if (!Number.isFinite(bombRange) || bombRange <= 0) return { error: "Could not compute bomb range." };
       if (rangeModel !== "manual") {
         const bombRangeInput = document.querySelector("[data-popup-field='bombRange']");
@@ -2589,11 +2892,19 @@
 
       const diveRadians = diveAngle * Math.PI / 180;
       const groundSpeed = releaseSpeed * Math.cos(diveRadians);
+      const groundSpeedFps = groundSpeed * FEET_PER_KNOT_SECOND;
+      const stickLength = Math.max(0, ripplePulses - 1) * stickSpacing;
+      const stickHalfLength = stickMode === "mid" ? stickLength / 2 : 0;
+      const stickDuration = groundSpeedFps > 0 ? stickLength / groundSpeedFps : NaN;
+      const releaseReferenceRange = bombRange + stickHalfLength;
+      const stickTimeOfFall = Number.isFinite(bombTimeOfFall) && Number.isFinite(stickDuration)
+        ? bombTimeOfFall + stickDuration
+        : NaN;
       const horizontalTrackingDistance = groundSpeed * 1.69 * timeOnFinal;
       const verticalTrackingDistance = releaseSpeed * 1.69 * timeOnFinal * Math.sin(diveRadians);
-      const mapDistance = bombRange + horizontalTrackingDistance;
+      const mapDistance = releaseReferenceRange + horizontalTrackingDistance;
       const actionRangeFeet = actionRangeNm * FEET_PER_NM;
-      const aod = releaseAltitude / Math.tan(diveRadians) - bombRange;
+      const aod = releaseAltitude / Math.tan(diveRadians) - releaseReferenceRange;
       if (aod <= 0) return { error: "AOD is negative for this profile. Increase release altitude or reduce bomb range." };
       const climbAngle = diveAngle <= 15 ? diveAngle + 5 : diveAngle + 10;
       const climbRadians = climbAngle * Math.PI / 180;
@@ -2601,7 +2912,7 @@
       const turnG = gProfile === "high" ? 5 : 3.5;
       const trackAltitude = releaseAltitude + verticalTrackingDistance;
       const turnRadius = ((releaseSpeed * 1.69) ** 2) / (32.2 * turnG);
-      const recoveryPullDelay = 2;
+      const recoveryPullDelay = stickDuration + 2;
       const recoveryPullG = 5;
       const releaseSpeedFps = releaseSpeed * FEET_PER_KNOT_SECOND;
       const recoveryDelayAltitudeLoss = releaseSpeedFps * Math.sin(diveRadians) * recoveryPullDelay;
@@ -2627,7 +2938,7 @@
       const turnDirection = side === "left" ? "left" : "right";
       const actionCoord = projectBearingRange(targetCoord, ingressHeading + 180, actionRangeFeet);
       const mapCoord = projectBearingRange(targetCoord, attackHeading + 180, mapDistance);
-      const releaseCoord = projectBearingRange(targetCoord, attackHeading + 180, bombRange);
+      const releaseCoord = projectBearingRange(targetCoord, attackHeading + 180, releaseReferenceRange);
       const turnGeometry = solvePopupTurnGeometry(actionCoord, mapCoord, attackHeading, turnRadius, turnDirection);
       if (!turnGeometry) return { error: "Could not solve action-to-MAP turn geometry." };
       const pdpCoord = turnGeometry.pdpCoord;
@@ -2671,6 +2982,14 @@
           ingressAltitude,
           releaseSpeed,
           bombRange,
+          bombTimeOfFall,
+          releaseReferenceRange,
+          ripplePulses,
+          stickSpacing,
+          stickMode,
+          stickLength,
+          stickDuration,
+          stickTimeOfFall,
           rangeModel,
           timeOnFinal,
           actionRangeNm,
@@ -2708,8 +3027,8 @@
       };
     }
 
-    function formatPopupOutput(plan) {
-      if (!plan || plan.error) return plan?.error || "";
+    function formatPopupOutput(plan, supportOpen = false) {
+      if (!plan || plan.error) return popupMessage(plan?.error || "");
       const v = plan.values;
       const pdpTerrainFeet = getCachedPopupTerrainElevationFeet(plan.pdpCoord);
       const releaseTerrainFeet = getCachedPopupTerrainElevationFeet(plan.releaseCoord || plan.targetCoord);
@@ -2717,83 +3036,90 @@
       const pupToPdpFeet = coordDistanceFeet(plan.pupCoord, plan.pdpCoord);
       const pdpToTargetFeet = coordDistanceFeet(plan.pdpCoord, plan.targetCoord);
       const pupToTargetFeet = coordDistanceFeet(plan.pupCoord, plan.targetCoord);
+      const pupToTargetMetrics = bearingRangeBetween(plan.pupCoord, plan.targetCoord);
       const mapToTargetFeet = coordDistanceFeet(plan.mapCoord, plan.targetCoord);
+      const title = "POP-UP STPT " + plan.stptNumber + " " + plan.mode.toUpperCase();
+      const primaryLines = [
+        popupLine("POP", popupMetric("BRG", formatPopupBearingText(pupToTargetMetrics?.brg), "primary"), popupMetric("RNG", formatPopupNmFromFeet(pupToTargetFeet), "primary")),
+        popupLine("DA", popupMetric("", formatPopupDegrees(v.diveAngle))),
+        popupLine("CA", popupMetric("", formatPopupDegrees(v.climbAngle))),
+        popupAglMslLine("PDWN", v.pullDownAltitude, pdpTerrainFeet),
+        popupAglMslLine("APEX", v.apexAltitude, pdpTerrainFeet),
+        popupAglMslLine("RALT", v.releaseAltitude, releaseTerrainFeet),
+        popupAglMslLine("MRA", v.recoveryMraAltitude, releaseTerrainFeet),
+        popupLine("AOD", popupMetric("", formatPopupFeet(v.aod))),
+        popupLine("PUP", popupMetric("", formatPopupFeet(pupToPdpFeet))),
+        popupLine("RADIUS", popupMetric("", formatPopupFeet(v.turnRadius))),
+        popupLine("MAP", popupMetric("", formatPopupFeet(v.mapDistance))),
+        popupLine("ALTLOSS", popupMetric("", formatPopupFeet(v.recoveryAltitudeLoss))),
+        popupLine("GNDC", popupMetric("", formatPopupFeet(v.recoveryGroundClearance) + " AGL")),
+        popupLine("TOF STICK", popupMetric("", formatPopupSeconds(v.stickTimeOfFall))),
+      ];
+      const supportLines = [
+        popupLine("ACTION", popupMetric("Range", formatPopupNumber(v.actionRangeNm, 1) + " NM"), popupMetric("Ingress HDG", formatPopupDegrees(v.ingressHeading))),
+        popupLine("STICK", popupMetric("RPL", formatPopupNumber(v.ripplePulses, 0)), popupMetric("SPC", formatPopupFeet(v.stickSpacing)), popupMetric("Mode", v.stickMode.toUpperCase())),
+        popupLine("STICK LEN", popupMetric("", formatPopupFeet(v.stickLength))),
+        popupLine("STICK DUR", popupMetric("", formatPopupSeconds(v.stickDuration))),
+        popupLine("RELEASE RANGE", popupMetric("", formatPopupFeet(v.releaseReferenceRange))),
+        popupLine("REF-TO-PUP", popupMetric("", formatPopupFeet(referenceToPupFeet))),
+        popupLine("PUP-TO-PDP", popupMetric("", formatPopupFeet(pupToPdpFeet))),
+        popupLine("PUP-TO-TGT", popupMetric("", formatPopupFeet(pupToTargetFeet))),
+        popupLine("HDG TO PDP", popupMetric("", formatPopupDegrees(v.offsetLegHeading))),
+        popupLine("PUP OFFSET", popupMetric("BRG", formatPopupBearingText(plan.pupMetrics.brg)), popupMetric("RNG", plan.pupMetrics.rng + " ft")),
+        popupLine("PDP-TO-TGT", popupMetric("", formatPopupFeet(pdpToTargetFeet))),
+        popupLine("ACTION-TO-PDP", popupMetric("", plan.offsetLegMetrics.rng + " ft")),
+        popupLine("ANGLE OFF", popupMetric("", formatPopupDegrees(v.angleOff)), popupMetric("Side", v.side.toUpperCase())),
+        popupLine("MAP-TO-TGT", popupMetric("", formatPopupFeet(mapToTargetFeet))),
+        popupLine("ATTACK HDG", popupMetric("", formatPopupDegrees(v.attackHeading))),
+        popupLine("TRACK TIME", popupMetric("", formatPopupSeconds(v.timeOnFinal))),
+        popupLine("TRACKING", popupMetric("", formatPopupFeet(v.horizontalTrackingDistance))),
+        popupLine("BOMB RANGE", popupMetric("", formatPopupFeet(v.bombRange))),
+        popupLine("RECOVERY MODEL", popupMetric("Pull", formatPopupNumber(v.recoveryPullG, 0) + "G"), popupMetric("Delay", formatPopupNumber(v.recoveryPullDelay, 0) + " sec")),
+        popupLine("MRA BUFFER", popupMetric("", formatPopupFeet(v.recoveryMraBuffer))),
+        popupLine("DELAY LOSS", popupMetric("", formatPopupFeet(v.recoveryDelayAltitudeLoss))),
+        popupLine("PULL LOSS", popupMetric("", formatPopupFeet(v.recoveryPullAltitudeLoss))),
+        popupLine("PULL RADIUS", popupMetric("", formatPopupFeet(v.recoveryPullRadius))),
+        popupLine("RANGE MODEL", popupMetric("", getRangeModelLabel(v.rangeModel))),
+        popupLine("INGRESS ALT", popupMetric("", formatPopupNumber(v.ingressAltitude, 0) + " ft AGL")),
+        popupLine("RELEASE SPEED", popupMetric("", formatPopupNumber(v.releaseSpeed, 0) + " KTAS")),
+        popupLine("GROUND SPEED", popupMetric("", formatPopupNumber(v.groundSpeed, 0) + " KTAS")),
+        popupLine("TRACK ALT", popupMetric("", formatPopupNumber(v.trackAltitude, 0) + " ft AGL")),
+        popupLine("POP-TO-PDWN", popupMetric("", formatPopupNumber(v.popToPullDownDistance, 0) + " ft")),
+        popupLine("OA1 OFFSET", popupMetric("BRG", formatPopupBearingText(plan.oaMetrics.brg)), popupMetric("RNG", plan.oaMetrics.rng + " ft")),
+      ];
+      return "<div class=\"dtc-popup-output-title\">" + escapeHtml(title) + "</div>"
+        + primaryLines.join("")
+        + "<div class=\"dtc-popup-output-actions\">"
+        + "<button type=\"button\" class=\"dtc-popup-output-copy\" data-popup-copy-output title=\"Copy compact plain-text output\">COPY</button>"
+        + "</div>"
+        + "<div class=\"dtc-popup-output-support" + (supportOpen ? " is-open" : "") + "\">"
+        + supportLines.join("")
+        + "</div>"
+        + "<button type=\"button\" class=\"dtc-popup-output-help" + (supportOpen ? " is-open" : "") + "\" data-popup-toggle-support title=\"Show support values\">?</button>";
+    }
+
+    function formatPopupOutputText(plan) {
+      if (!plan || plan.error) return plan?.error || "";
+      const v = plan.values;
+      const pdpTerrainFeet = getCachedPopupTerrainElevationFeet(plan.pdpCoord);
+      const releaseTerrainFeet = getCachedPopupTerrainElevationFeet(plan.releaseCoord || plan.targetCoord);
+      const pupToPdpFeet = coordDistanceFeet(plan.pupCoord, plan.pdpCoord);
+      const pupToTargetFeet = coordDistanceFeet(plan.pupCoord, plan.targetCoord);
+      const pupToTargetMetrics = bearingRangeBetween(plan.pupCoord, plan.targetCoord);
+      const title = "POP-UP STPT " + plan.stptNumber + " " + plan.mode.toUpperCase();
       return [
-        "POP-UP STPT " + plan.stptNumber + " " + plan.mode.toUpperCase(),
-        popupLine("POP", formatPopupNumber(v.offsetAngle, 1) + " deg / " + formatPopupNmFromFeet(referenceToPupFeet), ""),
-        popupLine("DA", formatPopupNumber(v.diveAngle, 1), "deg"),
-        popupLine("CA", formatPopupNumber(v.climbAngle, 1), "deg"),
-        formatPopupAglMslLine("PDWN", v.pullDownAltitude, pdpTerrainFeet),
-        formatPopupAglMslLine("APEX", v.apexAltitude, pdpTerrainFeet),
-        formatPopupAglMslLine("RALT", v.releaseAltitude, releaseTerrainFeet),
-        formatPopupAglMslLine("MRA", v.recoveryMraAltitude, releaseTerrainFeet),
-        popupLine("AOD", formatPopupFeet(v.aod), ""),
-        popupLine("PUP", formatPopupFeet(pupToPdpFeet), ""),
-        popupLine("RADIUS", formatPopupFeet(v.turnRadius), ""),
-        popupLine("MAP", formatPopupFeet(v.mapDistance), ""),
-        popupLine("ALTLOSS", formatPopupFeet(v.recoveryAltitudeLoss), ""),
-        popupLine("GNDC", formatPopupFeet(v.recoveryGroundClearance) + " AGL", ""),
-        popupLine("TOF STICK", formatPopupNumber(v.timeOnFinal, 1), "sec"),
-        "",
-        "SUPPORT",
-        "",
-        "AP",
-        popupLine("Action range", formatPopupNumber(v.actionRangeNm, 1), "NM"),
-        popupLine("Ingress HDG", formatPopupNumber(v.ingressHeading, 1), "deg"),
-        "",
-        "PUP",
-        popupLine("Ref-to-PUP", formatPopupFeet(referenceToPupFeet), ""),
-        popupLine("PUP-to-PDP", formatPopupFeet(pupToPdpFeet), ""),
-        popupLine("PUP-to-TGT", formatPopupFeet(pupToTargetFeet), ""),
-        popupLine("HDG to PDP", formatPopupNumber(v.offsetLegHeading, 1), "deg"),
-        popupLine("PUP offset", "BRG " + plan.pupMetrics.brg + " RNG " + plan.pupMetrics.rng, ""),
-        "",
-        "PDP",
-        popupLine("PDP-to-TGT", formatPopupFeet(pdpToTargetFeet), ""),
-        popupLine("Angle off", formatPopupNumber(v.angleOff, 1) + " deg " + v.side.toUpperCase(), ""),
-        popupLine("Action-to-PDP", plan.offsetLegMetrics.rng, "ft"),
-        "",
-        "MAP",
-        popupLine("MAP-to-TGT", formatPopupFeet(mapToTargetFeet), ""),
-        popupLine("Attack HDG", formatPopupNumber(v.attackHeading, 1), "deg"),
-        popupLine("Tracking distance", formatPopupFeet(v.horizontalTrackingDistance), ""),
-        popupLine("Bomb range", formatPopupFeet(v.bombRange), ""),
-        "",
-        "RECOVERY",
-        popupLine("Model", formatPopupNumber(v.recoveryPullG, 0) + "G pull after " + formatPopupNumber(v.recoveryPullDelay, 0) + " sec", ""),
-        popupLine("MRA buffer", formatPopupFeet(v.recoveryMraBuffer), ""),
-        popupLine("Delay loss", formatPopupFeet(v.recoveryDelayAltitudeLoss), ""),
-        popupLine("Pull loss", formatPopupFeet(v.recoveryPullAltitudeLoss), ""),
-        popupLine("Pull radius", formatPopupFeet(v.recoveryPullRadius), ""),
-        "",
-        "OTHER",
-        popupLine("Range model", getRangeModelLabel(v.rangeModel), ""),
-        popupLine("Ingress alt", formatPopupNumber(v.ingressAltitude, 0), "ft AGL"),
-        popupLine("Release speed", formatPopupNumber(v.releaseSpeed, 0), "KTAS"),
-        popupLine("Ground speed", formatPopupNumber(v.groundSpeed, 0), "KTAS"),
-        popupLine("Track altitude", formatPopupNumber(v.trackAltitude, 0), "ft AGL"),
-        popupLine("Pop-to-pull-down", formatPopupNumber(v.popToPullDownDistance, 0), "ft"),
-        popupLine("OA1 offset", "BRG " + plan.oaMetrics.brg + " RNG " + plan.oaMetrics.rng, ""),
-        "",
-        "========",
-        "LEGEND:",
-        "AOD: Aim-off distance",
-        "AP: Action point",
-        "APEX: Apex altitude",
-        "BRG: Bearing",
-        "CA: Climb angle",
-        "DA: Dive angle",
-        "GNDC: Ground clearance after recovery",
-        "HDG: Heading",
-        "MAP: Maneuver aim point",
-        "MRA: Minimum recovery altitude",
-        "OA: Offset aimpoint",
-        "PDP: Pull-down point",
-        "PDWN: Pull-down altitude",
-        "PUP: Pull-up point",
-        "RALT: Release altitude",
-        "RNG: Range",
-        "TOF: Time on final",
+        title,
+        "POP: BRG " + formatPopupNumber(Number.parseFloat(pupToTargetMetrics?.brg), 1) + " / RNG " + formatPopupNmCopyFromFeet(pupToTargetFeet),
+        "DA " + formatPopupNumber(v.diveAngle, 1) + " / CA " + formatPopupNumber(v.climbAngle, 1),
+        "STICK " + v.stickMode.toUpperCase() + " / RPL " + formatPopupNumber(v.ripplePulses, 0) + " / SPC " + formatPopupNumber(v.stickSpacing, 0),
+          formatPopupAglMslCopyText("PDWN", v.pullDownAltitude, pdpTerrainFeet),
+	  formatPopupAglMslCopyText("APEX", v.apexAltitude, pdpTerrainFeet),
+          formatPopupAglMslCopyText("RALT", v.releaseAltitude, releaseTerrainFeet),
+	  formatPopupAglMslCopyText("MRA", v.recoveryMraAltitude, releaseTerrainFeet),
+        "AOD " + formatPopupNumber(v.aod, 0) + " / PUP " + formatPopupNumber(pupToPdpFeet, 0),
+        "RADIUS " + formatPopupNumber(v.turnRadius, 0) + " / MAP " + formatPopupNumber(v.mapDistance, 0),
+        "ALTLOSS " + formatPopupNumber(v.recoveryAltitudeLoss, 0) + " / GNDC " + formatPopupNumber(v.recoveryGroundClearance, 0) + " AGL",
+        "TOF STICK: " + formatPopupSeconds(v.stickTimeOfFall),
       ].join("\n");
     }
 
@@ -2941,7 +3267,7 @@
         dtcPopupLastPlan = null;
         renderPopupMapLayer(null);
         const output = document.getElementById("dtc-popup-output");
-        if (output && !hasSelection) output.value = "Select a steerpoint.";
+        if (output && !hasSelection) output.innerHTML = popupMessage("Select a steerpoint.");
         const applyButton = document.getElementById("dtc-popup-apply");
         if (applyButton) applyButton.disabled = true;
         return;
@@ -2953,12 +3279,46 @@
       const plan = computePopupPlan();
       dtcPopupLastPlan = plan && !plan.error ? plan : null;
       const output = document.getElementById("dtc-popup-output");
-      if (output) output.value = formatPopupOutput(plan);
+      if (output) {
+        output.innerHTML = formatPopupOutput(plan, dtcPopupSupportOpen);
+      }
       const applyButton = document.getElementById("dtc-popup-apply");
       if (applyButton) applyButton.disabled = !dtcPopupLastPlan;
       const status = document.getElementById("dtc-popup-status");
       if (status) status.textContent = dtcPopupStatusText;
       renderPopupMapLayer(plan);
+    }
+
+    async function copyPopupOutputToClipboard() {
+      const plan = dtcPopupLastPlan || computePopupPlan();
+      if (!plan || plan.error) {
+        renderPopupComputer(plan?.error || "Could not compute pop-up output.");
+        return;
+      }
+      const text = formatPopupOutputText(plan);
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.left = "-9999px";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          textarea.remove();
+        }
+        renderPopupComputer("Pop-up output copied to clipboard.");
+      } catch (error) {
+        renderPopupComputer("Could not copy pop-up output to clipboard.");
+      }
+    }
+
+    function togglePopupSupport() {
+      dtcPopupSupportOpen = !dtcPopupSupportOpen;
+      renderPopupComputer("");
     }
 
     async function applyPopupPlan() {
@@ -3428,6 +3788,13 @@
       });
     });
     document.getElementById("dtc-popup-apply")?.addEventListener("click", applyPopupPlan);
+    document.getElementById("dtc-popup-output")?.addEventListener("click", (event) => {
+      if (event.target.closest("[data-popup-copy-output]")) {
+        copyPopupOutputToClipboard();
+      } else if (event.target.closest("[data-popup-toggle-support]")) {
+        togglePopupSupport();
+      }
+    });
     renderSteerpointMarkers();
     renderDtcIcpSettings();
     renderDtcLaserSettings();
