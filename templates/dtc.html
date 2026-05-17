@@ -443,6 +443,10 @@
       min-width: 0;
       max-width: 100%;
     }
+    .dtc-linked-diff {
+      border-color: #f0b35a !important;
+      box-shadow: inset 0 0 0 1px rgba(240, 179, 90, 0.45);
+    }
     .dtc-fcc-unit {
       color: var(--dtc-muted);
       font-size: 0.74rem;
@@ -1332,6 +1336,8 @@
     const dtcIcpSettings = {{ icp_settings|tojson }};
     const dtcFccSettings = {{ fcc_settings|tojson }};
     const dtcLaserSettings = {{ laser_settings|tojson }};
+    const dtcIcpIniSettings = JSON.parse(JSON.stringify(dtcIcpSettings || {}));
+    const dtcFccIniSettings = JSON.parse(JSON.stringify(dtcFccSettings || {}));
     let dtcSelectedLayer = null;
     let dtcSelectedStptNumber = "";
     let dtcOffsetMapLayer = null;
@@ -1563,6 +1569,65 @@
       return container.textContent.trim();
     }
 
+    function storedValuesDiffer(currentValue, iniValue) {
+      const current = cleanOffsetValue(currentValue).toUpperCase();
+      const ini = cleanOffsetValue(iniValue).toUpperCase();
+      const currentNumber = Number.parseFloat(current);
+      const iniNumber = Number.parseFloat(ini);
+      if (Number.isFinite(currentNumber) && Number.isFinite(iniNumber)) {
+        return Math.abs(currentNumber - iniNumber) > 0.000001;
+      }
+      return current !== ini;
+    }
+
+    function markLinkedDiff(control, differs, iniValue) {
+      if (!control) return;
+      if (control.dataset.baseTitle == null) {
+        control.dataset.baseTitle = control.title || "";
+      }
+      control.classList.toggle("dtc-linked-diff", !!differs);
+      const baseTitle = control.dataset.baseTitle || "";
+      control.title = differs
+        ? `${baseTitle ? baseTitle + "\n" : ""}Differs from callsign.ini: ${iniValue}`
+        : baseTitle;
+    }
+
+    function saveBriefingStorageFromDtc() {
+      try {
+        const liveFrame = window.parent?.document?.getElementById("brief-frame");
+        liveFrame?.contentWindow?.saveChangedData?.();
+      } catch (error) {
+        console.warn("Unable to save linked briefing storage", error);
+      }
+    }
+
+    async function refreshDtcLinkedIniBaselines() {
+      try {
+        const response = await fetch("/api/dtc/icp");
+        if (response.ok) {
+          const data = await response.json();
+          Object.assign(dtcIcpIniSettings, data.icp_settings || {});
+        }
+      } catch (error) {
+        console.warn("Unable to refresh ICP .ini baseline", error);
+      }
+      try {
+        const response = await fetch("/api/dtc/fcc");
+        if (response.ok) {
+          const data = await response.json();
+          const fccSettings = data.fcc_settings || {};
+          Object.entries(fccSettings).forEach(([section, values]) => {
+            dtcFccIniSettings[section] = dtcFccIniSettings[section] || {};
+            Object.assign(dtcFccIniSettings[section], values || {});
+          });
+        }
+      } catch (error) {
+        console.warn("Unable to refresh FCC .ini baseline", error);
+      }
+      refreshDtcIcpDiffIndicators();
+      refreshDtcFccDiffIndicators();
+    }
+
     function readBriefingLinkedValue(fieldName) {
       const id = DTC_ICP_BRIEFING_LINKS[fieldName];
       if (!id) return "";
@@ -1589,13 +1654,6 @@
       if (!id) return;
       const cleanValue = cleanOffsetValue(value);
       try {
-        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
-        saved[id] = cleanValue;
-        localStorage.setItem("contenteditables", JSON.stringify(saved));
-      } catch (error) {
-        console.warn("Unable to write linked briefing storage", id, error);
-      }
-      try {
         const liveFrame = window.parent?.document?.getElementById("brief-frame");
         const liveElement = liveFrame?.contentDocument?.getElementById(id);
         if (liveElement) liveElement.textContent = cleanValue;
@@ -1615,6 +1673,20 @@
       const linkedValue = readBriefingLinkedValue(fieldName);
       if (linkedValue !== "") return formatDtcIcpDisplayValue(linkedValue);
       return formatDtcIcpDisplayValue(dtcIcpSettings[fieldName]);
+    }
+
+    function getDtcIcpIniDisplayValue(fieldName) {
+      return formatDtcIcpDisplayValue(dtcIcpIniSettings[fieldName] ?? DTC_ICP_DEFAULTS[fieldName] ?? "");
+    }
+
+    function refreshDtcIcpDiffIndicators() {
+      document.querySelectorAll("[data-icp-field]").forEach((control) => {
+        const fieldName = control.dataset.icpField;
+        const currentValue = formatDtcIcpStoredValue(control);
+        const iniStoredValue = dtcIcpIniSettings[fieldName] ?? DTC_ICP_DEFAULTS[fieldName] ?? "";
+        const iniDisplayValue = getDtcIcpIniDisplayValue(fieldName);
+        markLinkedDiff(control, storedValuesDiffer(currentValue, iniStoredValue), iniDisplayValue);
+      });
     }
 
     function renderDtcIcpCycleButton(button, rawValue) {
@@ -1665,6 +1737,7 @@
         }
         input.value = getDtcIcpDisplayValue(input.dataset.icpField);
       });
+      refreshDtcIcpDiffIndicators();
     }
 
     function updateDtcIcpInput(input) {
@@ -1673,6 +1746,7 @@
       const value = formatDtcIcpStoredValue(input);
       dtcIcpSettings[fieldName] = value;
       writeBriefingLinkedValue(fieldName, value);
+      refreshDtcIcpDiffIndicators();
       const status = document.getElementById("dtc-icp-status");
       if (status) status.textContent = "";
     }
@@ -1690,6 +1764,9 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
+        saveBriefingStorageFromDtc();
+        Object.assign(dtcIcpIniSettings, icpSettings);
+        refreshDtcIcpDiffIndicators();
         const status = document.getElementById("dtc-icp-status");
         if (status) status.textContent = "ICP saved to callsign.ini.";
       } catch (error) {
@@ -1706,6 +1783,9 @@
         renderDtcIcpSettings();
         normalizeDtcFccSettings();
         renderDtcFccSettings();
+      }
+      if (event.data?.type === "html_brief_refresh_dtc_linked_diffs") {
+        refreshDtcLinkedIniBaselines();
       }
     });
 
@@ -1749,6 +1829,7 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
+        saveBriefingStorageFromDtc();
         const status = document.getElementById("dtc-laser-status");
         if (status) status.textContent = "Laser saved to callsign.ini.";
       } catch (error) {
@@ -1826,17 +1907,31 @@
       return String(offsetValue);
     }
 
+    function getDtcFccIniControlDisplayValue(control, section, field) {
+      const storedValue = dtcFccIniSettings?.[section]?.[field] ?? DTC_FCC_DEFAULTS?.[section]?.[field] ?? "";
+      if (control?.classList?.contains("dtc-fcc-cycle")) {
+        const options = getDtcFccCycleOptions(control);
+        const selected = options.find((option) => option.value === cleanOffsetValue(storedValue)) || options[0];
+        return selected ? selected.label : cleanOffsetValue(storedValue);
+      }
+      return formatFccDisplayValue(control, storedValue);
+    }
+
+    function refreshDtcFccDiffIndicators() {
+      document.querySelectorAll("[data-fcc-section][data-fcc-field]").forEach((control) => {
+        const section = control.dataset.fccSection;
+        const field = control.dataset.fccField;
+        const currentValue = formatFccStoredValue(control);
+        const iniStoredValue = dtcFccIniSettings?.[section]?.[field] ?? DTC_FCC_DEFAULTS?.[section]?.[field] ?? "";
+        const iniDisplayValue = getDtcFccIniControlDisplayValue(control, section, field);
+        markLinkedDiff(control, storedValuesDiffer(currentValue, iniStoredValue), iniDisplayValue);
+      });
+    }
+
     function writeDtcFccBriefingValue(section, field, storedValue) {
       const link = getDtcFccBriefingLink(section, field);
       if (!link?.id) return;
       const displayValue = formatDtcFccLinkedDisplayValue(section, field, storedValue);
-      try {
-        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
-        saved[link.id] = displayValue;
-        localStorage.setItem("contenteditables", JSON.stringify(saved));
-      } catch (error) {
-        console.warn("Unable to write linked SMS storage", link.id, error);
-      }
       try {
         const liveFrame = window.parent?.document?.getElementById("brief-frame");
         const liveDocument = liveFrame?.contentDocument;
@@ -1929,6 +2024,7 @@
         }
         input.value = formatFccDisplayValue(input, rawValue);
       });
+      refreshDtcFccDiffIndicators();
     }
 
     function updateDtcFccInput(input) {
@@ -1938,6 +2034,7 @@
       dtcFccSettings[section] = dtcFccSettings[section] || {};
       dtcFccSettings[section][field] = formatFccStoredValue(input);
       writeDtcFccBriefingValue(section, field, dtcFccSettings[section][field]);
+      refreshDtcFccDiffIndicators();
       const status = document.getElementById("dtc-fcc-status");
       if (status) status.textContent = "";
     }
@@ -1980,6 +2077,12 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
+        saveBriefingStorageFromDtc();
+        Object.entries(fccSettings).forEach(([section, values]) => {
+          dtcFccIniSettings[section] = dtcFccIniSettings[section] || {};
+          Object.assign(dtcFccIniSettings[section], values);
+        });
+        refreshDtcFccDiffIndicators();
         const status = document.getElementById("dtc-fcc-status");
         if (status) status.textContent = (sectionName || "FCC") + " saved to callsign.ini.";
       } catch (error) {
@@ -3644,6 +3747,7 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
+        saveBriefingStorageFromDtc();
       } catch (error) {
         console.error("Failed to save NAV OFFSETS", error);
       }

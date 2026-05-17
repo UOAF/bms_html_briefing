@@ -858,6 +858,7 @@
             <button id="save-edits-btn">Save</button>
             <button id="load-edits-btn">Load</button>
             <button id="reset-edits-btn">Reset</button>
+            <button id="dtc-reload-btn" hidden>Reload</button>
           </div>
         </section>
 
@@ -1061,6 +1062,10 @@
     const camUnloadBtn = document.getElementById("cam-unload-btn");
     const briefFrame = document.getElementById("brief-frame");
     const dtcFrame = document.getElementById("dtc-frame");
+    const saveEditsBtn = document.getElementById("save-edits-btn");
+    const loadEditsBtn = document.getElementById("load-edits-btn");
+    const resetEditsBtn = document.getElementById("reset-edits-btn");
+    const dtcReloadBtn = document.getElementById("dtc-reload-btn");
     const CAM_PREVIEW_PACKAGE_SELECT_ID = "cam-support-package-select";
     const CAM_PREVIEW_PACKAGE_QUERY_ID = "cam-support-package-query";
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
@@ -1152,6 +1157,7 @@
     let shutdownScreenShown = false;
     let logPollTimer = null;
     let statusPollTimer = null;
+    let pendingBriefingResetFromToolbar = false;
     let currentMainView = localStorage.getItem(MAIN_VIEW_STORAGE_KEY) === "dtc" ? "dtc" : "briefing";
     const sectionLabels = {
       airbase: "Airbase",
@@ -1213,23 +1219,15 @@
     }
 
     function clearTransientAppStateOnInstanceChange(appInstanceId) {
-      if (typeof appInstanceId !== "string" || !appInstanceId) return;
+      if (typeof appInstanceId !== "string" || !appInstanceId) return false;
       let previousInstanceId = "";
       try {
         previousInstanceId = localStorage.getItem(APP_INSTANCE_SEEN_KEY) || "";
       } catch {
         previousInstanceId = "";
       }
-      if (!previousInstanceId) {
-        try {
-          localStorage.setItem(APP_INSTANCE_SEEN_KEY, appInstanceId);
-        } catch {
-          // Keep behavior even if localStorage is unavailable.
-        }
-        return;
-      }
       if (previousInstanceId === appInstanceId) {
-        return;
+        return false;
       }
       try {
         localStorage.removeItem("contenteditables");
@@ -1241,6 +1239,7 @@
       } catch {
         // Keep behavior even if localStorage is unavailable.
       }
+      return true;
     }
 
     function getSavedCamSupportPackageIndex() {
@@ -1413,9 +1412,10 @@
       return res.json();
     }
 
-    function setSavedBriefingValue(id, value) {
+    function setSavedBriefingValue(id, value, options = {}) {
       if (!id || value == null) return;
       const saved = getSavedEdits();
+      if (options.onlyIfMissing && Object.prototype.hasOwnProperty.call(saved, id)) return;
       saved[id] = String(value).trim();
       localStorage.setItem("contenteditables", JSON.stringify(saved));
     }
@@ -1441,14 +1441,15 @@
       return String(offsetValue);
     }
 
-    async function seedBriefingDtcLinkedValues() {
+    async function seedBriefingDtcLinkedValues(options = {}) {
+      const onlyIfMissing = !options.overwrite;
       try {
         const data = await fetchJSON("/api/dtc/icp");
         const icpSettings = data.icp_settings || {};
         Object.entries(BRIEFING_DTC_LINKED_FIELDS).forEach(([fieldName, id]) => {
           const value = icpSettings[fieldName];
           if (value != null && String(value).trim() !== "") {
-            setSavedBriefingValue(id, value);
+            setSavedBriefingValue(id, value, { onlyIfMissing });
           }
         });
       } catch (err) {
@@ -1460,7 +1461,7 @@
         Object.entries(BRIEFING_FCC_AGB_LINKS).forEach(([fieldName, meta]) => {
           const value = fccAgbSettings[fieldName];
           if (value != null && String(value).trim() !== "") {
-            setSavedBriefingValue(meta.id, formatBriefingFccValue(fieldName, value));
+            setSavedBriefingValue(meta.id, formatBriefingFccValue(fieldName, value), { onlyIfMissing });
           }
         });
       } catch (err) {
@@ -1590,7 +1591,7 @@
     }
 
     function applyStatusData(data) {
-      clearTransientAppStateOnInstanceChange(data.app_instance_id);
+      const appStateReset = clearTransientAppStateOnInstanceChange(data.app_instance_id);
       hasSeenStatusSuccess = true;
       document.getElementById("config-path").textContent = data.config_path || "–";
       document.getElementById("config-path").title = data.config_path || "–";
@@ -1615,13 +1616,20 @@
         callsignChanged: data.callsign_changed,
         pdfOverflow: data.pdf_overflow
       });
-      return { hasError };
+      refreshDtcLinkedDiffIndicators();
+      return { hasError, appStateReset };
     }
 
     async function loadStatus(allowRetry = true) {
       try {
         const data = await fetchJSON("/api/status");
-        const { hasError } = applyStatusData(data);
+        const { hasError, appStateReset } = applyStatusData(data);
+        if (appStateReset) {
+          await seedBriefingDtcLinkedValues({ overwrite: true });
+          callBriefingLoadedFrame("saveContenteditablesDefaults");
+          callBriefingLoadedFrame("loadChangedData");
+          syncDtcLinkedFields();
+        }
         await maybeAutoExportOnFileChange(data);
         pages = Array.isArray(data.pages) ? data.pages : [];
         renderPages();
@@ -1654,7 +1662,13 @@
     async function pollStatusBadges() {
       try {
         const data = await fetchJSON("/api/status");
-        applyStatusData(data);
+        const { appStateReset } = applyStatusData(data);
+        if (appStateReset) {
+          await seedBriefingDtcLinkedValues({ overwrite: true });
+          callBriefingLoadedFrame("saveContenteditablesDefaults");
+          callBriefingLoadedFrame("loadChangedData");
+          syncDtcLinkedFields();
+        }
         await maybeAutoExportOnFileChange(data);
       } catch (err) {
         if (hasSeenStatusSuccess) {
@@ -2297,10 +2311,23 @@
       }
     }
 
+    function refreshDtcLinkedDiffIndicators() {
+      if (!dtcFrame?.contentWindow) return;
+      try {
+        dtcFrame.contentWindow.postMessage({ type: "html_brief_refresh_dtc_linked_diffs" }, window.location.origin);
+      } catch (err) {
+        log(`DTC linked diff refresh failed: ${err.message}`);
+      }
+    }
+
     function updateMainViewControls() {
       const isDtc = currentMainView === "dtc";
       if (briefingViewBtn) briefingViewBtn.classList.toggle("is-active", !isDtc);
       if (dtcViewBtn) dtcViewBtn.classList.toggle("is-active", isDtc);
+      if (saveEditsBtn) saveEditsBtn.hidden = isDtc;
+      if (loadEditsBtn) loadEditsBtn.hidden = isDtc;
+      if (resetEditsBtn) resetEditsBtn.hidden = isDtc;
+      if (dtcReloadBtn) dtcReloadBtn.hidden = !isDtc;
       if (layoutEl) layoutEl.classList.toggle("dtc-active", isDtc);
       document.body.classList.toggle("dtc-active", isDtc);
       const shortcutBar = document.getElementById("page-shortcuts");
@@ -2321,6 +2348,20 @@
       if (currentMainView === "dtc") {
         ensureDtcFrameLoaded();
         syncDtcLinkedFields();
+      }
+    }
+
+    async function reloadDtcFromIni() {
+      try {
+        await seedBriefingDtcLinkedValues({ overwrite: true });
+        callBriefingLoadedFrame("loadChangedData");
+        ensureDtcFrameLoaded();
+        await refreshDtc(true);
+        syncDtcLinkedFields();
+        await pollStatusBadges();
+        log("DTC reloaded from callsign.ini");
+      } catch (err) {
+        log(`DTC reload failed: ${err.message}`);
       }
     }
 
@@ -2363,8 +2404,11 @@
 
     if (briefFrame) {
       briefFrame.addEventListener("load", async () => {
-        await seedBriefingDtcLinkedValues();
+        const forceLinkedSeed = pendingBriefingResetFromToolbar;
+        pendingBriefingResetFromToolbar = false;
+        await seedBriefingDtcLinkedValues({ overwrite: forceLinkedSeed });
         callBriefingLoadedFrame("loadChangedData");
+        if (forceLinkedSeed) syncDtcLinkedFields();
         bindCamPackageSelectorInPreview();
         const selectedIndex = getSelectedCamPackageIndex();
         if (Number.isFinite(selectedIndex)) {
@@ -2384,19 +2428,22 @@
     }
     setMainView(currentMainView);
 
-    document.getElementById("save-edits-btn").addEventListener("click", () => {
-      callBriefing("saveChangedData");
+    saveEditsBtn?.addEventListener("click", () => {
+      callBriefingLoadedFrame("saveChangedData");
       saveCurrentCamSupportPackageSelection();
+      syncDtcLinkedFields();
     });
-    document.getElementById("load-edits-btn").addEventListener("click", () => {
+    loadEditsBtn?.addEventListener("click", () => {
       callBriefing("loadChangedData");
       saveCurrentCamSupportPackageSelection();
     });
-    document.getElementById("reset-edits-btn").addEventListener("click", () => {
-      callBriefing("resetContenteditables");
+    resetEditsBtn?.addEventListener("click", () => {
+      const resetResult = callBriefing("resetContenteditables");
+      pendingBriefingResetFromToolbar = resetResult === "false";
       const query = getPreviewCamPackageQuery();
       if (query) query.value = "";
     });
+    dtcReloadBtn?.addEventListener("click", reloadDtcFromIni);
     document.getElementById("open-pdf-btn").addEventListener("click", () => {
       window.open("/pdf", "_blank");
     });
