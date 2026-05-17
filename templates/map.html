@@ -206,6 +206,15 @@
 		    inset: 6px;
 		    background: center / 18px 18px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6L6 18'/%3E%3Cpath d='M6 6l12 12'/%3E%3C/svg%3E");
 		}
+		.leaflet-control-map-ruler a.map-threat-toggle {
+		    display: flex;
+		    align-items: center;
+		    justify-content: center;
+		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
+		    font-size: 24px;
+		    font-weight: 700;
+		    line-height: 1;
+		}
 		.leaflet-control-map-ruler a::after {
 		    display: none;
 		}
@@ -224,6 +233,9 @@
 		}
 		.map-ruler-tooltip::before {
 		    display: none;
+		}
+		.map-ruler-endpoint-tooltip {
+		    margin-top: -4px;
 		}
 	</style>
 <table width="100%">
@@ -330,7 +342,13 @@ let mapRulerLine = null;
 let mapRulerStartMarker = null;
 let mapRulerEndMarker = null;
 let mapRulerTooltipLayer = null;
+const mapRulerElevationCache = new Map();
 const mapRulerLayer = L.layerGroup([], { pane: "rulerPane" }).addTo(map);
+const THREAT_CIRCLE_MODE_STORAGE_KEY = "mapThreatCircleMode";
+const THREAT_CIRCLE_MODES = ["filled", "outline", "none"];
+let mapThreatCircleMode = THREAT_CIRCLE_MODES.includes(localStorage.getItem(THREAT_CIRCLE_MODE_STORAGE_KEY))
+    ? localStorage.getItem(THREAT_CIRCLE_MODE_STORAGE_KEY)
+    : "filled";
 
 function getBullseyeSpokeLatLngs(centerLatLng, bearingDegrees) {
     const centerPoint = map.latLngToLayerPoint(centerLatLng);
@@ -742,6 +760,43 @@ function getRulerTooltipContent(metrics) {
     return "BRG " + formatRulerNumber(metrics.bearing, 1) + "°<br>RNG " + formatRulerNumber(metrics.rangeNm, 2) + " NM";
 }
 
+function formatRulerElevation(value) {
+    const elevation = Number.parseFloat(value);
+    return Number.isFinite(elevation) ? Math.round(elevation) + " FT" : "N/A";
+}
+
+function getRulerEndpointTooltipContent(elevation) {
+    return "ELEV " + formatRulerElevation(elevation);
+}
+
+function getRulerElevationCacheKey(coord) {
+    if (!coord || !Number.isFinite(coord.northFeet) || !Number.isFinite(coord.eastFeet)) return "";
+    return Math.round(coord.northFeet) + ":" + Math.round(coord.eastFeet);
+}
+
+async function fetchRulerElevationFeet(coord) {
+    if (!coord || !Number.isFinite(coord.northFeet) || !Number.isFinite(coord.eastFeet)) return null;
+    const key = getRulerElevationCacheKey(coord);
+    if (key && mapRulerElevationCache.has(key)) return mapRulerElevationCache.get(key);
+    const params = new URLSearchParams({
+        north_ft: String(coord.northFeet),
+        east_ft: String(coord.eastFeet),
+    });
+    try {
+        const response = await fetch("/api/dtc/elevation?" + params.toString());
+        if (!response.ok) throw new Error(await response.text() || response.statusText);
+        const payload = await response.json();
+        const elevation = Number.parseFloat(payload.elevation_ft);
+        const cached = Number.isFinite(elevation) ? elevation : null;
+        if (key) mapRulerElevationCache.set(key, cached);
+        return cached;
+    } catch (error) {
+        if (key) mapRulerElevationCache.set(key, null);
+        console.warn("Failed to resolve ruler endpoint elevation", error);
+        return null;
+    }
+}
+
 window.exportMapLastError = null;
 window.exportMapLog = [];
 const IS_DTC_PAGE = document.body.classList.contains("dtc-page");
@@ -1007,12 +1062,12 @@ function renderThreatsLeaflet() {
                 fillOpacity: 1
             }).addTo(drawings);
         }
-        if (entry.radius > 0) {
+        if (entry.radius > 0 && mapThreatCircleMode !== "none") {
             L.circle(entry.latlng, {
                 radius: entry.radius,
                 color: MAP_STYLE.threatCircle.color,
                 fillColor: MAP_STYLE.threatCircle.fillColor,
-                fillOpacity: MAP_STYLE.threatCircle.fillOpacity,
+                fillOpacity: mapThreatCircleMode === "filled" ? MAP_STYLE.threatCircle.fillOpacity : 0,
                 opacity: MAP_STYLE.threatCircle.opacity,
                 weight: MAP_STYLE.threatCircle.weight,
                 dashArray: MAP_STYLE.threatCircle.dashArray
@@ -1277,9 +1332,9 @@ function renderFlightPlanCanvas(ctx) {
 function renderThreatsCanvas(ctx) {
     getThreatEntries().forEach((entry) => {
         const center = latLngToCanvasPoint(entry.latlng);
-        if (entry.radius > 0) {
+        if (entry.radius > 0 && mapThreatCircleMode !== "none") {
             drawCanvasCircle(ctx, center, getThreatRadiusPx(entry.latlng, entry.radius), {
-                fillStyle: MAP_STYLE.threatCircle.canvasFillStyle,
+                fillStyle: mapThreatCircleMode === "filled" ? MAP_STYLE.threatCircle.canvasFillStyle : null,
                 strokeStyle: MAP_STYLE.threatCircle.color,
                 lineWidth: MAP_STYLE.threatCircle.weight,
                 dashPattern: MAP_STYLE.threatCircle.dashPattern
@@ -1511,11 +1566,53 @@ const MapRulerControl = L.Control.extend({
             L.DomEvent.stop(ev);
             clearMapRuler();
         });
+        const threatButton = L.DomUtil.create("a", "map-threat-toggle", container);
+        threatButton.href = "#";
+        threatButton.id = "mapThreatCircleButton";
+        threatButton.setAttribute("role", "button");
+        threatButton.setAttribute("aria-label", "Threat circle display");
+        L.DomEvent.on(threatButton, "click", function(ev) {
+            L.DomEvent.stop(ev);
+            cycleThreatCircleMode();
+        });
+        updateThreatCircleButton(threatButton);
         return container;
     }
 });
 
 new MapRulerControl().addTo(map);
+
+function getThreatCircleModeLabel(mode) {
+    if (mode === "outline") return "Threat circles: outline";
+    if (mode === "none") return "Threat circles: hidden";
+    return "Threat circles: filled";
+}
+
+function getThreatCircleModeSymbol(mode) {
+    if (mode === "outline") return "○";
+    if (mode === "none") return "⊗";
+    return "●";
+}
+
+function updateThreatCircleButton(button = null) {
+    button = button || document.getElementById("mapThreatCircleButton");
+    if (!button) return;
+    button.textContent = getThreatCircleModeSymbol(mapThreatCircleMode);
+    button.title = getThreatCircleModeLabel(mapThreatCircleMode);
+}
+
+function setThreatCircleMode(mode) {
+    mapThreatCircleMode = THREAT_CIRCLE_MODES.includes(mode) ? mode : "filled";
+    localStorage.setItem(THREAT_CIRCLE_MODE_STORAGE_KEY, mapThreatCircleMode);
+    updateThreatCircleButton();
+    renderMapDrawings();
+}
+
+function cycleThreatCircleMode() {
+    const currentIndex = THREAT_CIRCLE_MODES.indexOf(mapThreatCircleMode);
+    const nextIndex = ((currentIndex >= 0 ? currentIndex : 0) + 1) % THREAT_CIRCLE_MODES.length;
+    setThreatCircleMode(THREAT_CIRCLE_MODES[nextIndex]);
+}
 
 function resetMapRuler({ clearFixed = true } = {}) {
     mapRulerStartLatLng = null;
@@ -1546,7 +1643,7 @@ function clearMapRuler() {
 }
 
 function addMapRulerEndpoint(latlng) {
-    return L.circleMarker(latlng, {
+    const marker = L.circleMarker(latlng, {
         radius: 4,
         color: "#000000",
         weight: 1,
@@ -1555,6 +1652,20 @@ function addMapRulerEndpoint(latlng) {
         interactive: false,
         pane: "rulerPane",
     }).addTo(mapRulerLayer);
+    marker.bindTooltip(getRulerEndpointTooltipContent(null), {
+        permanent: true,
+        direction: "top",
+        className: "map-ruler-tooltip map-ruler-endpoint-tooltip",
+        opacity: 1,
+        pane: "rulerPane",
+    });
+    const coord = mapLatLngToRulerCoord(latlng);
+    fetchRulerElevationFeet(coord).then((elevation) => {
+        if (mapRulerLayer.hasLayer(marker)) {
+            marker.setTooltipContent(getRulerEndpointTooltipContent(elevation));
+        }
+    });
+    return marker;
 }
 
 function updateMapRuler(toLatLng, fixed = false) {
