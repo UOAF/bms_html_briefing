@@ -218,12 +218,13 @@
       display: block;
       width: 850px;
       max-width: 100%;
-      height: 75vh;
+      height: calc(100vh - 14rem);
+      min-height: 75vh;
       margin: 0 auto;
-      border: 1px solid rgb(255, 255, 255);
+      border: 0;
       border-radius: 0px;
       background: #0a1310;
-      box-shadow: 0 0 0 1px rgba(58, 167, 255, 0.1);
+      box-shadow: none;
     }
 
     .preview-frame[hidden] {
@@ -464,6 +465,56 @@
 
     section.mfd-toolbar {
       --mfd-gap: 5rem;
+      --mfd-cutout-bottom: 0.58rem;
+      padding-bottom: 1.35rem;
+    }
+
+    section.mfd-toolbar .view-tabs-toolbar {
+      position: absolute;
+      left: 50%;
+      bottom: -0.72rem;
+      z-index: 2;
+      display: flex;
+      gap: 1rem;
+      transform: translateX(-50%);
+    }
+
+    section.mfd-toolbar .view-tabs-toolbar button {
+      position: relative;
+      min-width: 0;
+      width: auto;
+      border: none;
+      background: var(--bg);
+      color: #ffffff;
+      box-shadow: none;
+      padding: var(--mfd-btn-py) var(--mfd-btn-px);
+      white-space: nowrap;
+      font-size: 1.05rem;
+    }
+
+    section.mfd-toolbar .view-tabs-toolbar button::after {
+      content: "";
+      position: absolute;
+      left: calc(-1 * var(--mfd-cutout-x));
+      right: calc(-1 * var(--mfd-cutout-x));
+      bottom: calc(-1 * var(--mfd-cutout-bottom) + 0.04rem);
+      height: var(--mfd-cutout-bottom);
+      background: var(--bg);
+      pointer-events: none;
+    }
+
+    section.mfd-toolbar .view-tabs-toolbar button:hover {
+      transform: none;
+      color: var(--line);
+      text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
+      box-shadow: none;
+    }
+
+    section.mfd-toolbar .view-tabs-toolbar button:active:not(:disabled) {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+      box-shadow: none;
     }
 
     .button-row.controls-row button,
@@ -559,6 +610,15 @@
       flex-direction: column;
       align-items: center;
       gap: 0.45rem;
+      width: 100%;
+    }
+
+    .page-nav-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
     }
 
     .page-shortcuts {
@@ -566,7 +626,7 @@
       flex-wrap: wrap;
       justify-content: center;
       gap: 0.5rem;
-      margin: 0 auto 0.35rem;
+      margin: 0;
     }
 
     .view-tabs {
@@ -587,12 +647,32 @@
       padding: 0.35rem 0.75rem;
     }
 
+    #briefing-scroll-mode-btn {
+      justify-self: end;
+      width: auto;
+      min-width: 120px;
+      padding: 0.35rem 0.75rem;
+      white-space: nowrap;
+    }
+
+    .page-shortcuts button.is-active {
+      background: #ffffff;
+      color: #000000;
+      text-shadow: none;
+    }
+
     section.mfd-page-nav {
       --mfd-gap: 1rem;
+      margin-top: 1.15rem;
+      padding: 0;
+      border: 0;
+      box-shadow: none;
     }
 
     section.mfd-page-nav .mfd-anchor {
       margin-bottom: 0.65rem;
+      margin-top: 0;
+      padding: 0;
     }
 
     .chain {
@@ -608,6 +688,9 @@
       --mfd-cutout-bottom: 0.0rem;
       --mfd-bottom-offset: -1.5rem;
       --mfd-bottom-reserve: 0.9rem;
+      max-width: 980px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     section.mfd-flow .mfd-anchor {
@@ -860,28 +943,31 @@
             <button id="reset-edits-btn">Reset</button>
             <button id="dtc-reload-btn" hidden>Reload</button>
           </div>
+          <div class="view-tabs view-tabs-toolbar" id="main-view-tabs">
+            <button id="briefing-view-btn" type="button">Briefing</button>
+            <button id="dtc-view-btn" type="button">DTC</button>
+          </div>
         </section>
 
         <section class="mfd-box mfd-page-nav">
           <div class="preview-nav mfd-anchor">
-            <div class="view-tabs" id="main-view-tabs">
-              <button id="briefing-view-btn" type="button">Briefing</button>
-              <button id="dtc-view-btn" type="button">DTC</button>
+            <div class="page-nav-row">
+              <div class="page-shortcuts" id="page-shortcuts"></div>
+              <button id="briefing-scroll-mode-btn" class="auto-export-mode-btn" type="button">CONTINUOUS</button>
             </div>
-            <div class="page-shortcuts" id="page-shortcuts"></div>
           </div>
           <iframe id="brief-frame" class="preview-frame" src="/brief" title="Briefing preview"></iframe>
           <iframe id="dtc-frame" class="preview-frame" data-src="/dtc" title="DTC management" hidden></iframe>
         </section>
 
-        <section class="mfd-box mfd-flow mfd-with-bottom-btn no-print">
+        <section class="mfd-box mfd-flow no-print">
           <div class="chain mfd-anchor">
             <button id="generate-btn-output" class="generate-brief-btn">Gen brf</button>
             <button id="pdf-btn">Gen PDF</button>
+            <button id="open-pdf-btn">Open PDF</button>
             <button id="export-btn">Export</button>
             <button id="auto-export-mode-btn" class="auto-export-mode-btn" type="button">AUTO-EXPORT<br>OFF</button>
           </div>
-          <button id="open-pdf-btn" class="mfd-bottom-btn">Open PDF</button>
         </section>
 
         <section class="mfd-box mfd-layout">
@@ -1051,6 +1137,7 @@
     const layoutEl = document.querySelector(".layout");
     const toggleToolbarBtn = document.getElementById("toggle-toolbar");
     const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
+    const briefingScrollModeBtn = document.getElementById("briefing-scroll-mode-btn");
     const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
     const pdfBtn = document.getElementById("pdf-btn");
     const exportBtn = document.getElementById("export-btn");
@@ -1138,6 +1225,7 @@
     const logLines = [];
     let pages = [];
     let currentPageIndex = 0;
+    let currentBriefPageIndex = 0;
     let dndAttached = false;
     let mapSources = [{ id: "local", label: "BMS local" }];
     let selectedMapSourceId = "local";
@@ -1152,6 +1240,7 @@
     let skipNextAutoExportEdge = false;
     let autoExportOnChange = false;
     let autoExportPdfOnly = false;
+    let briefingScrollMode = "continuous";
     let copyToKtoEnabled = false;
     let hasSeenStatusSuccess = false;
     let shutdownScreenShown = false;
@@ -1390,6 +1479,113 @@
       autoExportModeBtn.innerHTML = `AUTO-EXPORT<br>${stateLabel}`;
     }
 
+    function normalizeBriefingScrollMode(mode) {
+      return String(mode || "").trim().toLowerCase() === "paged" ? "paged" : "continuous";
+    }
+
+    function applyBriefingScrollMode(mode, options = {}) {
+      briefingScrollMode = normalizeBriefingScrollMode(mode);
+      const isPaged = briefingScrollMode === "paged";
+      if (briefingScrollModeBtn) {
+        briefingScrollModeBtn.classList.toggle("is-active", isPaged);
+        briefingScrollModeBtn.textContent = isPaged ? "PAGED" : "CONTINUOUS";
+        briefingScrollModeBtn.title = isPaged
+          ? "Show one briefing page at a time"
+          : "Show the full continuous briefing";
+      }
+      updatePageShortcutState();
+      if (options.applyFrame !== false) {
+        applyBriefingPageModeToFrame();
+      }
+    }
+
+    function updatePageShortcutState() {
+      const shortcutBar = document.getElementById("page-shortcuts");
+      if (!shortcutBar) return;
+      Array.from(shortcutBar.children).forEach((btn, idx) => {
+        btn.classList.toggle("is-active", briefingScrollMode === "paged" && idx === currentBriefPageIndex);
+      });
+    }
+
+    function applyBriefingPageModeToFrame() {
+      try {
+        const cw = briefFrame?.contentWindow;
+        if (!cw || !cw.document) return;
+        const pageEls = Array.from(cw.document.querySelectorAll("[id^='page_']"));
+        if (!pageEls.length) return;
+        if (currentBriefPageIndex >= pageEls.length) {
+          currentBriefPageIndex = 0;
+        }
+        const isPaged = briefingScrollMode === "paged";
+        pageEls.forEach((el, idx) => {
+          el.hidden = isPaged && idx !== currentBriefPageIndex;
+          const pageBreak = getBriefingPageBreak(el);
+          if (pageBreak) {
+            pageBreak.hidden = isPaged;
+          }
+        });
+        if (isPaged) {
+          cw.scrollTo({ top: 0, behavior: "auto" });
+        }
+        invalidateBriefingMap(cw);
+        updatePageShortcutState();
+      } catch (err) {
+        log(`Briefing page mode failed: ${err.message}`);
+      }
+    }
+
+    function getBriefingPageBreak(pageEl) {
+      const sibling = pageEl ? pageEl.nextElementSibling : null;
+      return sibling && sibling.tagName === "BR" ? sibling : null;
+    }
+
+    function invalidateBriefingMap(cw = null) {
+      try {
+        const frameWindow = cw || briefFrame?.contentWindow;
+        if (frameWindow?.map && typeof frameWindow.map.invalidateSize === "function") {
+          frameWindow.map.invalidateSize(false);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    async function withAllBriefingPagesVisible(task) {
+      const cw = briefFrame?.contentWindow;
+      if (!cw || !cw.document || briefingScrollMode !== "paged") {
+        return task();
+      }
+      const pageEls = Array.from(cw.document.querySelectorAll("[id^='page_']"));
+      if (!pageEls.length) {
+        return task();
+      }
+      const previousHidden = pageEls.map((el) => el.hidden);
+      pageEls.forEach((el) => {
+        el.hidden = false;
+      });
+      await new Promise((resolve) => cw.requestAnimationFrame(resolve));
+      invalidateBriefingMap(cw);
+      try {
+        return await task();
+      } finally {
+        pageEls.forEach((el, idx) => {
+          el.hidden = previousHidden[idx];
+        });
+        await new Promise((resolve) => cw.requestAnimationFrame(resolve));
+        invalidateBriefingMap(cw);
+      }
+    }
+
+    function showBriefingPage(pageIndex) {
+      if (!Array.isArray(pages) || pages.length === 0) return;
+      currentBriefPageIndex = Math.max(0, Math.min(pageIndex, pages.length - 1));
+      if (briefingScrollMode === "paged") {
+        applyBriefingPageModeToFrame();
+      } else {
+        scrollToPage(currentBriefPageIndex + 1);
+      }
+    }
+
     function getAutoExportModeIndex() {
       if (!autoExportOnChange) return 0;
       return autoExportPdfOnly ? 2 : 1;
@@ -1584,6 +1780,7 @@
           String(sys.auto_export_on_change || "False").toLowerCase() === "true",
           String(sys.auto_export_pdf_only || "False").toLowerCase() === "true"
         );
+        applyBriefingScrollMode(sys.briefing_scroll_mode || "continuous", { applyFrame: false });
         await loadTheater();
       } catch (err) {
         log(`Failed to load config: ${err.message}`);
@@ -1688,6 +1885,7 @@
       payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
       payload.system.auto_export_on_change = autoExportOnChange ? "True" : "False";
       payload.system.auto_export_pdf_only = autoExportPdfOnly ? "True" : "False";
+      payload.system.briefing_scroll_mode = briefingScrollMode;
       Object.assign(payload.system, selectedMapSystemOverrides());
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
@@ -1801,6 +1999,7 @@
           wine_prefix: wineInput.value,
           output_dir: document.getElementById("output_dir").value,
           pdf_output_dir: document.getElementById("pdf_output_dir").value,
+          briefing_scroll_mode: briefingScrollMode,
           ...selectedMapSystemOverrides()
         },
         selected_package_index: (() => {
@@ -2074,7 +2273,7 @@
       const started = performance.now();
       debugLog("PDF prep: map capture start");
       try {
-        const dataUrl = await cw.exportMapImage();
+        const dataUrl = await withAllBriefingPagesVisible(() => cw.exportMapImage());
         if (!dataUrl) {
           const err = cw.exportMapLastError || "unknown";
           const logTrail = Array.isArray(cw.exportMapLog) ? cw.exportMapLog.join(" | ") : "";
@@ -2330,8 +2529,11 @@
       if (dtcReloadBtn) dtcReloadBtn.hidden = !isDtc;
       if (layoutEl) layoutEl.classList.toggle("dtc-active", isDtc);
       document.body.classList.toggle("dtc-active", isDtc);
+      const pageNavRow = document.querySelector(".page-nav-row");
+      if (pageNavRow) pageNavRow.style.display = isDtc ? "none" : "grid";
       const shortcutBar = document.getElementById("page-shortcuts");
       if (shortcutBar) shortcutBar.style.display = isDtc ? "none" : "";
+      if (briefingScrollModeBtn) briefingScrollModeBtn.hidden = isDtc;
       if (briefFrame) briefFrame.hidden = isDtc;
       if (dtcFrame) dtcFrame.hidden = !isDtc;
     }
@@ -2391,6 +2593,10 @@
       try {
         const cw = briefFrame?.contentWindow;
         if (!cw) return;
+        if (briefingScrollMode === "paged") {
+          showBriefingPage(pageNumber - 1);
+          return;
+        }
         const el = cw.document.getElementById(`page_${pageNumber}`);
         if (el) {
           const rect = el.getBoundingClientRect();
@@ -2410,6 +2616,7 @@
         callBriefingLoadedFrame("loadChangedData");
         if (forceLinkedSeed) syncDtcLinkedFields();
         bindCamPackageSelectorInPreview();
+        applyBriefingPageModeToFrame();
         const selectedIndex = getSelectedCamPackageIndex();
         if (Number.isFinite(selectedIndex)) {
           saveCamSupportPackageIndex(selectedIndex);
@@ -2550,10 +2757,11 @@
           const btn = document.createElement("button");
           btn.type = "button";
           btn.textContent = `Page ${idx + 1}`;
-          btn.addEventListener("click", () => scrollToPage(idx + 1));
+          btn.addEventListener("click", () => showBriefingPage(idx));
           shortcutBar.appendChild(btn);
         }
       });
+      if (currentBriefPageIndex >= pages.length) currentBriefPageIndex = 0;
       if (currentPageIndex >= pages.length) currentPageIndex = 0;
       pageSelect.value = currentPageIndex;
 
@@ -2577,6 +2785,7 @@
         list.appendChild(li);
       });
       attachDnD();
+      updatePageShortcutState();
       updateMainViewControls();
     }
 
@@ -2727,6 +2936,28 @@
         } catch (err) {
           applyAutoExportMode(prevOn, prevPdfOnly);
           log(`Failed to save auto-export setting: ${err.message}`);
+        }
+      });
+    }
+
+    if (briefingScrollModeBtn) {
+      briefingScrollModeBtn.addEventListener("click", async () => {
+        const previousMode = briefingScrollMode;
+        const nextMode = briefingScrollMode === "paged" ? "continuous" : "paged";
+        applyBriefingScrollMode(nextMode);
+        try {
+          await fetchJSON("/api/config", {
+            method: "POST",
+            body: JSON.stringify({
+              system: {
+                briefing_scroll_mode: nextMode
+              }
+            })
+          });
+          log(`Briefing scroll mode: ${nextMode === "paged" ? "one page at a time" : "continuous"}`);
+        } catch (err) {
+          applyBriefingScrollMode(previousMode);
+          log(`Failed to save briefing scroll mode: ${err.message}`);
         }
       });
     }
