@@ -520,6 +520,19 @@
     .dtc-offset-clear {
       width: 100%;
     }
+    .dtc-offset-set-cell {
+      display: grid;
+      grid-template-columns: minmax(3.2em, 1fr) max-content;
+      gap: 4px;
+      align-items: center;
+    }
+    .dtc-offset-stpt-input {
+      min-width: 0;
+    }
+    .dtc-offset-stpt-set {
+      padding-left: 4px;
+      padding-right: 4px;
+    }
     .dtc-popup-section {
       margin-top: 8px;
     }
@@ -569,6 +582,18 @@
       width: max-content;
       min-width: 0;
       max-width: 13em;
+    }
+    .dtc-popup-readout {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2rem;
+      color: var(--preview-text);
+      font-family: "Viper", "Briefing Sans", sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
     }
     .dtc-page.is-popup-active .dtc-popup-clicker {
       width: max-content;
@@ -999,7 +1024,7 @@
             <div class="dtc-popup-grid is-setup">
               <div class="dtc-popup-field">
                 <label for="dtc-popup-ref-mode">Reference</label>
-                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-ref-mode" data-popup-field="referenceMode" data-popup-value="vrp">VRP</button>
+                <span class="dtc-popup-readout" id="dtc-popup-ref-mode">NONE</span>
               </div>
               <div class="dtc-popup-field">
                 <label for="dtc-popup-range-model">Range model</label>
@@ -1115,15 +1140,16 @@
             <button type="button" class="dtc-offset-button" id="dtc-add-oa">ADD OA</button>
             <button type="button" class="dtc-offset-button" id="dtc-vip-toggle">SET AS VIP</button>
             <button type="button" class="dtc-offset-button" id="dtc-vrp-toggle">SET AS VRP</button>
-            <button type="button" class="dtc-offset-button" id="dtc-modesel-toggle" title="VIP/VRP mode selector. Click to cycle NONE, VIP, VRP." hidden>NONE</button>
+            <button type="button" class="dtc-offset-button" id="dtc-modesel-toggle" title="Sighting mode selector. Click to cycle SIGHTING:NONE, SIGHTING:VIP, SIGHTING:VRP." hidden>SIGHTING:NONE</button>
           </div>
           <table class="dtc-offset-table">
             <colgroup>
-              <col style="width: 24%;">
               <col style="width: 20%;">
-              <col style="width: 20%;">
-              <col style="width: 20%;">
-              <col style="width: 16%;">
+              <col style="width: 17%;">
+              <col style="width: 17%;">
+              <col style="width: 17%;">
+              <col style="width: 19%;">
+              <col style="width: 10%;">
             </colgroup>
             <thead>
               <tr>
@@ -1131,6 +1157,7 @@
                 <th>RNG</th>
                 <th>BRG</th>
                 <th>ELEV</th>
+                <th>STPT</th>
                 <th></th>
               </tr>
             </thead>
@@ -1141,6 +1168,12 @@
                 <td><input class="dtc-offset-input" data-offset-field="rng" inputmode="decimal" autocomplete="off"></td>
                 <td><input class="dtc-offset-input" data-offset-field="brg" inputmode="decimal" autocomplete="off"></td>
                 <td><input class="dtc-offset-input" data-offset-field="elev" inputmode="decimal" autocomplete="off"></td>
+                <td>
+                  <div class="dtc-offset-set-cell">
+                    <input class="dtc-offset-input dtc-offset-stpt-input" data-offset-stpt-target inputmode="numeric" autocomplete="off">
+                    <button type="button" class="dtc-offset-button dtc-offset-stpt-set">SET</button>
+                  </div>
+                </td>
                 <td><button type="button" class="dtc-offset-button dtc-offset-clear">CLR</button></td>
               </tr>
               {% endfor %}
@@ -1492,10 +1525,6 @@
       ],
     };
     const DTC_POPUP_CLICKER_OPTIONS = {
-      referenceMode: [
-        { value: "vrp", label: "VRP" },
-        { value: "vip", label: "VIP" },
-      ],
       rangeModel: [
         { value: "low_drag", label: "Low drag" },
         { value: "high_drag", label: "High drag" },
@@ -2164,6 +2193,15 @@
       return row && cleanOffsetValue(row.stpt) === cleanOffsetValue(stptNumber);
     }
 
+    function isNavOffsetWritableStpt(stptNumber) {
+      const parsed = Number.parseInt(cleanOffsetValue(stptNumber), 10);
+      return Number.isFinite(parsed) && parsed >= 1 && parsed <= 24;
+    }
+
+    function selectedCanWriteNavOffsets() {
+      return isNavOffsetWritableStpt(dtcSelectedStptNumber);
+    }
+
     function getBmsCoordForStpt(stptNumber) {
       const row = getStptRow(stptNumber);
       if (!row) return null;
@@ -2171,6 +2209,13 @@
       const eastFeet = Number.parseFloat(row.dataset.dtcMapY || "");
       if (!Number.isFinite(northFeet) || !Number.isFinite(eastFeet)) return null;
       return { northFeet, eastFeet };
+    }
+
+    function getStptAltitudeDisplayFeet(stptNumber) {
+      const row = getStptRow(stptNumber);
+      if (!row) return "";
+      const rawZ = Number.parseFloat(row.dataset.dtcMapZ || "");
+      return Number.isFinite(rawZ) ? String(Math.round(-rawZ)) : "";
     }
 
     function projectOffsetFromBmsCoord(baseCoord, offsetRow) {
@@ -2663,7 +2708,20 @@
     }
 
     function getSelectedPopupMode() {
-      return getPopupValue("referenceMode") === "vip" ? "vip" : "vrp";
+      if (selectedHasVip()) return "vip";
+      if (selectedHasVrp()) return "vrp";
+      return "";
+    }
+
+    function renderPopupReferenceMode() {
+      const button = document.getElementById("dtc-popup-ref-mode");
+      if (!button) return;
+      const mode = getSelectedPopupMode();
+      const label = mode ? mode.toUpperCase() : "NONE";
+      button.textContent = label;
+      button.title = mode
+        ? "Selected steerpoint is set as " + label + "."
+        : "Set the selected steerpoint as VIP or VRP in the offset panel first.";
     }
 
     function getPopupNumber(fieldName) {
@@ -2690,6 +2748,7 @@
     }
 
     function renderPopupClickers() {
+      renderPopupReferenceMode();
       document.querySelectorAll(".dtc-popup-clicker[data-popup-field]").forEach(renderPopupClicker);
     }
 
@@ -2938,7 +2997,8 @@
     function computePopupPlan() {
       const mode = getSelectedPopupMode();
       const stptNumber = cleanOffsetValue(dtcSelectedStptNumber);
-      if (!stptNumber || !mode) return { error: "Select a VIP or VRP steerpoint." };
+      if (!stptNumber) return { error: "Select a steerpoint." };
+      if (!mode) return { error: "Set selected steerpoint as VIP or VRP first." };
 
       const diveAngle = getPopupNumber("diveAngle");
       const releaseAltitude = getPopupNumber("releaseAltitude");
@@ -3600,8 +3660,9 @@
       const panel = document.getElementById("dtc-offset-panel");
       if (!panel) return;
       const hasSelection = cleanOffsetValue(dtcSelectedStptNumber) !== "";
-      panel.hidden = !hasSelection;
-      if (!hasSelection) {
+      const canWriteOffsets = selectedCanWriteNavOffsets();
+      panel.hidden = !hasSelection || !canWriteOffsets;
+      if (!hasSelection || !canWriteOffsets) {
         renderPopupComputer();
         return;
       }
@@ -3623,8 +3684,9 @@
       if (modeselButton) {
         modeselButton.hidden = !(vipActive || vrpActive);
         const modeselText = cleanOffsetValue(dtcNavOffsets.modesel).toUpperCase() || "NONE";
-        modeselButton.textContent = modeselText;
-        modeselButton.title = "VIP/VRP mode selector. Current: " + modeselText + ". Click to cycle NONE, VIP, VRP.";
+        const displayText = "SIGHTING:" + modeselText;
+        modeselButton.textContent = displayText;
+        modeselButton.title = "Sighting mode selector. Current: " + displayText + ". Click to cycle SIGHTING:NONE, SIGHTING:VIP, SIGHTING:VRP.";
       }
 
       document.querySelectorAll(".dtc-offset-row").forEach((tableRow) => {
@@ -3718,6 +3780,36 @@
       const dataRow = getDisplayedOffsetRow(rowKey);
       const baseCoord = getBmsCoordForStpt(dtcSelectedStptNumber);
       updateOffsetRowElevationFromOffset(baseCoord, dataRow);
+    }
+
+    function getOffsetRowForEdit(rowKey) {
+      if (rowKey === "oa1" || rowKey === "oa2") {
+        return ensureOaOffsetRow(dtcSelectedStptNumber, rowKey);
+      }
+      return ensureSingletonOffsetRow(rowKey);
+    }
+
+    function setOffsetRowToSteerpoint(tableRow) {
+      dtcPopupStatusText = "";
+      if (!tableRow || tableRow.hidden) return;
+      const rowKey = tableRow.dataset.offsetRow;
+      const input = tableRow.querySelector("[data-offset-stpt-target]");
+      const targetStpt = cleanOffsetValue(input?.value);
+      if (!targetStpt) return;
+      const baseCoord = getBmsCoordForStpt(dtcSelectedStptNumber);
+      const targetCoord = getBmsCoordForStpt(targetStpt);
+      const metrics = bearingRangeBetween(baseCoord, targetCoord);
+      if (!metrics) {
+        dtcPopupStatusText = "STPT " + targetStpt + " coordinates are unavailable.";
+        renderOffsetPanel();
+        return;
+      }
+      const dataRow = getOffsetRowForEdit(rowKey);
+      dataRow.brg = metrics.brg;
+      dataRow.rng = metrics.rng;
+      const altitude = getStptAltitudeDisplayFeet(targetStpt);
+      if (altitude !== "") dataRow.elev = altitude;
+      renderOffsetPanel();
     }
 
     function clearOffsetRow(tableRow) {
@@ -3848,6 +3940,16 @@
     });
     document.querySelectorAll(".dtc-offset-clear").forEach((button) => {
       button.addEventListener("click", () => clearOffsetRow(button.closest(".dtc-offset-row")));
+    });
+    document.querySelectorAll(".dtc-offset-stpt-set").forEach((button) => {
+      button.addEventListener("click", () => setOffsetRowToSteerpoint(button.closest(".dtc-offset-row")));
+    });
+    document.querySelectorAll("[data-offset-stpt-target]").forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        setOffsetRowToSteerpoint(input.closest(".dtc-offset-row"));
+      });
     });
     document.getElementById("dtc-save-nav-offsets")?.addEventListener("click", saveDtcNavOffsets);
     document.querySelectorAll(".dtc-icp-input[data-icp-field]").forEach((input) => {
