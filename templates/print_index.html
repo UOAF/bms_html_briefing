@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<head>
+<title>HTML BRIEFING PDF</title>
+<link rel="stylesheet" href="templates/style_print.css">
+<style>
+  .page {
+      width: 100%;
+  }
+  table {
+      width: 100%;
+      table-layout: fixed;
+  }
+  table, th, td {
+      text-align: center;
+      align-items: center;
+      vertical-align: middle;
+      padding: 3px;
+  }
+  .editable {
+      background-color: #ffffff;
+  }
+  .briefing-flow-field {
+      text-align: left;
+      vertical-align: top;
+  }
+  td {
+      height: 1.7em;
+  }
+  .header {
+      background-color: #dddddd;
+  }
+  .nowrap {
+      white-space: nowrap;
+      word-break: normal;
+  }
+  .page, .page-break {
+      break-after: page;
+  }
+</style>
+</head>
+<body>
+{% for page in brief_pages %}
+<div {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}">
+  {% for part in page %}
+    {% if part == "map" %}
+      {% include "print_map.html" %}
+    {% else %}
+      {% include (part+".html") %}
+    {% endif %}
+  {% endfor %}
+<table width="100%">
+    <thead>
+      <tr>
+        <th class="header" width="10%"> Page {{loop.index}}</th>
+      </tr>
+    </thead>
+</table>
+</div>
+<br>
+{% endfor %}
+</body>

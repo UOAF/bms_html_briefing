@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import logging
 import multiprocessing
+import os
+import base64
+import re
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +14,64 @@ from bs4 import BeautifulSoup, NavigableString
 
 
 logger = logging.getLogger("html_brief_log")
+
+DATA_URL_RE = re.compile(r"^data:(image/(?:png|jpeg|jpg|gif|webp));base64,(.*)$", re.IGNORECASE | re.DOTALL)
+TARGET_REF_CELLS = {
+    "tgt1Img_src": "tgt1Ref",
+    "tgt2Img_src": "tgt2Ref",
+    "tgt3Img_src": "tgt3Ref",
+}
+
+
+@dataclass
+class PdfImageArtifact:
+    key: str
+    path: Path
+    uri: str
+    mime_type: str
+    size_bytes: int
+    width: int | None = None
+    height: int | None = None
+
+
+@dataclass
+class PdfExportJob:
+    trace_id: str
+    pdf_output_dir: Path
+    temp_dir: Path
+    render_name: str
+    started_at: float = field(default_factory=time.perf_counter)
+    source_html_path: Path | None = None
+    print_html_path: Path | None = None
+    pdf_temp_path: Path | None = None
+    pdf_final_path: Path | None = None
+    artifacts: dict[str, PdfImageArtifact] = field(default_factory=dict)
+    timings_ms: dict[str, float] = field(default_factory=dict)
+
+    @classmethod
+    def create(cls, trace_id: str, pdf_output_dir: Path, temp_dir: Path) -> "PdfExportJob":
+        render_name = f"index_pdf_{trace_id}"
+        return cls(
+            trace_id=trace_id,
+            pdf_output_dir=pdf_output_dir,
+            temp_dir=temp_dir,
+            render_name=render_name,
+            source_html_path=temp_dir / f"{render_name}.html",
+            print_html_path=temp_dir / f"{render_name}_print.html",
+            pdf_temp_path=temp_dir / f"kneeboard_{trace_id}.pdf",
+            pdf_final_path=pdf_output_dir / "kneeboard.pdf",
+        )
+
+
+class PdfRenderTimeout(TimeoutError):
+    def __init__(self, timeout_seconds: int, last_stage: str, pid: int | None):
+        self.timeout_seconds = timeout_seconds
+        self.last_stage = last_stage
+        self.pid = pid
+        super().__init__(
+            f"WeasyPrint did not finish within {timeout_seconds}s"
+            f" (last stage: {last_stage}, pid: {pid or 'unknown'})"
+        )
 
 
 def content_payload_stats(content: dict[str, Any] | None) -> dict[str, Any]:
@@ -47,16 +109,130 @@ def content_payload_stats(content: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def apply_content_edits(
+def _normalize_text(val: Any) -> str:
+    text = BeautifulSoup("" if val is None else str(val), "html.parser").get_text("\n")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _append_editable_content(soup: BeautifulSoup, el: Any, val: Any) -> None:
+    raw = "" if val is None else str(val)
+    fragment = BeautifulSoup(raw, "html.parser")
+    if fragment.find() is not None:
+        for node in list(fragment.contents):
+            if getattr(node, "name", None) in {"script", "style"}:
+                continue
+            el.append(node)
+        return
+    lines = _normalize_text(raw).split("\n")
+    for idx, line in enumerate(lines):
+        el.append(NavigableString(line))
+        if idx != len(lines) - 1:
+            el.append(soup.new_tag("br"))
+
+
+def _image_dimensions(path: Path) -> tuple[int | None, int | None]:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            return image.size
+    except Exception:
+        return None, None
+
+
+def write_data_url_artifact(data_url: str, artifact_dir: Path, key: str) -> PdfImageArtifact:
+    match = DATA_URL_RE.match(data_url.strip())
+    if not match:
+        raise ValueError(f"Unsupported image data URL for {key}")
+    mime_type = match.group(1).lower()
+    encoded = match.group(2)
+    ext = "jpg" if mime_type in {"image/jpeg", "image/jpg"} else mime_type.rsplit("/", 1)[1]
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    safe_key = re.sub(r"[^a-zA-Z0-9_.-]+", "_", key).strip("._") or "image"
+    path = artifact_dir / f"{safe_key}.{ext}"
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise ValueError(f"Invalid base64 image data for {key}") from exc
+    path.write_bytes(raw)
+    width, height = _image_dimensions(path)
+    artifact = PdfImageArtifact(
+        key=key,
+        path=path,
+        uri=path.resolve().as_uri(),
+        mime_type=mime_type,
+        size_bytes=path.stat().st_size,
+        width=width,
+        height=height,
+    )
+    logger.debug(
+        "PDF image artifact: key=%s path=%s mime=%s size=%dB dimensions=%sx%s",
+        artifact.key,
+        artifact.path,
+        artifact.mime_type,
+        artifact.size_bytes,
+        artifact.width if artifact.width is not None else "?",
+        artifact.height if artifact.height is not None else "?",
+    )
+    return artifact
+
+
+def _replace_data_url_images_in_html(raw: str, artifact_dir: Path, key: str, artifacts: dict[str, PdfImageArtifact]) -> str:
+    fragment = BeautifulSoup(raw, "html.parser")
+    changed = False
+    for idx, img in enumerate(fragment.find_all("img")):
+        src = str(img.get("src", "")).strip()
+        if not DATA_URL_RE.match(src):
+            continue
+        artifact_key = f"{key}_img_{idx + 1}"
+        artifact = write_data_url_artifact(src, artifact_dir, artifact_key)
+        artifacts[artifact_key] = artifact
+        img["src"] = artifact.uri
+        changed = True
+    return str(fragment) if changed else raw
+
+
+def materialize_pdf_artifacts(content: dict[str, Any] | None, job: PdfExportJob) -> tuple[dict[str, Any], dict[str, str]]:
+    artifact_dir = job.temp_dir / "artifacts"
+    source = dict(content or {})
+    materialized: dict[str, Any] = {}
+    pdf_artifacts: dict[str, str] = {}
+
+    map_image = source.get("map_image")
+    if isinstance(map_image, str) and map_image.strip():
+        artifact = write_data_url_artifact(map_image, artifact_dir, "map_image")
+        job.artifacts["map_image"] = artifact
+        pdf_artifacts["map_image_uri"] = artifact.uri
+
+    for key, value in source.items():
+        if key == "map_image":
+            continue
+        if key in TARGET_REF_CELLS and isinstance(value, str) and DATA_URL_RE.match(value.strip()):
+            artifact = write_data_url_artifact(value, artifact_dir, key)
+            job.artifacts[key] = artifact
+            materialized[TARGET_REF_CELLS[key]] = (
+                f'<img src="{artifact.uri}" alt="" '
+                'style="max-width: 100%; height: auto; width: auto; display: block; margin: 0 auto;">'
+            )
+            continue
+        if isinstance(value, str) and "<img" in value.lower() and "data:image" in value.lower():
+            materialized[key] = _replace_data_url_images_in_html(value, artifact_dir, key, job.artifacts)
+            continue
+        materialized[key] = value
+
+    return materialized, pdf_artifacts
+
+
+def finalize_print_html(
     html_path: Path,
     content: dict[str, Any],
-    patched_path: Path | None = None,
+    output_path: Path | None = None,
 ) -> Path:
-    """Apply stored contenteditable values and hide states to generated HTML."""
+    """Apply stored edits to print HTML and enforce a non-interactive PDF input."""
     started = time.perf_counter()
     stats = content_payload_stats(content)
     logger.info(
-        "PDF apply_content_edits start: html=%s keys=%d map_image_len=%d target_image_keys=%d display_keys=%d text_keys=%d total_text_len=%d",
+        "PDF finalize_print_html start: html=%s keys=%d map_image_len=%d target_image_keys=%d display_keys=%d text_keys=%d total_text_len=%d",
         html_path,
         stats["keys"],
         stats["map_image_len"],
@@ -67,48 +243,9 @@ def apply_content_edits(
     )
     soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
-    def normalize_text(val: Any) -> str:
-        text = BeautifulSoup("" if val is None else str(val), "html.parser").get_text("\n")
-        return text.replace("\r\n", "\n").replace("\r", "\n")
-
-    def append_editable_content(el: Any, val: Any) -> None:
-        raw = "" if val is None else str(val)
-        fragment = BeautifulSoup(raw, "html.parser")
-        if fragment.find() is not None:
-            for node in list(fragment.contents):
-                if getattr(node, "name", None) in {"script", "style"}:
-                    continue
-                el.append(node)
-            return
-        lines = normalize_text(raw).split("\n")
-        for idx, line in enumerate(lines):
-            el.append(NavigableString(line))
-            if idx != len(lines) - 1:
-                el.append(soup.new_tag("br"))
-
-    if content.get("map_image"):
-        map_container = soup.find(id="image-map")
-        if map_container:
-            img_tag = soup.new_tag("img", id="map-image-print")
-            img_tag["src"] = content["map_image"]
-            img_tag["style"] = "display:block;max-width:100%;width:auto;max-height:960px;height:auto;margin:0 auto;"
-            map_container.attrs.pop("class", None)
-            map_container["style"] = "width:100%;height:auto;max-height:960px;text-align:center;overflow:hidden;"
-            map_container.clear()
-            map_container.append(img_tag)
-
-    for tgt_id in ("tgt1Img", "tgt2Img", "tgt3Img"):
-        data_key = tgt_id + "_src"
-        if content.get(data_key):
-            el = soup.find(id=tgt_id)
-            if el:
-                el["src"] = content[data_key]
-                row = soup.find(id="refImageRow")
-                if row:
-                    # Ensure the row is visible for PDF.
-                    row["style"] = "visibility: visible;"
-
     for key, value in content.items():
+        if key == "map_image" or key in TARGET_REF_CELLS:
+            continue
         if key.endswith("_display"):
             target_id = key.removesuffix("_display")
             el = soup.find(id=target_id)
@@ -139,18 +276,17 @@ def apply_content_edits(
         if el is None:
             continue
         el.clear()
-        append_editable_content(el, value)
+        _append_editable_content(soup, el, value)
 
     for script in soup.find_all("script"):
         script.decompose()
+    for tag_name in ("button", "input", "select", "textarea", "option"):
+        for tag in soup.find_all(tag_name):
+            tag.decompose()
     for link in soup.find_all("link"):
         href = str(link.get("href", ""))
-        media = str(link.get("media", "")).strip().lower()
         rel = " ".join(link.get("rel", []) if isinstance(link.get("rel"), list) else [str(link.get("rel", ""))]).lower()
-        if "stylesheet" not in rel or media == "screen" or "leaflet" in href:
-            # BeautifulSoup's html.parser can treat self-closing <link /> tags as
-            # containers. Preserve any following inline style/script nodes that
-            # were accidentally parsed as children.
+        if "stylesheet" not in rel or "leaflet" in href.lower():
             link.unwrap()
     for style_tag in soup.find_all("style"):
         style_text = style_tag.get_text()
@@ -160,8 +296,19 @@ def apply_content_edits(
         for attr in list(tag.attrs):
             if attr.lower().startswith("on"):
                 del tag.attrs[attr]
+            elif attr.lower() == "contenteditable":
+                del tag.attrs[attr]
 
-    patched = patched_path or (html_path.parent / "index_print.html")
+    rendered = str(soup)
+    lower_rendered = rendered.lower()
+    if "<script" in lower_rendered:
+        raise RuntimeError("Print HTML still contains a script tag")
+    if "leaflet" in lower_rendered:
+        raise RuntimeError("Print HTML still contains Leaflet references")
+    if "data:image" in lower_rendered:
+        raise RuntimeError("Print HTML still contains inline image data")
+
+    patched = output_path or html_path
     patched.write_text(str(soup), encoding="utf-8")
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     try:
@@ -169,7 +316,7 @@ def apply_content_edits(
     except Exception:
         patched_size = -1
     logger.info(
-        "PDF apply_content_edits done: patched=%s size=%dB elapsed_ms=%.1f",
+        "PDF finalize_print_html done: patched=%s size=%dB elapsed_ms=%.1f",
         patched,
         patched_size,
         elapsed_ms,
@@ -177,31 +324,55 @@ def apply_content_edits(
     return patched
 
 
-def _render_pdf_worker(html_filename: str, base_url: str, pdf_filename: str, result_queue: Any) -> None:
+def _queue_progress(progress_queue: Any, stage: str) -> None:
+    try:
+        progress_queue.put({"stage": stage, "pid": os.getpid(), "time": time.time()})
+    except Exception:
+        pass
+
+
+def _render_pdf_worker(html_filename: str, base_url: str, pdf_filename: str, result_queue: Any, progress_queue: Any) -> None:
     """Run WeasyPrint in a child process so a native Windows layout hang is killable."""
     try:
+        _queue_progress(progress_queue, "import_weasyprint_start")
         from weasyprint import HTML as WorkerHTML
 
+        _queue_progress(progress_queue, "import_weasyprint_done")
         started = time.perf_counter()
+        _queue_progress(progress_queue, "render_start")
         pdf_doc = WorkerHTML(filename=html_filename, base_url=base_url).render()
         render_elapsed_ms = (time.perf_counter() - started) * 1000.0
         page_count = len(pdf_doc.pages)
         started = time.perf_counter()
+        _queue_progress(progress_queue, "write_pdf_start")
         pdf_doc.write_pdf(pdf_filename)
         write_elapsed_ms = (time.perf_counter() - started) * 1000.0
+        _queue_progress(progress_queue, "write_pdf_done")
         result_queue.put(
             {
                 "ok": True,
                 "pages": page_count,
                 "render_elapsed_ms": render_elapsed_ms,
                 "write_elapsed_ms": write_elapsed_ms,
+                "pid": os.getpid(),
             }
         )
     except Exception as exc:
         try:
-            result_queue.put({"ok": False, "error": repr(exc)})
+            result_queue.put({"ok": False, "error": repr(exc), "pid": os.getpid()})
         except Exception:
             pass
+
+
+def _drain_progress(progress_queue: Any, last_stage: str) -> str:
+    while True:
+        try:
+            event = progress_queue.get_nowait()
+        except Exception:
+            return last_stage
+        stage = event.get("stage") if isinstance(event, dict) else None
+        if stage:
+            last_stage = str(stage)
 
 
 def render_pdf_isolated(
@@ -212,20 +383,48 @@ def render_pdf_isolated(
 ) -> dict[str, Any]:
     ctx = multiprocessing.get_context("spawn")
     result_queue = ctx.Queue(maxsize=1)
+    progress_queue = ctx.Queue()
     process = ctx.Process(
         target=_render_pdf_worker,
-        args=(str(html_path), str(base_url), str(pdf_path), result_queue),
+        args=(str(html_path), str(base_url), str(pdf_path), result_queue, progress_queue),
         name="html-brief-weasyprint",
     )
     process.start()
-    process.join(timeout_seconds)
+    logger.debug(
+        "WeasyPrint worker process started: pid=%s parent_pid=%s timeout_s=%d",
+        process.pid,
+        os.getpid(),
+        timeout_seconds,
+    )
+    deadline = time.monotonic() + timeout_seconds
+    last_stage = "process_started"
+    while process.is_alive():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        process.join(min(0.25, remaining))
+        last_stage = _drain_progress(progress_queue, last_stage)
+    last_stage = _drain_progress(progress_queue, last_stage)
     if process.is_alive():
+        logger.error(
+            "WeasyPrint worker timeout: pid=%s last_stage=%s timeout_s=%d",
+            process.pid,
+            last_stage,
+            timeout_seconds,
+        )
         process.terminate()
         process.join(10)
         if process.is_alive():
+            logger.error("WeasyPrint worker still alive after terminate; killing pid=%s", process.pid)
             process.kill()
             process.join(5)
-        raise TimeoutError(f"WeasyPrint did not finish within {timeout_seconds}s")
+        raise PdfRenderTimeout(timeout_seconds, last_stage, process.pid)
+    logger.debug(
+        "WeasyPrint worker process exited: pid=%s exitcode=%s last_stage=%s",
+        process.pid,
+        process.exitcode,
+        last_stage,
+    )
     if process.exitcode not in (0, None) and result_queue.empty():
         raise RuntimeError(f"WeasyPrint worker exited with code {process.exitcode}")
     try:
@@ -238,7 +437,12 @@ def render_pdf_isolated(
 
 
 __all__ = [
-    "apply_content_edits",
     "content_payload_stats",
+    "finalize_print_html",
+    "materialize_pdf_artifacts",
+    "PdfExportJob",
+    "PdfImageArtifact",
+    "PdfRenderTimeout",
     "render_pdf_isolated",
+    "write_data_url_artifact",
 ]

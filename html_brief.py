@@ -294,9 +294,6 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
     return app
 
 
-app = create_app()
-
-
 if __name__ == "__main__":
     run_cli(
         create_app=create_app,

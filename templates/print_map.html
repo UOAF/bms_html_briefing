@@ -1,0 +1,10 @@
+<table width="100%">
+  <tr>
+    <th class="header" id="map_header">Map</th>
+  </tr>
+</table>
+<div id="image-map" style="width:100%;height:auto;max-height:960px;text-align:center;overflow:hidden;">
+  {% if pdf_artifacts.map_image_uri %}
+  <img id="map-image-print" src="{{ pdf_artifacts.map_image_uri }}" style="display:block;max-width:100%;width:auto;max-height:960px;height:auto;margin:0 auto;" alt="Map">
+  {% endif %}
+</div>

@@ -53,6 +53,8 @@ def initialize_app_state(
     app.state.brief_pages_ref: Optional[int] = None
     app.state.pdf_page_count: Optional[int] = None
     app.state.pdf_overflow: Optional[bool] = None
+    app.state.pdf_status = "unknown"
+    app.state.pdf_error: Optional[str] = None
     app.state.auto_open_url: Optional[str] = None
     app.state.last_pdf_path: Optional[str] = None
     app.state.last_brief_path: Optional[str] = None

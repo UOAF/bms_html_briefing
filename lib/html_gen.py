@@ -28,7 +28,17 @@ def _page_contents_for_render(conf, brief_summary = None):
     return swapped_pages
 
 
-def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None, selected_package_index = None):
+def generate_html_file(
+    conf,
+    bms_conf,
+    name,
+    page_num = 0,
+    brief_summary = None,
+    selected_package_index = None,
+    template_name = "index.html",
+    pdf_mode = False,
+    pdf_artifacts = None,
+):
     if getattr(sys, 'frozen', False):
         script_dir = os.path.dirname(sys.executable)
     else:
@@ -55,7 +65,9 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
 
     map_tile_max_native_zoom = 0
     map_tile_url_template = ""
-    if map_base_mode == "web":
+    if pdf_mode:
+        logger.debug("PDF mode render: local map tile generation skipped.")
+    elif map_base_mode == "web":
         logger_ui.info("Using web map tiles; local map tile generation skipped.")
     else:
         map_file = resolve_local_map_file(bms_conf, script_dir)
@@ -80,7 +92,7 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
             logger.error(f"Couldn't load callsign.ini: {e}")
 
         env = Environment(loader=FileSystemLoader(templates_dir))
-        index_tmpl = env.get_template("index.html")
+        index_tmpl = env.get_template(template_name)
         render_context = build_brief_render_context(
             brief_summary=brief_summary,
             selected_package_index=selected_package_index,
@@ -113,6 +125,8 @@ def generate_html_file(conf, bms_conf, name, page_num = 0, brief_summary = None,
                                                  num = page_num,
                                                  logo_present = logo_present,
                                                  brief_is_joined = True,
+                                                 pdf_mode = pdf_mode,
+                                                 pdf_artifacts = pdf_artifacts or {},
                                                  map_id = map_id,
                                                  map_source_options = get_map_source_options(),
                                                  map_base_mode = map_base_mode,

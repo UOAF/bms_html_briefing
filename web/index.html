@@ -1665,7 +1665,7 @@
       }
     }
 
-    function updateBadges({ briefChanged, callsignChanged, pdfOverflow }) {
+    function updateBadges({ briefChanged, callsignChanged, pdfOverflow, pdfStatus, pdfError }) {
       if (fileBadge) {
         fileBadge.classList.remove("ok", "error", "warn", "muted");
         let cls = "ok";
@@ -1679,10 +1679,22 @@
       if (overflowBadge) {
         overflowBadge.classList.remove("ok", "error", "warn", "muted");
         let cls = "ok";
-        if (pdfOverflow === true) cls = "warn";
-        if (pdfOverflow === undefined || pdfOverflow === null) cls = "muted";
+        const normalizedPdfStatus = typeof pdfStatus === "string" ? pdfStatus.toLowerCase() : "";
+        if (normalizedPdfStatus === "timeout" || normalizedPdfStatus === "error") {
+          cls = "error";
+        } else if (normalizedPdfStatus === "overflow" || pdfOverflow === true) {
+          cls = "warn";
+        } else if (!normalizedPdfStatus || normalizedPdfStatus === "unknown" || normalizedPdfStatus === "running" || pdfOverflow === undefined || pdfOverflow === null) {
+          cls = "muted";
+        }
         overflowBadge.classList.add(cls);
-        overflowBadge.title = cls === "warn" ? "PDF has more pages than layout" : (cls === "ok" ? "PDF matches layout page count" : "PDF status unknown (generate PDF once)");
+        if (cls === "error") {
+          overflowBadge.title = normalizedPdfStatus === "timeout"
+            ? "PDF generation timed out; no PDF was generated"
+            : (pdfError || "PDF generation failed");
+        } else {
+          overflowBadge.title = cls === "warn" ? "PDF has more pages than layout" : (cls === "ok" ? "PDF matches layout page count" : "PDF status unknown (generate PDF once)");
+        }
       }
     }
 
@@ -1811,7 +1823,9 @@
       updateBadges({
         briefChanged: data.brief_changed,
         callsignChanged: data.callsign_changed,
-        pdfOverflow: data.pdf_overflow
+        pdfOverflow: data.pdf_overflow,
+        pdfStatus: data.pdf_status,
+        pdfError: data.pdf_error
       });
       refreshDtcLinkedDiffIndicators();
       return { hasError, appStateReset };

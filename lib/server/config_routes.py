@@ -255,6 +255,8 @@ def register_config_routes(
             "pdf_pages": app.state.pdf_page_count,
             "brief_pages": app.state.brief_pages_ref,
             "pdf_overflow": app.state.pdf_overflow,
+            "pdf_status": app.state.pdf_status,
+            "pdf_error": app.state.pdf_error,
             "pdf_busy": app.state.pdf_busy,
             "cam_loaded": isinstance(app.state.last_brief_summary, dict),
             "cam_output_file": app.state.last_brief_summary_path,

@@ -12,14 +12,16 @@ from typing import Any, Callable, Dict, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-try:
-    from weasyprint import HTML
-except Exception:  # pragma: no cover - optional dependency
-    HTML = None
-
 from lib.bms_config import BmsConfig
-from lib.html_gen import generate_html_file, page_contents_ini_to_list
-from lib.pdf_export import apply_content_edits, content_payload_stats, render_pdf_isolated
+from lib.html_gen import page_contents_ini_to_list
+from lib.pdf_export import (
+    PdfExportJob,
+    PdfRenderTimeout,
+    content_payload_stats,
+    materialize_pdf_artifacts,
+    render_pdf_isolated,
+)
+from lib.pdf_print_render import render_print_html
 from lib.server.render_routes import resolve_brief_render_state
 
 logger = logging.getLogger("html_brief_log")
@@ -63,8 +65,6 @@ def register_pdf_routes(
     def generate_pdf(payload: PdfRequest) -> Dict[str, str]:
         if app.state.bms_cfg is None:
             raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
-        if HTML is None:
-            raise HTTPException(status_code=500, detail="weasyprint is not installed. Install it to enable PDF generation.")
         pdf_trace = uuid.uuid4().hex[:8]
         req_started = time.perf_counter()
         pdf_lock = app.state.pdf_lock
@@ -73,9 +73,8 @@ def register_pdf_routes(
             raise HTTPException(status_code=429, detail="PDF generation already in progress. Wait for the current export to finish.")
         logger.debug("PDF[%s] lock acquired", pdf_trace)
         app.state.pdf_busy = True
-        output_file: Optional[Path] = None
-        patched_html: Optional[Path] = None
-        pdf_temp_path: Optional[Path] = None
+        app.state.pdf_status = "running"
+        app.state.pdf_error = None
         pdf_path: Optional[Path] = None
         try:
             payload_stats = content_payload_stats(payload.content)
@@ -125,29 +124,38 @@ def register_pdf_routes(
                 dir=str(pdf_output_dir),
             ) as temp_dir_str:
                 temp_dir = Path(temp_dir_str)
+                job = PdfExportJob.create(pdf_trace, pdf_output_dir, temp_dir)
                 cfg_pdf_render = copy_config_with_overrides(
                     cfg_pdf,
                     system={"output_dir": str(temp_dir)},
                 )
 
                 step_started = time.perf_counter()
-                render_name = f"index_pdf_{pdf_trace}"
-                generate_html_file(
-                    cfg_pdf_render,
-                    bms_cfg_pdf,
-                    render_name,
+                materialized_content, pdf_artifacts = materialize_pdf_artifacts(payload.content or {}, job)
+                logger.debug(
+                    "PDF[%s] artifacts materialized: count=%d elapsed_ms=%.1f",
+                    pdf_trace,
+                    len(job.artifacts),
+                    (time.perf_counter() - step_started) * 1000.0,
+                )
+                step_started = time.perf_counter()
+                render_print_html(
+                    cfg=cfg_pdf_render,
+                    bms_cfg=bms_cfg_pdf,
+                    job=job,
+                    content=materialized_content,
+                    pdf_artifacts=pdf_artifacts,
                     brief_summary=brief_summary,
                     selected_package_index=selected_package_index,
                 )
-                output_file = temp_dir / f"{render_name}.html"
                 try:
-                    output_size = output_file.stat().st_size
+                    output_size = job.print_html_path.stat().st_size if job.print_html_path else -1
                 except Exception:
                     output_size = -1
                 logger.debug(
-                    "PDF[%s] html generated: file=%s size=%dB elapsed_ms=%.1f",
+                    "PDF[%s] print html ready: file=%s size=%dB elapsed_ms=%.1f",
                     pdf_trace,
-                    output_file,
+                    job.print_html_path,
                     output_size,
                     (time.perf_counter() - step_started) * 1000.0,
                 )
@@ -161,37 +169,19 @@ def register_pdf_routes(
                 except Exception:
                     pass
 
-                step_started = time.perf_counter()
-                patched_html = apply_content_edits(
-                    output_file,
-                    payload.content or {},
-                    patched_path=temp_dir / f"{render_name}_print.html",
-                )
-                try:
-                    patched_size = patched_html.stat().st_size
-                except Exception:
-                    patched_size = -1
-                logger.debug(
-                    "PDF[%s] patched html ready: file=%s size=%dB elapsed_ms=%.1f",
-                    pdf_trace,
-                    patched_html,
-                    patched_size,
-                    (time.perf_counter() - step_started) * 1000.0,
-                )
-                pdf_path = pdf_output_dir / "kneeboard.pdf"
-                pdf_temp_path = temp_dir / f"kneeboard_{pdf_trace}.pdf"
+                pdf_path = job.pdf_final_path
 
                 logger.debug("PDF[%s] WeasyPrint render start", pdf_trace)
                 logger.debug(
                     "PDF[%s] WeasyPrint worker start: timeout_s=%d output=%s",
                     pdf_trace,
                     pdf_render_timeout_seconds,
-                    pdf_temp_path,
+                    job.pdf_temp_path,
                 )
                 worker_result = render_pdf_isolated(
-                    patched_html,
+                    job.print_html_path,
                     static_root,
-                    pdf_temp_path,
+                    job.pdf_temp_path,
                     pdf_render_timeout_seconds,
                 )
                 render_elapsed_ms = float(worker_result.get("render_elapsed_ms", 0.0))
@@ -203,6 +193,8 @@ def register_pdf_routes(
                     and app.state.pdf_page_count is not None
                     and app.state.pdf_page_count > app.state.brief_pages_ref
                 )
+                app.state.pdf_status = "overflow" if app.state.pdf_overflow else "ok"
+                app.state.pdf_error = None
                 logger.debug(
                     "PDF[%s] WeasyPrint render done: pages=%d brief_pages=%r overflow=%r elapsed_ms=%.1f",
                     pdf_trace,
@@ -219,11 +211,11 @@ def register_pdf_routes(
                 )
 
                 step_started = time.perf_counter()
-                os.replace(pdf_temp_path, pdf_path)
+                os.replace(job.pdf_temp_path, job.pdf_final_path)
                 replace_elapsed_ms = (time.perf_counter() - step_started) * 1000.0
-                app.state.last_pdf_path = str(pdf_path)
+                app.state.last_pdf_path = str(job.pdf_final_path)
                 try:
-                    pdf_size = pdf_path.stat().st_size
+                    pdf_size = job.pdf_final_path.stat().st_size
                 except Exception:
                     pdf_size = -1
                 logger.debug(
@@ -245,9 +237,24 @@ def register_pdf_routes(
                     pdf_size,
                     (time.perf_counter() - req_started) * 1000.0,
                 )
-        except HTTPException:
+        except HTTPException as exc:
+            if getattr(exc, "status_code", None) != 429:
+                detail = exc.detail if isinstance(exc.detail, str) else repr(exc.detail)
+                app.state.pdf_status = "error"
+                app.state.pdf_error = detail
+                app.state.pdf_overflow = None
             raise
+        except PdfRenderTimeout as exc:
+            app.state.pdf_status = "timeout"
+            app.state.pdf_error = str(exc)
+            app.state.pdf_overflow = None
+            logger.exception("PDF[%s] timed out after %.1fms", pdf_trace, (time.perf_counter() - req_started) * 1000.0)
+            logger_ui.error("PDF[%s] timed out; no PDF was generated: %s", pdf_trace, exc)
+            raise HTTPException(status_code=504, detail=f"PDF generation timed out; no PDF was generated: {exc}")
         except Exception as exc:
+            app.state.pdf_status = "error"
+            app.state.pdf_error = str(exc)
+            app.state.pdf_overflow = None
             logger.exception("PDF[%s] failed after %.1fms", pdf_trace, (time.perf_counter() - req_started) * 1000.0)
             logger_ui.error("PDF[%s] failed: %s", pdf_trace, exc)
             raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {exc}")
