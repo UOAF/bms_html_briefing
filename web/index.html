@@ -1550,28 +1550,42 @@
       }
     }
 
-    async function withAllBriefingPagesVisible(task) {
+    async function withBriefingMapPageMeasurable(task) {
       const cw = briefFrame?.contentWindow;
       if (!cw || !cw.document || briefingScrollMode !== "paged") {
         return task();
       }
-      const pageEls = Array.from(cw.document.querySelectorAll("[id^='page_']"));
-      if (!pageEls.length) {
+      const mapEl = cw.document.getElementById("image-map");
+      const mapPage = mapEl ? mapEl.closest("[id^='page_']") : null;
+      if (!mapPage) {
         return task();
       }
-      const previousHidden = pageEls.map((el) => el.hidden);
-      pageEls.forEach((el) => {
-        el.hidden = false;
-      });
-      await new Promise((resolve) => cw.requestAnimationFrame(resolve));
+      const previousHidden = mapPage.hidden;
+      const previousStyle = mapPage.getAttribute("style");
+      const wasCurrentPage = !previousHidden;
+      if (!wasCurrentPage) {
+        mapPage.hidden = false;
+        Object.assign(mapPage.style, {
+          position: "absolute",
+          left: "-100000px",
+          top: "0",
+          width: "100%",
+          visibility: "hidden",
+          pointerEvents: "none"
+        });
+      }
+      await new Promise((resolve) => cw.requestAnimationFrame(() => cw.requestAnimationFrame(resolve)));
       invalidateBriefingMap(cw);
       try {
         return await task();
       } finally {
-        pageEls.forEach((el, idx) => {
-          el.hidden = previousHidden[idx];
-        });
-        await new Promise((resolve) => cw.requestAnimationFrame(resolve));
+        mapPage.hidden = previousHidden;
+        if (previousStyle === null) {
+          mapPage.removeAttribute("style");
+        } else {
+          mapPage.setAttribute("style", previousStyle);
+        }
+        await new Promise((resolve) => cw.requestAnimationFrame(() => cw.requestAnimationFrame(resolve)));
         invalidateBriefingMap(cw);
       }
     }
@@ -2287,7 +2301,7 @@
       const started = performance.now();
       debugLog("PDF prep: map capture start");
       try {
-        const dataUrl = await withAllBriefingPagesVisible(() => cw.exportMapImage());
+        const dataUrl = await withBriefingMapPageMeasurable(() => cw.exportMapImage());
         if (!dataUrl) {
           const err = cw.exportMapLastError || "unknown";
           const logTrail = Array.isArray(cw.exportMapLog) ? cw.exportMapLog.join(" | ") : "";
