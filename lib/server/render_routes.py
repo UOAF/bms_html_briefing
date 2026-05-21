@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from lib.bms_paths import callsign_ini_path
 from lib.bms_config import BmsConfig
 from lib.html_gen import generate_html_file, page_contents_ini_to_list
 
@@ -141,7 +142,7 @@ def _update_brief_mtime_state(app: FastAPI, bms_cfg: BmsConfig) -> None:
             Path(bms_cfg.base_dir) / "User" / "Briefings" / "briefing.txt"
         )
         app.state.callsign_mtime_ref = os.path.getmtime(
-            Path(bms_cfg.base_dir) / "User" / "Config" / f"{bms_cfg.callsign}.ini"
+            callsign_ini_path(bms_cfg)
         )
     except Exception:
         pass

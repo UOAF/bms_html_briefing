@@ -2,8 +2,9 @@ from jinja2 import Environment, FileSystemLoader
 import os, sys, logging
 
 from lib.brief_render import build_brief_render_context
+from lib.bms_paths import callsign_ini_path
 from lib.map_sources import map_selection as select_map, map_source_options as get_map_source_options
-from lib.map_tiles import prepare_local_map_tiles, resolve_local_map_file
+from lib.map_tiles import local_map_available, prepare_local_map_tiles, resolve_local_map_file
 from lib.parsers.parse_briefing_txt import Briefing
 from lib.parsers.parse_callsign_ini import Callsign_ini
 
@@ -46,7 +47,7 @@ def generate_html_file(
     script_dir = os.path.abspath(script_dir)
 
     briefing_location = os.path.join(bms_conf.base_dir, "User", "Briefings", "briefing.txt")
-    callsignini_location = os.path.join(bms_conf.base_dir, "User", "Config", bms_conf.callsign + ".ini")
+    callsignini_location = callsign_ini_path(bms_conf)
     map_dir = os.path.join(script_dir, 'assets', 'maps')
     try:
         os.makedirs(map_dir, exist_ok=True)
@@ -54,7 +55,7 @@ def generate_html_file(
         logger.error(e)
         logger_ui.error(f"Couldn't create the map folder: {e}")
 
-    map_selection = select_map(conf)
+    map_selection = select_map(conf, getattr(bms_conf, "version", None))
     map_id = map_selection["id"]
     map_base_mode = map_selection["base_mode"]
     web_tile_url_template = map_selection["web_tile_url_template"]
@@ -65,15 +66,24 @@ def generate_html_file(
 
     map_tile_max_native_zoom = 0
     map_tile_url_template = ""
-    if pdf_mode:
-        logger.debug("PDF mode render: local map tile generation skipped.")
-    elif map_base_mode == "web":
+    if map_base_mode == "web":
         logger_ui.info("Using web map tiles; local map tile generation skipped.")
     else:
         map_file = resolve_local_map_file(bms_conf, script_dir)
-        local_map_tiles = prepare_local_map_tiles(map_file, map_dir, bms_conf.theater)
-        map_tile_url_template = local_map_tiles["map_tile_url_template"]
-        map_tile_max_native_zoom = local_map_tiles["map_tile_max_native_zoom"]
+        if not local_map_available(map_file):
+            logger_ui.error("Map skipped: no map file configured for %s %s.", bms_conf.version, bms_conf.theater)
+            map_base_mode = "none"
+        elif pdf_mode:
+            logger.debug("PDF mode render: local map tile generation skipped.")
+        else:
+            local_map_tiles = prepare_local_map_tiles(
+                map_file,
+                map_dir,
+                bms_conf.theater,
+                getattr(bms_conf, "version", None),
+            )
+            map_tile_url_template = local_map_tiles["map_tile_url_template"]
+            map_tile_max_native_zoom = local_map_tiles["map_tile_max_native_zoom"]
 
     templates_dir = os.path.join(script_dir, 'templates')
 
@@ -128,7 +138,8 @@ def generate_html_file(
                                                  pdf_mode = pdf_mode,
                                                  pdf_artifacts = pdf_artifacts or {},
                                                  map_id = map_id,
-                                                 map_source_options = get_map_source_options(),
+                                                 map_available = map_base_mode != "none",
+                                                 map_source_options = get_map_source_options(getattr(bms_conf, "version", None)),
                                                  map_base_mode = map_base_mode,
                                                  theater_name = bms_conf.theater,
                                                  theater_center_latitude = getattr(bms_conf, "theater_center_latitude", None),

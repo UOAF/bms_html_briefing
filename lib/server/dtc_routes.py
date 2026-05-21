@@ -10,8 +10,9 @@ from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 
 from lib.brief_render import build_brief_render_context
+from lib.bms_paths import callsign_ini_path
 from lib.map_sources import map_selection as select_map, map_source_options as get_map_source_options
-from lib.map_tiles import prepare_local_map_tiles, resolve_local_map_file
+from lib.map_tiles import local_map_available, prepare_local_map_tiles, resolve_local_map_file
 from lib.parsers.parse_callsign_ini import Callsign_ini, replace_fcc_sections, replace_icp_section, replace_laser_section, replace_nav_offsets_section
 from lib.terrain_elevation import TerrainElevationError, get_terrain_elevation_feet
 
@@ -189,7 +190,7 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
 
 
 def _callsign_ini_path(bms_conf: Any) -> Path:
-    return Path(bms_conf.base_dir) / "User" / "Config" / f"{bms_conf.callsign}.ini"
+    return callsign_ini_path(bms_conf)
 
 
 def _read_callsign_ini(bms_conf: Any) -> list[str]:
@@ -210,16 +211,22 @@ def _build_map_context(app: FastAPI, bms_conf: Any, static_root: Path) -> dict[s
         logger.error("Couldn't create the map folder: %s", exc)
         logger_ui.error(f"Couldn't create the map folder: {exc}")
 
-    map_selection = select_map(app.state.cfg)
+    bms_version = getattr(bms_conf, "version", None)
+    map_selection = select_map(app.state.cfg, bms_version)
     map_tile_max_native_zoom = 0
     map_tile_url_template = ""
     if map_selection["base_mode"] == "web":
         logger_ui.info("Using web map tiles for DTC; local map tile generation skipped.")
     else:
         map_file = resolve_local_map_file(bms_conf, str(static_root))
-        local_map_tiles = prepare_local_map_tiles(map_file, str(map_dir), bms_conf.theater)
-        map_tile_url_template = local_map_tiles["map_tile_url_template"]
-        map_tile_max_native_zoom = local_map_tiles["map_tile_max_native_zoom"]
+        if local_map_available(map_file):
+            local_map_tiles = prepare_local_map_tiles(map_file, str(map_dir), bms_conf.theater, bms_version)
+            map_tile_url_template = local_map_tiles["map_tile_url_template"]
+            map_tile_max_native_zoom = local_map_tiles["map_tile_max_native_zoom"]
+        else:
+            logger_ui.error("DTC map skipped: no map file configured for %s %s.", bms_version, bms_conf.theater)
+            map_selection = dict(map_selection)
+            map_selection["base_mode"] = "none"
 
     render_context = build_brief_render_context(
         brief_summary=app.state.last_brief_summary if isinstance(app.state.last_brief_summary, dict) else None,
@@ -231,7 +238,8 @@ def _build_map_context(app: FastAPI, bms_conf: Any, static_root: Path) -> dict[s
     )
     return {
         "map_id": map_selection["id"],
-        "map_source_options": get_map_source_options(),
+        "map_available": map_selection["base_mode"] != "none",
+        "map_source_options": get_map_source_options(bms_version),
         "map_base_mode": map_selection["base_mode"],
         "web_tile_url_template": map_selection["web_tile_url_template"],
         "web_tile_attribution": map_selection["web_tile_attribution"],

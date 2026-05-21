@@ -183,19 +183,27 @@ def resolve_local_map_file(bms_conf, script_dir):
     if map_file and not os.path.isabs(map_file):
         map_file = os.path.join(bms_conf.base_dir, map_file)
 
-    if not map_file:
-        map_file = os.path.join(script_dir, "assets", "maps", "map.png")
-
     return map_file
 
 
-def prepare_local_map_tiles(map_file, map_dir, theater):
+def local_map_available(map_file):
+    return bool(map_file) and os.path.isfile(map_file)
+
+
+def prepare_local_map_tiles(map_file, map_dir, theater, version=None):
     map_output_path = os.path.join(map_dir, "map.png")
-    cache_slug = map_cache_slug(theater)
+    cache_slug = map_cache_slug("-".join(part for part in (str(version or "").strip(), theater) if part))
     cache_dir = os.path.join(map_dir, "theaters", cache_slug)
     cache_output_path = os.path.join(cache_dir, "map.png")
     tile_url_template = f"assets/maps/theaters/{cache_slug}/tiles/{{z}}/{{x}}/{{y}}.png"
     max_native_zoom = 0
+
+    if not map_file:
+        logger_ui.error("No map file configured for local map tiles.")
+        return {
+            "map_tile_url_template": tile_url_template,
+            "map_tile_max_native_zoom": max_native_zoom,
+        }
 
     if not os.path.isfile(map_file):
         logger_ui.error(f"Couldn't find the map file: {map_file}")

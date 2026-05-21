@@ -85,7 +85,7 @@ The app will try to find the default map for some theaters (official ones and 4.
 
 The map can be dragged with the mouse and zoomed with the mouse wheel. Double-click sets the bullseye.
 
-The map has two modes: local and web. Web mode uses Esri satellite imagery layer, local mode converts a map file specified in the theater .ini file. Coordinate and elevation calculations are based on
+The map has two modes: local and web. Web mode uses Esri satellite imagery layer and is available for BMS 4.38 and newer; earlier versions automatically use local tiles because their terrain coordinates differ. Local mode converts a map file specified in the theater .ini file. Coordinate and elevation calculations are based on
 [falcon-bms-tacview-converter](https://github.com/oakdesign/falcon-bms-tacview-converter/).
 
 The map images usually come with the theater install. For example (all folders are relative to the Falcon BMS install path):

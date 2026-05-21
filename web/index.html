@@ -2027,6 +2027,7 @@
       const payload = currentOverrides();
       try {
         await fetchJSON("/api/config/runtime", { method: "POST", body: JSON.stringify(payload) });
+        await loadMapSources();
         await loadStatus();
       } catch (err) {
         log(`Version change failed: ${err.message}`);
@@ -2372,6 +2373,7 @@
     async function captureMapImage() {
       if (!layoutIncludesMap()) return null;
       const cw = briefFrame?.contentWindow;
+      if (cw && cw.htmlBriefMapAvailable === false) return null;
       if (!cw || typeof cw.exportMapImage !== "function") {
         throw new Error("Map capture unavailable: preview frame is not ready");
       }

@@ -2157,6 +2157,7 @@
     }
 
     function focusDtcRow(row) {
+      if (typeof map === "undefined") return;
       const x = Number.parseFloat(row.dataset.dtcMapX || "");
       const y = Number.parseFloat(row.dataset.dtcMapY || "");
       if (!Number.isFinite(x) || !Number.isFinite(y) || typeof convertCoord !== "function") return;
@@ -2278,7 +2279,7 @@
         togglePopupSupport();
       }
     });
-    renderSteerpointMarkers();
+    if (typeof renderSteerpointMarkers === "function") renderSteerpointMarkers();
     renderDtcIcpSettings();
     renderDtcLaserSettings();
     renderDtcFccSettings();

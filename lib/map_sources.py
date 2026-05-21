@@ -1,4 +1,8 @@
+import re
+
+
 LOCAL_MAP_ID = "local"
+WEB_MAP_MIN_VERSION = (4, 38)
 
 WEB_MAP_SOURCES = {
     "esri_imagery_hybrid": {
@@ -54,22 +58,28 @@ REPLACED_MAP_SYSTEM_KEYS = {
 }
 
 
-def map_source_options():
+def supports_web_maps(bms_version):
+    version = _version_tuple(bms_version)
+    return version >= WEB_MAP_MIN_VERSION
+
+
+def map_source_options(bms_version=None):
     options = [{"id": LOCAL_MAP_ID, "label": "BMS local"}]
-    options.extend(
-        {"id": map_id, "label": source.get("label", map_id)}
-        for map_id, source in WEB_MAP_SOURCES.items()
-    )
+    if supports_web_maps(bms_version):
+        options.extend(
+            {"id": map_id, "label": source.get("label", map_id)}
+            for map_id, source in WEB_MAP_SOURCES.items()
+        )
     return options
 
 
-def map_selection(conf):
+def map_selection(conf, bms_version=None):
     try:
         raw = conf["system"].get("map", LOCAL_MAP_ID)
     except Exception:
         raw = LOCAL_MAP_ID
     map_id = str(raw).strip().lower().replace("-", "_") or LOCAL_MAP_ID
-    if map_id in WEB_MAP_SOURCES:
+    if supports_web_maps(bms_version) and map_id in WEB_MAP_SOURCES:
         return map_selection_from_id(map_id)
 
     return map_selection_from_id(LOCAL_MAP_ID)
@@ -98,3 +108,10 @@ def map_selection_from_id(map_id):
         "web_tile_filter": "",
         "web_tile_max_zoom": 19,
     }
+
+
+def _version_tuple(bms_version):
+    parts = [int(part) for part in re.findall(r"\d+", str(bms_version or ""))]
+    if len(parts) < 2:
+        parts.extend([0] * (2 - len(parts)))
+    return tuple(parts[:2])

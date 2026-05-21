@@ -12,8 +12,11 @@ from typing import Any, Callable, Dict, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from lib.bms_paths import callsign_ini_path
 from lib.bms_config import BmsConfig
 from lib.html_gen import page_contents_ini_to_list
+from lib.map_sources import map_selection as select_map
+from lib.map_tiles import local_map_available, resolve_local_map_file
 from lib.pdf_export import (
     PdfExportJob,
     PdfRenderTimeout,
@@ -39,6 +42,14 @@ def _pages_include_map(pages: Optional[Dict[str, str]], cfg: configparser.Config
         return any("map" in page for page in page_contents_ini_to_list(cfg))
     except Exception:
         return False
+
+
+def _map_capture_required(cfg: configparser.ConfigParser, bms_cfg: BmsConfig, static_root: Path) -> bool:
+    map_selection = select_map(cfg, getattr(bms_cfg, "version", None))
+    if map_selection["base_mode"] == "web":
+        return True
+    map_file = resolve_local_map_file(bms_cfg, str(static_root))
+    return local_map_available(map_file)
 
 
 class PdfRequest(BaseModel):
@@ -78,8 +89,6 @@ def register_pdf_routes(
         pdf_path: Optional[Path] = None
         try:
             payload_stats = content_payload_stats(payload.content)
-            if _pages_include_map(payload.pages, app.state.cfg) and payload_stats["map_image_len"] <= 0:
-                raise HTTPException(status_code=400, detail="Map capture failed; PDF generation requires a captured map image when the map page is enabled.")
             logger.debug(
                 "PDF[%s] request start: selected_package_index=%r cam_loaded=%s payload_keys=%d map_image_len=%d target_image_keys=%d display_keys=%d text_keys=%d total_text_len=%d",
                 pdf_trace,
@@ -103,6 +112,12 @@ def register_pdf_routes(
             except Exception as exc:
                 logger.error("Failed to build PDF BMS config: %s", exc)
                 raise HTTPException(status_code=500, detail=f"PDF config error: {exc}") from exc
+            if (
+                _pages_include_map(payload.pages, cfg_pdf)
+                and _map_capture_required(cfg_pdf, bms_cfg_pdf, static_root)
+                and payload_stats["map_image_len"] <= 0
+            ):
+                raise HTTPException(status_code=400, detail="Map capture failed; PDF generation requires a captured map image when the map page is enabled.")
             ensure_dirs(cfg_pdf)
             step_started = time.perf_counter()
             brief_summary, selected_package_index = resolve_brief_render_state(
@@ -164,7 +179,7 @@ def register_pdf_routes(
                         Path(bms_cfg_pdf.base_dir) / "User" / "Briefings" / "briefing.txt"
                     )
                     app.state.callsign_mtime_ref = os.path.getmtime(
-                        Path(bms_cfg_pdf.base_dir) / "User" / "Config" / f"{bms_cfg_pdf.callsign}.ini"
+                        callsign_ini_path(bms_cfg_pdf)
                     )
                 except Exception:
                     pass

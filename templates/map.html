@@ -238,6 +238,7 @@
 		    margin-top: -4px;
 		}
 	</style>
+{% if map_available|default(true) %}
 <table width="100%">
   <colgroup>
     <col style="width:{% if enable_map_collapse|default(true) %}14{% else %}20{% endif %}%;">
@@ -268,6 +269,7 @@
 
 
 <script>
+window.htmlBriefMapAvailable = true;
 const MAP_BASE_MODE = {{ map_base_mode|default("local_tiles")|tojson }};
 const IS_WEB_MAP = MAP_BASE_MODE === "web";
 const MAP_ENABLE_BULLSEYE_EDIT = {{ enable_map_bullseye_edit|default(true)|tojson }};
@@ -1141,13 +1143,14 @@ function latLngToCanvasPoint(latlng) {
 
 function getThreatRadiusPx(centerLatLng, radius) {
     const center = latLngToCanvasPoint(centerLatLng);
+    const latlng = L.latLng(centerLatLng);
+    if (!Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) return 0;
     if (IS_WEB_MAP) {
-        const latlng = L.latLng(centerLatLng);
         const edgeLatLng = L.latLng(latlng.lat + (radius / 111320), latlng.lng);
         const edge = latLngToCanvasPoint(edgeLatLng);
         return Math.abs(edge.y - center.y);
     }
-    const edge = latLngToCanvasPoint([centerLatLng[0] + radius, centerLatLng[1]]);
+    const edge = latLngToCanvasPoint([latlng.lat + radius, latlng.lng]);
     return Math.abs(edge.y - center.y);
 }
 
@@ -2143,3 +2146,13 @@ async function exportMapImage() {
 window.exportMapImage = exportMapImage;
 
 </script>
+{% else %}
+<table width="100%">
+  <tr><th class="header">Map</th></tr>
+  <tr><td>No map configured for this BMS version/theater.</td></tr>
+</table>
+<script>
+window.htmlBriefMapAvailable = false;
+window.exportMapImage = async function() { return null; };
+</script>
+{% endif %}

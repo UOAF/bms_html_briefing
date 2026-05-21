@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from lib.bms_config import BmsConfig
+from lib.bms_paths import callsign_ini_path
 from lib.html_gen import page_contents_ini_to_list
 from lib.kneeboard_order import (
     KNEEBOARD_ORDER_SECTION,
@@ -96,8 +97,6 @@ def register_config_routes(
         map_file = cfg.get("map_file", "") or cfg.get("default_map_file", "")
         if map_file and not os.path.isabs(map_file):
             map_file = os.path.join(bms.base_dir, map_file)
-        if not map_file:
-            map_file = os.path.join(bms.script_dir, "assets", "maps", "map.png")
         return {
             "theater": bms.theater,
             "target_folder": cfg.get("target_folder", ""),
@@ -114,7 +113,12 @@ def register_config_routes(
 
     @app.get("/api/map-sources")
     def get_map_sources() -> Dict[str, Any]:
-        return {"sources": map_source_options()}
+        bms_version = None
+        try:
+            bms_version = app.state.cfg["bms"].get("bms_version")
+        except Exception:
+            pass
+        return {"sources": map_source_options(bms_version)}
 
     @app.get("/api/kneeboard/order")
     def get_kneeboard_order() -> Dict[str, Any]:
@@ -316,7 +320,7 @@ def register_config_routes(
             if bms.theater_config.has_section(bms.theater):
                 target_folder = bms.theater_config[bms.theater].get("target_folder", "")
             brief_path = Path(bms.base_dir) / "User" / "Briefings" / "briefing.txt"
-            callsign_path = Path(bms.base_dir) / "User" / "Config" / f"{bms.callsign}.ini"
+            callsign_path = callsign_ini_path(bms)
             brief_mtime = brief_path.stat().st_mtime if brief_path.exists() else None
             callsign_mtime = callsign_path.stat().st_mtime if callsign_path.exists() else None
             data.update(
