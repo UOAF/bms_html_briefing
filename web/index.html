@@ -274,7 +274,8 @@
     }
 
     .layout.dtc-active .mfd-flow,
-    .layout.dtc-active .mfd-layout {
+    .layout.dtc-active .mfd-layout,
+    .layout.dtc-active .mfd-kneeboard-order {
       display: none;
     }
 
@@ -580,6 +581,43 @@
     .sortable li.dragging {
       opacity: 0.6;
       background: rgba(58, 167, 255, 0.08);
+    }
+
+    .sortable li.is-excluded {
+      color: rgba(212, 212, 212, 0.58);
+    }
+
+    .kneeboard-order-label {
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .kneeboard-order-side {
+      min-width: 5rem;
+      text-align: right;
+      font-family: "IBMPlexMono";
+      font-size: 0.78rem;
+      color: rgba(212, 212, 212, 0.78);
+    }
+
+    .kneeboard-order-checkbox {
+      width: 1rem;
+      height: 1rem;
+      accent-color: #80bfff;
+    }
+
+    .kneeboard-order-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      align-items: start;
+    }
+
+    .kneeboard-order-grid.is-single {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .pill-handle {
@@ -993,6 +1031,26 @@
           </div>
         </section>
 
+        <section class="mfd-box mfd-kneeboard-order no-print">
+          <div class="mfd-anchor mfd-anchor-right no-print">
+            <button id="refresh-kneeboard-order-btn" type="button">Refresh</button>
+            <button id="save-kneeboard-order-btn" type="button">Save order</button>
+          </div>
+          <div class="panel-head">
+            <h3 class="heading-zero">Kneeboard order</h3>
+          </div>
+          <div id="kneeboard-order-grid" class="kneeboard-order-grid">
+            <div>
+              <label id="kneeboard-left-label">Left kneeboard</label>
+              <ul id="kneeboard-left-list" class="sortable" aria-labelledby="kneeboard-left-label"></ul>
+            </div>
+            <div id="kneeboard-right-column">
+              <label id="kneeboard-right-label">Right kneeboard</label>
+              <ul id="kneeboard-right-list" class="sortable" aria-labelledby="kneeboard-right-label"></ul>
+            </div>
+          </div>
+        </section>
+
         <section>
           <h3 class="heading-top-zero">Messages</h3>
           <div id="log">Waiting...</div>
@@ -1142,6 +1200,12 @@
     const pdfBtn = document.getElementById("pdf-btn");
     const exportBtn = document.getElementById("export-btn");
     const openPdfBtn = document.getElementById("open-pdf-btn");
+    const kneeboardOrderGrid = document.getElementById("kneeboard-order-grid");
+    const kneeboardLeftList = document.getElementById("kneeboard-left-list");
+    const kneeboardRightList = document.getElementById("kneeboard-right-list");
+    const kneeboardRightColumn = document.getElementById("kneeboard-right-column");
+    const saveKneeboardOrderBtn = document.getElementById("save-kneeboard-order-btn");
+    const refreshKneeboardOrderBtn = document.getElementById("refresh-kneeboard-order-btn");
     const generateBriefBtns = Array.from(document.querySelectorAll(".generate-brief-btn"));
     const camSaveSelect = document.getElementById("cam-save-select");
     const camRefreshBtn = document.getElementById("cam-refresh-btn");
@@ -1231,6 +1295,10 @@
     let selectedMapSourceId = "local";
     let draggingEl = null;
     let draggingFrom = null;
+    let kneeboardDraggingEl = null;
+    let kneeboardOrderPages = [];
+    let kneeboardOrderAirframe = "F-16";
+    let kneeboardDndAttached = false;
     let pdfBusy = false;
     let localPdfBusy = false;
     let serverPdfBusy = false;
@@ -1238,6 +1306,7 @@
     let filesChangedState = false;
     let pendingAutoExport = false;
     let skipNextAutoExportEdge = false;
+    let currentPdfOverflow = null;
     let autoExportOnChange = false;
     let autoExportPdfOnly = false;
     let briefingScrollMode = "continuous";
@@ -1841,6 +1910,7 @@
         pdfStatus: data.pdf_status,
         pdfError: data.pdf_error
       });
+      currentPdfOverflow = data.pdf_overflow;
       refreshDtcLinkedDiffIndicators();
       return { hasError, appStateReset };
     }
@@ -1919,6 +1989,7 @@
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
         log("Config saved");
         await loadStatus();
+        await loadKneeboardOrder(true);
       } catch (err) {
         log(`Save failed: ${err.message}`);
       }
@@ -1966,7 +2037,14 @@
     document.getElementById("default_airframe").addEventListener("change", async (e) => {
       const payload = currentOverrides();
       payload.bms.default_airframe = e.target.value;
+      try {
+        await fetchJSON("/api/config/runtime", { method: "POST", body: JSON.stringify(payload) });
+      } catch (err) {
+        log(`Airframe change failed: ${err.message}`);
+        return;
+      }
       await doPreview(payload);
+      await loadKneeboardOrder(true);
     });
 
     document.querySelectorAll(".generate-brief-btn").forEach(btn => {
@@ -2369,6 +2447,10 @@
       updateBusyUi();
     }
 
+    function pdfOverflowExportWarning() {
+      return "Warning: number of pages in the .pdf exceeds selected number of pages in the briefing: likely layout overflow; are you sure you want to export?";
+    }
+
     async function runPdfGeneration({ source = "manual", overrides = null, includeTheater = false, started = performance.now() } = {}) {
       const activeOverrides = overrides || currentOverrides();
       const payload = { content: getLatestEdits(), ...activeOverrides };
@@ -2391,6 +2473,7 @@
       const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
       debugLog(`PDF request: POST /api/pdf done elapsed_ms=${(performance.now() - started).toFixed(1)}`);
       log(`PDF generated at ${pdfRes.pdf_file}`);
+      await loadKneeboardOrder(true, { preserveCurrent: true });
       return { pdfRes, payload, overrides: activeOverrides };
     }
 
@@ -2417,8 +2500,25 @@
           includeTheater: true,
           started
         });
+        await pollStatusBadges();
+        if (currentPdfOverflow === true) {
+          const warning = pdfOverflowExportWarning();
+          if (source === "auto") {
+            log(warning);
+          } else if (!window.confirm(warning)) {
+            log("Export cancelled: PDF page overflow");
+            return;
+          }
+        }
         if (!pdfOnlyAuto) {
-          const expRes = await fetchJSON("/api/export", { method: "POST", body: JSON.stringify({ ...overrides, theater: payload.theater }) });
+          const expRes = await fetchJSON("/api/export", {
+            method: "POST",
+            body: JSON.stringify({
+              ...overrides,
+              theater: payload.theater,
+              kneeboard_order: readKneeboardOrderRows()
+            })
+          });
           log(`Exported kneeboards to ${expRes.target_folder}`);
         } else {
           log("Auto-export PDF-only mode: skipped DDS kneeboard export");
@@ -2761,6 +2861,222 @@
       }
     }
 
+    async function loadKneeboardOrder(silent = false, options = {}) {
+      if (!kneeboardLeftList || !kneeboardRightList) return;
+      const currentRows = options.preserveCurrent ? readKneeboardOrderRows() : [];
+      try {
+        const data = await fetchJSON("/api/kneeboard/order");
+        kneeboardOrderAirframe = data.airframe || "F-16";
+        const serverPages = Array.isArray(data.pages) ? data.pages : [];
+        kneeboardOrderPages = currentRows.length
+          ? mergeKneeboardOrderPages(serverPages, currentRows)
+          : serverPages;
+        renderKneeboardOrder();
+        const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+        warnings.forEach((warning) => log(warning));
+        if (!silent) {
+          log(`Kneeboard order loaded (${kneeboardOrderPages.length}/${data.max_pages || 32})`);
+        }
+      } catch (err) {
+        log(`Failed to load kneeboard order: ${err.message}`);
+      }
+    }
+
+    function mergeKneeboardOrderPages(availablePages, currentRows) {
+      const availableById = new Map((availablePages || []).map((page) => [page.id, page]));
+      const merged = [];
+      const seen = new Set();
+      (currentRows || []).forEach((row) => {
+        if (!row || !row.id || seen.has(row.id)) return;
+        const page = availableById.get(row.id);
+        if (!page) return;
+        seen.add(row.id);
+        merged.push({ ...page, included: row.included !== false });
+      });
+      (availablePages || []).forEach((page) => {
+        if (!page || !page.id || seen.has(page.id)) return;
+        seen.add(page.id);
+        merged.push(page);
+      });
+      return merged.filter((page) => page.included !== false).concat(
+        merged.filter((page) => page.included === false)
+      );
+    }
+
+    function kneeboardSideLabel(includedIndex) {
+      if (kneeboardOrderAirframe === "F-15") {
+        return `PAGE ${includedIndex + 1}`;
+      }
+      const pair = Math.floor(includedIndex / 2) + 1;
+      return `${includedIndex % 2 === 0 ? "LEFT" : "RIGHT"} ${pair}`;
+    }
+
+    function normalizeKneeboardOrderDom() {
+      if (!kneeboardLeftList || !kneeboardRightList) return;
+      const lists = kneeboardOrderAirframe === "F-15" ? [kneeboardLeftList] : [kneeboardLeftList, kneeboardRightList];
+      lists.forEach((list) => {
+        const rows = Array.from(list.querySelectorAll("li[data-page-id]"));
+        const checked = rows.filter((row) => row.querySelector(".kneeboard-order-checkbox")?.checked);
+        const unchecked = rows.filter((row) => !row.querySelector(".kneeboard-order-checkbox")?.checked);
+        checked.concat(unchecked).forEach((row) => list.appendChild(row));
+      });
+      let includedIndex = 0;
+      readKneeboardOrderRows({ includeRows: true }).forEach((entry) => {
+        const row = entry.row;
+        const checkbox = row.querySelector(".kneeboard-order-checkbox");
+        const side = row.querySelector(".kneeboard-order-side");
+        const included = !!checkbox?.checked;
+        row.classList.toggle("is-excluded", !included);
+        if (side) {
+          side.textContent = included ? kneeboardSideLabel(includedIndex) : "EXCLUDED";
+        }
+        if (included) includedIndex += 1;
+      });
+      kneeboardOrderPages = readKneeboardOrderRows();
+    }
+
+    function rowsFromKneeboardList(list) {
+      if (!list) return [];
+      return Array.from(list.querySelectorAll("li[data-page-id]"));
+    }
+
+    function readKneeboardOrderRows(options = {}) {
+      const includeRows = !!options.includeRows;
+      if (!kneeboardLeftList || !kneeboardRightList) return [];
+      let rows = [];
+      if (kneeboardOrderAirframe === "F-15") {
+        rows = rowsFromKneeboardList(kneeboardLeftList);
+      } else {
+        const leftRows = rowsFromKneeboardList(kneeboardLeftList);
+        const rightRows = rowsFromKneeboardList(kneeboardRightList);
+        const maxRows = Math.max(leftRows.length, rightRows.length);
+        for (let i = 0; i < maxRows; i += 1) {
+          if (leftRows[i]) rows.push(leftRows[i]);
+          if (rightRows[i]) rows.push(rightRows[i]);
+        }
+      }
+      rows = rows.filter((row) => row.querySelector(".kneeboard-order-checkbox")?.checked).concat(
+        rows.filter((row) => !row.querySelector(".kneeboard-order-checkbox")?.checked)
+      );
+      return rows.map((row) => {
+        const item = {
+          id: row.dataset.pageId,
+          included: !!row.querySelector(".kneeboard-order-checkbox")?.checked
+        };
+        if (includeRows) item.row = row;
+        return item;
+      });
+    }
+
+    function renderKneeboardOrder() {
+      if (!kneeboardLeftList || !kneeboardRightList) return;
+      kneeboardLeftList.innerHTML = "";
+      kneeboardRightList.innerHTML = "";
+      if (kneeboardOrderGrid) {
+        kneeboardOrderGrid.classList.toggle("is-single", kneeboardOrderAirframe === "F-15");
+      }
+      if (kneeboardRightColumn) {
+        kneeboardRightColumn.hidden = kneeboardOrderAirframe === "F-15";
+      }
+      if (!kneeboardOrderPages.length) {
+        const li = document.createElement("li");
+        li.textContent = "No export pages found";
+        li.draggable = false;
+        kneeboardLeftList.appendChild(li);
+        return;
+      }
+      kneeboardOrderPages.forEach((page, idx) => {
+        const li = document.createElement("li");
+        li.draggable = true;
+        li.dataset.pageId = page.id;
+        li.title = page.label || page.id;
+
+        const handle = document.createElement("span");
+        handle.className = "pill-handle page";
+        handle.textContent = "⇅";
+        li.appendChild(handle);
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "kneeboard-order-checkbox";
+        checkbox.checked = page.included !== false;
+        checkbox.title = "Include in kneeboard export";
+        checkbox.addEventListener("change", normalizeKneeboardOrderDom);
+        li.appendChild(checkbox);
+
+        const label = document.createElement("span");
+        label.className = "kneeboard-order-label";
+        label.textContent = page.label || page.id;
+        li.appendChild(label);
+
+        const side = document.createElement("span");
+        side.className = "kneeboard-order-side";
+        li.appendChild(side);
+
+        if (kneeboardOrderAirframe !== "F-15" && idx % 2 === 1) {
+          kneeboardRightList.appendChild(li);
+        } else {
+          kneeboardLeftList.appendChild(li);
+        }
+      });
+      attachKneeboardDnD();
+      normalizeKneeboardOrderDom();
+    }
+
+    function attachKneeboardDnD() {
+      if (!kneeboardLeftList || !kneeboardRightList || kneeboardDndAttached) return;
+      kneeboardDndAttached = true;
+      [kneeboardLeftList, kneeboardRightList].forEach((list) => {
+        list.addEventListener("dragstart", (e) => {
+          const li = e.target.closest("li[data-page-id]");
+          if (!li) return;
+          kneeboardDraggingEl = li;
+          li.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", li.dataset.pageId);
+        });
+        list.addEventListener("dragend", () => {
+          if (kneeboardDraggingEl) kneeboardDraggingEl.classList.remove("dragging");
+          kneeboardDraggingEl = null;
+          normalizeKneeboardOrderDom();
+        });
+        list.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          if (!kneeboardDraggingEl) return;
+          if (kneeboardOrderAirframe === "F-15" && list !== kneeboardLeftList) return;
+          const after = getAfterElement(list, e.clientY);
+          if (after == null) {
+            list.appendChild(kneeboardDraggingEl);
+          } else {
+            list.insertBefore(kneeboardDraggingEl, after);
+          }
+        });
+        list.addEventListener("drop", (e) => {
+          e.preventDefault();
+          if (kneeboardDraggingEl) kneeboardDraggingEl.classList.remove("dragging");
+          kneeboardDraggingEl = null;
+          normalizeKneeboardOrderDom();
+        });
+      });
+    }
+
+    async function saveKneeboardOrder() {
+      try {
+        const response = await fetchJSON("/api/kneeboard/order", {
+          method: "POST",
+          body: JSON.stringify({ pages: readKneeboardOrderRows() })
+        });
+        kneeboardOrderAirframe = response.airframe || kneeboardOrderAirframe;
+        kneeboardOrderPages = Array.isArray(response.pages) ? response.pages : [];
+        renderKneeboardOrder();
+        const warnings = Array.isArray(response.warnings) ? response.warnings : [];
+        warnings.forEach((warning) => log(warning));
+        log("Kneeboard order saved");
+      } catch (err) {
+        log(`Save kneeboard order failed: ${err.message}`);
+      }
+    }
+
     function renderPages() {
       const pageSelect = document.getElementById("page-select");
       const list = document.getElementById("section-list");
@@ -2936,6 +3252,16 @@
       });
     }
 
+    if (saveKneeboardOrderBtn) {
+      saveKneeboardOrderBtn.addEventListener("click", saveKneeboardOrder);
+    }
+
+    if (refreshKneeboardOrderBtn) {
+      refreshKneeboardOrderBtn.addEventListener("click", async () => {
+        await loadKneeboardOrder(false, { preserveCurrent: true });
+      });
+    }
+
     if (autoExportModeBtn) {
       autoExportModeBtn.addEventListener("click", async () => {
         const prevOn = autoExportOnChange;
@@ -2997,6 +3323,7 @@
       await loadConfig();
       log("Loading status and generating initial preview if needed...");
       await loadStatus();
+      await loadKneeboardOrder(true);
       await pollLogs();
       await pollStatusBadges();
       clearInterval(logPollTimer);

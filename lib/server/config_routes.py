@@ -4,7 +4,7 @@ import configparser
 import logging
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException
@@ -12,6 +12,13 @@ from pydantic import BaseModel
 
 from lib.bms_config import BmsConfig
 from lib.html_gen import page_contents_ini_to_list
+from lib.kneeboard_order import (
+    KNEEBOARD_ORDER_SECTION,
+    discover_kneeboard_pages,
+    max_kneeboard_pages,
+    resolve_kneeboard_order,
+    save_kneeboard_order,
+)
 from lib.map_sources import REPLACED_MAP_SYSTEM_KEYS, map_source_options
 
 logger = logging.getLogger("html_brief_log")
@@ -58,6 +65,15 @@ class CustomChecklistSaveRequest(BaseModel):
     values: Dict[str, Any]
 
 
+class KneeboardOrderItem(BaseModel):
+    id: str
+    included: bool = True
+
+
+class KneeboardOrderUpdate(BaseModel):
+    pages: List[KneeboardOrderItem]
+
+
 def register_config_routes(
     app: FastAPI,
     *,
@@ -99,6 +115,40 @@ def register_config_routes(
     @app.get("/api/map-sources")
     def get_map_sources() -> Dict[str, Any]:
         return {"sources": map_source_options()}
+
+    @app.get("/api/kneeboard/order")
+    def get_kneeboard_order() -> Dict[str, Any]:
+        return _kneeboard_order_response(app.state.cfg)
+
+    @app.post("/api/kneeboard/order")
+    def update_kneeboard_order(payload: KneeboardOrderUpdate) -> Dict[str, Any]:
+        available, _ = discover_kneeboard_pages(app.state.cfg, _airframe(app.state.cfg))
+        available_ids = {page.id for page in available}
+        normalized: List[Dict[str, Any]] = []
+        save_warnings: List[str] = []
+        seen: set[str] = set()
+        for page in payload.pages:
+            page_id = str(page.id or "").strip()
+            if not page_id or page_id in seen:
+                continue
+            if page_id not in available_ids:
+                save_warnings.append(f"Kneeboard order: skipped unavailable page {page_id}.")
+                continue
+            seen.add(page_id)
+            normalized.append({"id": page_id, "included": page.included})
+        for page in available:
+            if page.id not in seen:
+                normalized.append({"id": page.id, "included": True})
+
+        normalized = [page for page in normalized if page["included"]] + [
+            page for page in normalized if not page["included"]
+        ]
+        save_kneeboard_order(app.state.cfg, normalized)
+
+        cfg_to_persist = load_config(app.state.config_path)
+        save_kneeboard_order(cfg_to_persist, normalized)
+        save_config(cfg_to_persist, app.state.config_path)
+        return _kneeboard_order_response(app.state.cfg, extra_warnings=save_warnings)
 
     @app.post("/api/custom-checklist/template")
     def save_custom_checklist_template(payload: CustomChecklistSaveRequest) -> Dict[str, Any]:
@@ -291,6 +341,30 @@ def register_config_routes(
 
 def _serialize_config(cfg: configparser.ConfigParser) -> Dict[str, Dict[str, str]]:
     return {section: dict(cfg[section]) for section in cfg.sections()}
+
+
+def _airframe(cfg: configparser.ConfigParser) -> str:
+    try:
+        return cfg["bms"].get("default_airframe", "F-16")
+    except Exception:
+        return "F-16"
+
+
+def _kneeboard_order_response(
+    cfg: configparser.ConfigParser,
+    extra_warnings: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    airframe = _airframe(cfg)
+    pages, warnings = resolve_kneeboard_order(cfg, airframe)
+    if extra_warnings:
+        warnings = extra_warnings + warnings
+    return {
+        "airframe": airframe,
+        "max_pages": max_kneeboard_pages(airframe),
+        "pages": [page.to_dict() for page in pages],
+        "warnings": warnings,
+        "saved": cfg.has_section(KNEEBOARD_ORDER_SECTION),
+    }
 
 
 def _append_sanitized_html(el: Any, raw: Any) -> None:

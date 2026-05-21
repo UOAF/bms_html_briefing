@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 
 from lib.bms_config import BmsConfig
 from lib.kneeboard_export import export_kneeboards
+from lib.kneeboard_order import save_kneeboard_order
 from lib.server.render_routes import PreviewRequest
 
 logger = logging.getLogger("html_brief_log")
@@ -29,6 +30,9 @@ def register_export_routes(
             bms=getattr(payload, "bms", None),
             system=getattr(payload, "system", None),
         )
+        runtime_kneeboard_order = getattr(payload, "kneeboard_order", None) if payload else None
+        if runtime_kneeboard_order:
+            save_kneeboard_order(cfg_export, runtime_kneeboard_order)
         try:
             bms_cfg_export = BmsConfig(
                 cfg_export,

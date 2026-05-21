@@ -3,6 +3,8 @@ import os, logging, tempfile, shutil
 from PIL import Image
 import pymupdf
 
+from lib.kneeboard_order import resolve_kneeboard_order
+
 logger = logging.getLogger('html_brief_log')
 logger_ui = logging.getLogger('ui_logger')
 
@@ -11,33 +13,13 @@ def export_kneeboards(conf, bms_conf):
     airframe = conf['bms']['default_airframe']
     if airframe not in {"F-16", "F-15"}:
         raise ValueError(f"Unsupported airframe for kneeboard export: {airframe}")
-    src = conf['system']['pdf_output_dir']
     output = bms_conf.theater_config[bms_conf.theater]['target_folder']
-    file_list = sorted(
-        f for f in os.listdir(src) if os.path.isfile(os.path.join(src, f))
-    )
+    ordered_pages, warnings = resolve_kneeboard_order(conf, airframe)
+    for warning in warnings:
+        logger_ui.warning(warning)
+    export_pages = [page for page in ordered_pages if page.included]
     with tempfile.TemporaryDirectory() as tmp_dir:
-
-        for i,f in enumerate(file_list):
-            _, fext = os.path.splitext(f)
-            if fext.lower().strip('.') == "pdf":
-                logger_ui.info(f"Processing a pdf file: {f}")
-                with pymupdf.open(os.path.join(src, f)) as doc:
-                    for j, page in enumerate(doc):
-                        pix = page.get_pixmap(dpi = 150)  # render page to an image
-                        pix.save(os.path.join(tmp_dir, "page_" + f"{i:02d}_conv_{j}.png"))
-
-            if fext.lower().strip('.') in ['png', 'jpg']:
-                logger_ui.info(f"Processing a {fext.lower()} file: {f}")
-                with Image.open(os.path.join(src, f)) as source_img:
-                    img = source_img.resize((1024,2048))
-                    img.save(os.path.join(tmp_dir, "page_" + f"{i:02d}_conv.png"))
-                    img.close()
-
-
-        pages_conv = []
-
-        pages_conv += sorted([f for f in os.listdir(tmp_dir)])
+        pages_conv = _render_export_pages(export_pages, tmp_dir)
         if airframe == "F-16":
             for i in range((len(pages_conv)+1)//2):
                 if (i < 16):
@@ -97,3 +79,27 @@ def export_kneeboards(conf, bms_conf):
                 else:
                     logger_ui.info("Too many pages, stopping.")
                     break
+
+
+def _render_export_pages(export_pages, tmp_dir):
+    pages_conv = []
+    for i, page_ref in enumerate(export_pages):
+        out_name = f"page_{i:02d}.png"
+        out_path = os.path.join(tmp_dir, out_name)
+        if page_ref.kind == "image":
+            logger_ui.info(f"Processing an image file: {page_ref.path.name}")
+            with Image.open(page_ref.path) as source_img:
+                img = source_img.resize((1024, 2048))
+                img.save(out_path)
+                img.close()
+        else:
+            page_number = 1 if page_ref.page_index is None else page_ref.page_index + 1
+            logger_ui.info(f"Processing PDF page: {page_ref.path.name} page {page_number}")
+            with pymupdf.open(page_ref.path) as doc:
+                if page_ref.page_index is None or page_ref.page_index >= len(doc):
+                    logger_ui.warning(f"Kneeboard order: skipped missing PDF page {page_ref.id}.")
+                    continue
+                pix = doc[page_ref.page_index].get_pixmap(dpi=150)
+                pix.save(out_path)
+        pages_conv.append(out_name)
+    return pages_conv

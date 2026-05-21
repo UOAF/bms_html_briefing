@@ -4,7 +4,7 @@ import configparser
 import logging
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -20,6 +20,7 @@ class PreviewRequest(BaseModel):
     bms: Optional[Dict[str, str]] = None
     system: Optional[Dict[str, str]] = None
     theater: Optional[Dict[str, Any]] = None
+    kneeboard_order: Optional[List[Dict[str, Any]]] = None
     selected_package_index: Optional[int] = None
 
 
