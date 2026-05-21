@@ -1983,7 +1983,6 @@
       payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
       payload.system.auto_export_on_change = autoExportOnChange ? "True" : "False";
       payload.system.auto_export_pdf_only = autoExportPdfOnly ? "True" : "False";
-      payload.system.briefing_scroll_mode = briefingScrollMode;
       Object.assign(payload.system, selectedMapSystemOverrides());
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
@@ -3300,7 +3299,7 @@
         const nextMode = briefingScrollMode === "paged" ? "continuous" : "paged";
         applyBriefingScrollMode(nextMode);
         try {
-          await fetchJSON("/api/config", {
+          await fetchJSON("/api/config/runtime", {
             method: "POST",
             body: JSON.stringify({
               system: {
@@ -3311,7 +3310,7 @@
           log(`Briefing scroll mode: ${nextMode === "paged" ? "one page at a time" : "continuous"}`);
         } catch (err) {
           applyBriefingScrollMode(previousMode);
-          log(`Failed to save briefing scroll mode: ${err.message}`);
+          log(`Failed to change briefing scroll mode: ${err.message}`);
         }
       });
     }

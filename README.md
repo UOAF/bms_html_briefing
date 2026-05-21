@@ -48,7 +48,7 @@ When launched from a frozen executable, the app starts in the system tray by def
 - The app reads and writes `config.ini` next to the executable (or this repository root when run from source). If it does not exist, a default one is created on first launch.
 - Settings changed in the UI are saved back to `config.ini` and theatersXXX.ini on "Save config" click.
 - Paths can be absolute or relative; relative paths are resolved from the folder where the executable/script lives.
-- `briefing_scroll_mode` can be `continuous` or `paged`. `paged` shows one generated briefing page at a time in the interface preview.
+- `briefing_scroll_mode` can be `continuous` or `paged`. `paged` shows one generated briefing page at a time in the interface preview. The UI selector changes the current session only; edit this value manually to change the startup default.
 - Minimal example:
 ```
 [system]
