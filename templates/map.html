@@ -237,6 +237,56 @@
 		.map-ruler-endpoint-tooltip {
 		    margin-top: -4px;
 		}
+		.map-flight-path-controls {
+		    width: 100%;
+		}
+		.map-flight-path-controls summary {
+		    cursor: pointer;
+		    font-weight: 700;
+		    text-align: left;
+		}
+		.map-flight-path-table {
+		    width: 100%;
+		    table-layout: fixed;
+		    border-collapse: collapse;
+		}
+		.map-flight-path-table td {
+		    height: 1.55em;
+		    padding: 2px 4px;
+		    text-align: left;
+		    vertical-align: middle;
+		}
+		.map-flight-path-table label {
+		    display: flex;
+		    align-items: center;
+		    gap: 5px;
+		    min-width: 0;
+		    font-family: "Briefing Sans", "DejaVu Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+		    font-size: 0.85rem;
+		    font-weight: 700;
+		    line-height: 1.25;
+		}
+		.map-flight-path-table input {
+		    flex: 0 0 auto;
+		}
+		.map-flight-path-swatch {
+		    display: inline-block;
+		    flex: 0 0 auto;
+		    width: 0.9em;
+		    height: 0.9em;
+		    border: 1px solid #000000;
+		}
+		.map-flight-path-label {
+		    min-width: 0;
+		    overflow: hidden;
+		    text-overflow: ellipsis;
+		    white-space: nowrap;
+		}
+		@media print {
+		    .map-flight-path-controls-row {
+		        display: none !important;
+		    }
+		}
 	</style>
 {% if map_available|default(true) %}
 <table width="100%">
@@ -259,13 +309,44 @@
 {% endif %}
   </tr>
 </table>
-<table width="100%" id="map" class="hidable">
-    <tr>
-      <td colspan="2">
-<div id="image-map" class="leaflet-container"></div>
-      </td>
-    </tr>
-</table>
+		<table width="100%" id="map" class="hidable">
+	    {% if map_flight_overlays|default([]) or map_tanker_overlay|default(none) %}
+	    <tr class="map-flight-path-controls-row">
+	      <td colspan="2">
+	        <details id="mapFlightPathControls" class="map-flight-path-controls">
+	          <summary>Flight paths</summary>
+	          <table class="map-flight-path-table">
+	            <tbody>
+	            {% for overlay in map_flight_overlays|default([]) %}
+	            <tr><td>
+	            <label title="{{ overlay.label }}">
+	              <input type="checkbox" class="map-flight-path-toggle" data-map-flight-overlay="{{ overlay.id }}">
+	              <span class="map-flight-path-swatch" style="background: {{ overlay.color }}"></span>
+	              <span class="map-flight-path-label">{{ overlay.label }}</span>
+	            </label>
+	            </td></tr>
+	            {% endfor %}
+	            {% if map_tanker_overlay|default(none) %}
+	            <tr><td>
+	            <label title="{{ map_tanker_overlay.label }}">
+	              <input type="checkbox" class="map-flight-path-toggle" data-map-flight-overlay="{{ map_tanker_overlay.id }}">
+	              <span class="map-flight-path-swatch" style="background: {{ map_tanker_overlay.color }}"></span>
+	              <span class="map-flight-path-label">Tanker track - {{ map_tanker_overlay.label }}</span>
+	            </label>
+	            </td></tr>
+	            {% endif %}
+	            </tbody>
+	          </table>
+	        </details>
+	      </td>
+	    </tr>
+	    {% endif %}
+		    <tr>
+		      <td colspan="2">
+		<div id="image-map" class="leaflet-container"></div>
+	      </td>
+	    </tr>
+	</table>
 
 
 <script>
@@ -280,6 +361,8 @@ const WEB_TILE_FILTER = {{ web_tile_filter|default("")|tojson }};
 const WEB_TILE_LAYERS = {{ web_tile_layers|default([])|tojson }};
 const WEB_TILE_MAX_ZOOM = {{ web_tile_max_zoom|default(19)|tojson }};
 const WEB_TILE_RUNTIME_MAX_ZOOM = Math.min(Number(WEB_TILE_MAX_ZOOM) || 19, 18);
+const CAM_FLIGHT_OVERLAYS = {{ map_flight_overlays|default([])|tojson }};
+const CAM_TANKER_OVERLAY = {{ map_tanker_overlay|default(none)|tojson }};
 const BULLSEYE_RING_NM = Array.from({ length: 20 }, (_, index) => (index + 1) * 25);
 const BULLSEYE_STROKE = "#009900";
 const NM_TO_FEET = 6076.12;
@@ -516,17 +599,33 @@ const MAP_STYLE = {
         offsetX: 10,
         offsetY: -10
     },
-    threatText: {
-        fillStyle: "#ffffff",
-        strokeStyle: "rgba(0,0,0,0.72)",
-        lineWidth: 1.25,
-        font: '700 12px "Map Overlay Mono"',
-        textAlign: "center",
-        textBaseline: "middle",
-        offsetX: 0,
-        offsetY: 18
-    }
-};
+	    threatText: {
+	        fillStyle: "#ffffff",
+	        strokeStyle: "rgba(0,0,0,0.72)",
+	        lineWidth: 1.25,
+	        font: '700 12px "Map Overlay Mono"',
+	        textAlign: "center",
+	        textBaseline: "middle",
+	        offsetX: 0,
+	        offsetY: 18
+	    },
+	    otherFlightPath: {
+	        weight: 2.5,
+	        opacity: 0.96,
+	        haloColor: "rgba(0,0,0,0.72)",
+	        haloWeight: 6,
+	        lineJoin: "round"
+	    },
+	    tankerTrack: {
+	        color: "#ffffff",
+	        fillColor: "rgba(255,255,255,0)",
+	        fillOpacity: 0,
+	        opacity: 0.98,
+	        weight: 2,
+	        haloColor: "rgba(0,0,0,0.74)",
+	        haloWeight: 6
+	    }
+	};
 
 const MAP_EXPORT_SCALE = 1;
 const MAP_EXPORT_IMAGE_TYPE = "image/jpeg";
@@ -722,6 +821,18 @@ function convertCoord(iniCoord) {
     return [convertScalar(x) - imageHeight, convertScalar(y)];
 }
 
+function convertCamGridCoord(camCoord) {
+    if (!camCoord || camCoord.length < 2) return [0, 0];
+    const x = parseFloat(camCoord[0]);
+    const y = parseFloat(camCoord[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return [0, 0];
+    const gridSize = 1024;
+    const eastFeet = Math.abs(x) <= gridSize * 2 ? (x / gridSize) * fWidth : x;
+    const northFeet = Math.abs(y) <= gridSize * 2 ? (y / gridSize) * fHeight : y;
+    if (IS_WEB_MAP) return convertBmsCoordToLatLng(northFeet, eastFeet);
+    return [(northFeet / fHeight) * imageHeight - imageHeight, (eastFeet / fWidth) * imageWidth];
+}
+
 function mapLatLngToRulerCoord(latlng) {
     const point = L.latLng(latlng);
     if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return null;
@@ -804,11 +915,14 @@ window.exportMapLog = [];
 const IS_DTC_PAGE = document.body.classList.contains("dtc-page");
 
 
-  let stptIniCoords = [{% for point in stpt_coords %}
+let stptIniCoords = [{% for point in stpt_coords %}
 		       [ {{point.coord_x}}, {{point.coord_y}}],
 		       {% endfor %}]
 let stptIniIsAlternate = [{% for point in stpt_coords %}
                {{ point.is_alternate|default(false)|tojson }},
+               {% endfor %}]
+let stptIniActions = [{% for point in stpt_coords %}
+               {{ point.action|default("")|tojson }},
                {% endfor %}]
 
     stptMapCoords = [];
@@ -876,8 +990,8 @@ function getAlternateIndex() {
 }
 
 function getRouteEndExclusiveIndex() {
-    const alternateIndex = getAlternateIndex();
-    return alternateIndex >= 0 ? alternateIndex : stptMapCoords.length;
+    const firstLandingIndex = getFirstLandingIndex();
+    return firstLandingIndex >= 0 ? firstLandingIndex + 1 : stptMapCoords.length;
 }
 
 function getRouteEndIndex() {
@@ -895,6 +1009,13 @@ function getFlightPointEntries() {
             if (alternateIndex < 0 && entry.index === routeEndIndex) return false;
             return true;
         });
+}
+
+function getFirstLandingIndex() {
+    for (let index = 0; index < stptIniActions.length; index += 1) {
+        if (String(stptIniActions[index]).trim() === "7") return index;
+    }
+    return -1;
 }
 
 function getEndpointEntries() {
@@ -966,6 +1087,101 @@ function getSteerpointLines() {
     return stptLineMapCoords
         .map((line) => line.filter(validLatLng))
         .filter((line) => line.length > 0);
+}
+
+const CAM_FLIGHT_OVERLAY_STORAGE_PREFIX = "mapCamFlightOverlay:";
+const TANKER_TRACK_WIDTH_NM = 12;
+
+function camFlightOverlayStorageKey(id) {
+    return CAM_FLIGHT_OVERLAY_STORAGE_PREFIX + String(id || "");
+}
+
+function isCamFlightOverlayChecked(id) {
+    if (!id) return false;
+    return localStorage.getItem(camFlightOverlayStorageKey(id)) === "1";
+}
+
+function setCamFlightOverlayChecked(id, checked) {
+    if (!id) return;
+    const key = camFlightOverlayStorageKey(id);
+    if (checked) localStorage.setItem(key, "1");
+    else localStorage.removeItem(key);
+}
+
+function rawOverlayPointsToLatLngs(points) {
+    if (!Array.isArray(points)) return [];
+    return points
+        .map((point) => convertCamGridCoord(point))
+        .filter(validLatLng);
+}
+
+function getSelectedCamFlightOverlayEntries() {
+    if (!Array.isArray(CAM_FLIGHT_OVERLAYS)) return [];
+    return CAM_FLIGHT_OVERLAYS
+        .filter((overlay) => overlay && isCamFlightOverlayChecked(overlay.id))
+        .map((overlay) => ({
+            id: overlay.id,
+            label: overlay.label || "",
+            color: overlay.color || "#ffffff",
+            latlngs: rawOverlayPointsToLatLngs(overlay.points)
+        }))
+        .filter((entry) => entry.latlngs.length >= 2);
+}
+
+function getSelectedCamTankerTrackEntry() {
+    if (!CAM_TANKER_OVERLAY || !isCamFlightOverlayChecked(CAM_TANKER_OVERLAY.id)) return null;
+    const latlngs = rawOverlayPointsToLatLngs(CAM_TANKER_OVERLAY.points);
+    if (latlngs.length < 2) return null;
+    return {
+        id: CAM_TANKER_OVERLAY.id,
+        label: CAM_TANKER_OVERLAY.label || "",
+        color: CAM_TANKER_OVERLAY.color || MAP_STYLE.tankerTrack.color,
+        latlngs: [latlngs[0], latlngs[latlngs.length - 1]]
+    };
+}
+
+function getTrackWidthPx(latlng, widthNm) {
+    const widthFeet = widthNm * NM_TO_FEET;
+    if (IS_WEB_MAP) {
+        return Math.max(8, getThreatRadiusPx(latlng, widthFeet * FEET_TO_METERS));
+    }
+    const center = latLngToCanvasPoint(latlng);
+    const offset = latLngToCanvasPoint([latlng[0] + convertScalar(widthFeet), latlng[1]]);
+    return Math.max(8, Math.abs(offset.y - center.y));
+}
+
+function getTankerTrackPolygonLatLngs(entry) {
+    if (!entry || !Array.isArray(entry.latlngs) || entry.latlngs.length < 2) return [];
+    const start = entry.latlngs[0];
+    const end = entry.latlngs[entry.latlngs.length - 1];
+    const startPoint = map.latLngToLayerPoint(start);
+    const endPoint = map.latLngToLayerPoint(end);
+    const dx = endPoint.x - startPoint.x;
+    const dy = endPoint.y - startPoint.y;
+    const length = Math.hypot(dx, dy);
+    if (!Number.isFinite(length) || length <= 0) return [];
+    const halfWidth = getTrackWidthPx(start, TANKER_TRACK_WIDTH_NM) / 2;
+    const normalX = (-dy / length) * halfWidth;
+    const normalY = (dx / length) * halfWidth;
+    return [
+        map.layerPointToLatLng(L.point(startPoint.x + normalX, startPoint.y + normalY)),
+        map.layerPointToLatLng(L.point(endPoint.x + normalX, endPoint.y + normalY)),
+        map.layerPointToLatLng(L.point(endPoint.x - normalX, endPoint.y - normalY)),
+        map.layerPointToLatLng(L.point(startPoint.x - normalX, startPoint.y - normalY))
+    ];
+}
+
+function bindCamFlightPathControls() {
+    document.querySelectorAll(".map-flight-path-toggle[data-map-flight-overlay]").forEach((input) => {
+        const id = input.dataset.mapFlightOverlay;
+        input.checked = isCamFlightOverlayChecked(id);
+        if (input.dataset.mapFlightBound === "1") return;
+        input.dataset.mapFlightBound = "1";
+        input.addEventListener("change", () => {
+            setCamFlightOverlayChecked(id, input.checked);
+            renderMapDrawings();
+        });
+    });
 }
 
 function escapeHtml(text) {
@@ -1124,6 +1340,44 @@ function renderSteerpointLinesLeaflet() {
     });
 }
 
+function renderCamFlightOverlaysLeaflet() {
+    getSelectedCamFlightOverlayEntries().forEach((entry) => {
+        L.polyline(entry.latlngs, {
+            color: MAP_STYLE.otherFlightPath.haloColor,
+            weight: MAP_STYLE.otherFlightPath.haloWeight,
+            opacity: MAP_STYLE.otherFlightPath.opacity,
+            lineJoin: MAP_STYLE.otherFlightPath.lineJoin,
+            interactive: false
+        }).addTo(drawings);
+        L.polyline(entry.latlngs, {
+            color: entry.color,
+            weight: MAP_STYLE.otherFlightPath.weight,
+            opacity: MAP_STYLE.otherFlightPath.opacity,
+            lineJoin: MAP_STYLE.otherFlightPath.lineJoin,
+            interactive: false
+        }).addTo(drawings);
+    });
+    const tankerEntry = getSelectedCamTankerTrackEntry();
+    const tankerPolygon = getTankerTrackPolygonLatLngs(tankerEntry);
+    if (tankerPolygon.length >= 4) {
+        L.polygon(tankerPolygon, {
+            color: MAP_STYLE.tankerTrack.haloColor,
+            weight: MAP_STYLE.tankerTrack.haloWeight,
+            opacity: MAP_STYLE.tankerTrack.opacity,
+            fillOpacity: 0,
+            interactive: false
+        }).addTo(drawings);
+        L.polygon(tankerPolygon, {
+            color: tankerEntry.color || MAP_STYLE.tankerTrack.color,
+            weight: MAP_STYLE.tankerTrack.weight,
+            opacity: MAP_STYLE.tankerTrack.opacity,
+            fillColor: MAP_STYLE.tankerTrack.fillColor,
+            fillOpacity: MAP_STYLE.tankerTrack.fillOpacity,
+            interactive: false
+        }).addTo(drawings);
+    }
+}
+
 function getOverlayDrawRect(overlay) {
     const sw = overlay.getBounds().getSouthWest();
     const ne = overlay.getBounds().getNorthEast();
@@ -1178,6 +1432,39 @@ function drawCanvasPolyline(ctx, latlngs, style) {
     ctx.lineWidth = style.weight;
     drawPath();
     ctx.stroke();
+    ctx.restore();
+}
+
+function drawCanvasPolygon(ctx, latlngs, style) {
+    const validPoints = latlngs.filter((latlng) => latlng && Number.isFinite(L.latLng(latlng).lat) && Number.isFinite(L.latLng(latlng).lng));
+    if (validPoints.length < 3) return;
+    ctx.save();
+    const drawPath = () => {
+        ctx.beginPath();
+        validPoints.forEach((latlng, index) => {
+            const point = latLngToCanvasPoint(latlng);
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+        });
+        ctx.closePath();
+    };
+    if (style.haloColor && style.haloWeight) {
+        ctx.strokeStyle = style.haloColor;
+        ctx.lineWidth = style.haloWeight;
+        drawPath();
+        ctx.stroke();
+    }
+    if (style.fillStyle) {
+        ctx.fillStyle = style.fillStyle;
+        drawPath();
+        ctx.fill();
+    }
+    if (style.strokeStyle || style.color) {
+        ctx.strokeStyle = style.strokeStyle || style.color;
+        ctx.lineWidth = style.lineWidth || style.weight || 1;
+        drawPath();
+        ctx.stroke();
+    }
     ctx.restore();
 }
 
@@ -1414,9 +1701,33 @@ function renderSteerpointLinesCanvas(ctx) {
     });
 }
 
+function renderCamFlightOverlaysCanvas(ctx) {
+    getSelectedCamFlightOverlayEntries().forEach((entry) => {
+        drawCanvasPolyline(ctx, entry.latlngs, {
+            color: entry.color,
+            weight: MAP_STYLE.otherFlightPath.weight,
+            haloColor: MAP_STYLE.otherFlightPath.haloColor,
+            haloWeight: MAP_STYLE.otherFlightPath.haloWeight,
+            lineJoin: MAP_STYLE.otherFlightPath.lineJoin
+        });
+    });
+    const tankerEntry = getSelectedCamTankerTrackEntry();
+    const tankerPolygon = getTankerTrackPolygonLatLngs(tankerEntry);
+    if (tankerPolygon.length >= 4) {
+        drawCanvasPolygon(ctx, tankerPolygon, {
+            color: tankerEntry.color || MAP_STYLE.tankerTrack.color,
+            weight: MAP_STYLE.tankerTrack.weight,
+            fillStyle: MAP_STYLE.tankerTrack.fillColor,
+            haloColor: MAP_STYLE.tankerTrack.haloColor,
+            haloWeight: MAP_STYLE.tankerTrack.haloWeight
+        });
+    }
+}
+
 function renderMapOverlayCanvas(ctx) {
     renderBullseyeCanvas(ctx);
     renderFlightPlanCanvas(ctx);
+    renderCamFlightOverlaysCanvas(ctx);
     renderThreatsCanvas(ctx);
     renderSteerpointLinesCanvas(ctx);
     renderTargetSteerpointsCanvas(ctx);
@@ -1481,6 +1792,7 @@ function clearLeafletDrawings() {
 function renderLeafletDrawings() {
     clearLeafletDrawings();
     renderFlightPlanLeaflet();
+    renderCamFlightOverlaysLeaflet();
     renderTargetSteerpointsLeaflet();
     renderWeaponTargetsLeaflet();
     renderThreatsLeaflet();
@@ -1907,6 +2219,7 @@ if (IS_WEB_MAP) {
 } else {
     drawTiledMap("{% if map_tile_url_template is defined %}{{ map_tile_url_template }}{% else %}assets/maps/tiles/{z}/{x}/{y}.png{% endif %}?v=" + Date.now());
 }
+bindCamFlightPathControls();
 
 try {
     if (typeof restoreMapView === "function") {
@@ -1921,9 +2234,7 @@ map.on("zoomend", function() {
     if (IS_WEB_MAP) {
         redrawMapCanvasOverlay();
     } else {
-        drawings.eachLayer((layer) => {
-            if (layer && typeof layer.redraw === "function") layer.redraw();
-        });
+        renderMapDrawings();
     }
 });
 
@@ -2128,6 +2439,7 @@ async function exportMapImage() {
 
         renderBullseyeCanvas(ctx);
         renderFlightPlanCanvas(ctx);
+        renderCamFlightOverlaysCanvas(ctx);
         renderThreatsCanvas(ctx);
         renderSteerpointLinesCanvas(ctx);
         renderTargetSteerpointsCanvas(ctx);

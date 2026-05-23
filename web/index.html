@@ -1220,6 +1220,7 @@
     const CAM_PREVIEW_PACKAGE_SELECT_ID = "cam-support-package-select";
     const CAM_PREVIEW_PACKAGE_QUERY_ID = "cam-support-package-query";
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
+    const CAM_MAP_FLIGHT_OVERLAY_KEY_PREFIX = "mapCamFlightOverlay:";
     const CAM_LAST_SAVE_PATH_KEY = "cam_last_save_path";
     const APP_INSTANCE_SEEN_KEY = "app_instance_id_seen";
     const MAIN_VIEW_STORAGE_KEY = "main_view";
@@ -1393,6 +1394,7 @@
         localStorage.removeItem("onrefresh");
         localStorage.removeItem(CAM_SUPPORT_PACKAGE_SAVED_KEY);
         localStorage.removeItem(CAM_LAST_SAVE_PATH_KEY);
+        clearSavedCamMapFlightOverlays();
         localStorage.setItem(APP_INSTANCE_SEEN_KEY, appInstanceId);
       } catch {
         // Keep behavior even if localStorage is unavailable.
@@ -1417,6 +1419,18 @@
 
     function saveCurrentCamSupportPackageSelection() {
       saveCamSupportPackageIndex(getSelectedCamPackageIndex());
+    }
+
+    function clearSavedCamMapFlightOverlays() {
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith(CAM_MAP_FLIGHT_OVERLAY_KEY_PREFIX)) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {
+        // Keep behavior even if localStorage is unavailable.
+      }
     }
 
     function getPreviewCamPackageSelect() {
@@ -2266,6 +2280,7 @@
         }
         const selectedIndex = Number.isFinite(response.selected_package_index) ? response.selected_package_index : 0;
         clearSavedCamRenderedValues({ clearBullseye: true, clearSupportPackage: true });
+        clearSavedCamMapFlightOverlays();
         saveCamSupportPackageIndex(selectedIndex);
         const overrides = currentOverrides();
         overrides.selected_package_index = selectedIndex;
@@ -2309,6 +2324,7 @@
         const select = getPreviewCamPackageSelect();
         if (select) select.value = "";
         clearSavedCamRenderedValues({ clearBullseye: true, clearSupportPackage: true });
+        clearSavedCamMapFlightOverlays();
         resetSavedCamSelection({ clearStoredPath: false, clearSelect: false });
         if (refreshPreviewAfter) {
           const overrides = currentOverrides();

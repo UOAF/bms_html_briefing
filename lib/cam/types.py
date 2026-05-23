@@ -180,6 +180,7 @@ class SummaryFlight(TypedDict):
     aircraft_count: int | None
     tasking: SummaryTasking
     timing: SummaryFlightTiming
+    steerpoints: list[UniWaypointView]
     l16: SummaryL16Record | dict[str, int]
 
 

@@ -157,6 +157,7 @@ def _flight_row(
         "aircraft_count": flight_view.get("aircraft_count"),
         "tasking": _trim_tasking(tasking),
         "timing": timing,
+        "steerpoints": list(view.get("steerpoints") or []),
         "l16": dict(l16_by_flight.get(flight_number, {}))
         if isinstance(flight_number, int)
         else {},

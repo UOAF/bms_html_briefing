@@ -110,6 +110,9 @@ def generate_html_file(
                 "lat": getattr(bms_conf, "theater_center_latitude", None),
                 "lng": getattr(bms_conf, "theater_center_longitude", None),
             },
+            briefing_package_number=brf.overview.package_id,
+            own_flight=getattr(brf, "own_flight", None),
+            support_rows=brf.support,
         )
 
         logo_present = os.path.isfile(os.path.join(script_dir, "assets", "logo.png"))
@@ -157,6 +160,8 @@ def generate_html_file(
                                                  main_package_l16 = render_context["main_package_l16"],
                                                  bullseye = render_context["bullseye"],
                                                  moon_data = render_context["moon_data"],
+                                                 map_flight_overlays = render_context["map_flight_overlays"],
+                                                 map_tanker_overlay = render_context["map_tanker_overlay"],
                                                  ))
     except Exception as e:
         logger.error(f"Couldn't generate HTML: {e}")
