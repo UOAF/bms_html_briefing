@@ -1222,6 +1222,8 @@
     const CAM_SUPPORT_PACKAGE_SAVED_KEY = "cam_support_package_index_saved";
     const CAM_MAP_FLIGHT_OVERLAY_KEY_PREFIX = "mapCamFlightOverlay:";
     const CAM_LAST_SAVE_PATH_KEY = "cam_last_save_path";
+    const CAM_SUPPORT_PACKAGE_CONTENT_KEY = "__cam_support_package_index";
+    const CAM_MAP_OVERLAYS_CONTENT_KEY = "__cam_map_flight_overlays";
     const APP_INSTANCE_SEEN_KEY = "app_instance_id_seen";
     const MAIN_VIEW_STORAGE_KEY = "main_view";
     const BRIEFING_DTC_LINKED_FIELDS = {
@@ -1421,6 +1423,81 @@
       saveCamSupportPackageIndex(getSelectedCamPackageIndex());
     }
 
+    function getPreviewCamOverlaySelections() {
+      const cw = briefFrame?.contentWindow;
+      if (!cw || typeof cw.getCamFlightOverlaySelections !== "function") return {};
+      try {
+        const selections = cw.getCamFlightOverlaySelections();
+        return selections && typeof selections === "object" && !Array.isArray(selections) ? selections : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function setStoredCamOverlaySelections(selections) {
+      clearSavedCamMapFlightOverlays();
+      const source = selections && typeof selections === "object" && !Array.isArray(selections) ? selections : {};
+      Object.entries(source).forEach(([id, checked]) => {
+        if (!id) return;
+        if (checked === true || checked === "1") {
+          localStorage.setItem(CAM_MAP_FLIGHT_OVERLAY_KEY_PREFIX + id, "1");
+        }
+      });
+    }
+
+    function applyPreviewCamOverlaySelections(selections) {
+      const cw = briefFrame?.contentWindow;
+      if (!cw || typeof cw.setCamFlightOverlaySelections !== "function") return false;
+      try {
+        cw.setCamFlightOverlaySelections(selections);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function saveCamUiStateToEdits() {
+      const saved = getSavedEdits();
+      const selected = getSelectedCamPackageIndex();
+      if (Number.isFinite(selected)) {
+        saved[CAM_SUPPORT_PACKAGE_CONTENT_KEY] = String(selected);
+        saveCamSupportPackageIndex(selected);
+      } else {
+        delete saved[CAM_SUPPORT_PACKAGE_CONTENT_KEY];
+        saveCamSupportPackageIndex(null);
+      }
+      saved[CAM_MAP_OVERLAYS_CONTENT_KEY] = JSON.stringify(getPreviewCamOverlaySelections());
+      localStorage.setItem("contenteditables", JSON.stringify(saved));
+    }
+
+    function parseSavedCamOverlaySelections(saved) {
+      const raw = saved ? saved[CAM_MAP_OVERLAYS_CONTENT_KEY] : null;
+      if (!raw) return {};
+      if (typeof raw === "object" && !Array.isArray(raw)) return raw;
+      try {
+        const parsed = JSON.parse(String(raw));
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    async function loadCamUiStateFromEdits() {
+      const saved = getSavedEdits();
+      const selected = Number.parseInt(String(saved[CAM_SUPPORT_PACKAGE_CONTENT_KEY] ?? ""), 10);
+      const hasSelected = Number.isFinite(selected) && selected >= 0;
+      const overlaySelections = parseSavedCamOverlaySelections(saved);
+      setStoredCamOverlaySelections(overlaySelections);
+      if (hasSelected) {
+        saveCamSupportPackageIndex(selected);
+        const overrides = currentOverrides();
+        overrides.selected_package_index = selected;
+        await doPreview(overrides);
+        return;
+      }
+      applyPreviewCamOverlaySelections(overlaySelections);
+    }
+
     function clearSavedCamMapFlightOverlays() {
       try {
         Object.keys(localStorage).forEach((key) => {
@@ -1463,6 +1540,8 @@
           delete saved[key];
         }
       });
+      delete saved[CAM_SUPPORT_PACKAGE_CONTENT_KEY];
+      delete saved[CAM_MAP_OVERLAYS_CONTENT_KEY];
       localStorage.setItem("contenteditables", JSON.stringify(saved));
     }
 
@@ -2782,18 +2861,21 @@
 
     saveEditsBtn?.addEventListener("click", () => {
       callBriefingLoadedFrame("saveChangedData");
-      saveCurrentCamSupportPackageSelection();
+      saveCamUiStateToEdits();
       syncDtcLinkedFields();
     });
-    loadEditsBtn?.addEventListener("click", () => {
+    loadEditsBtn?.addEventListener("click", async () => {
       callBriefing("loadChangedData");
-      saveCurrentCamSupportPackageSelection();
+      await loadCamUiStateFromEdits();
     });
     resetEditsBtn?.addEventListener("click", () => {
       const resetResult = callBriefing("resetContenteditables");
       pendingBriefingResetFromToolbar = resetResult === "false";
       const query = getPreviewCamPackageQuery();
       if (query) query.value = "";
+      saveCamSupportPackageIndex(null);
+      clearSavedCamMapFlightOverlays();
+      clearSavedCamRenderedValues({ clearSupportPackage: true });
     });
     dtcReloadBtn?.addEventListener("click", reloadDtcFromIni);
     document.getElementById("open-pdf-btn").addEventListener("click", () => {

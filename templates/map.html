@@ -1108,6 +1108,29 @@ function setCamFlightOverlayChecked(id, checked) {
     else localStorage.removeItem(key);
 }
 
+function getCamFlightOverlaySelections() {
+    const selections = {};
+    document.querySelectorAll(".map-flight-path-toggle[data-map-flight-overlay]").forEach((input) => {
+        const id = input.dataset.mapFlightOverlay;
+        if (id) selections[id] = !!input.checked;
+    });
+    return selections;
+}
+
+function setCamFlightOverlaySelections(selections) {
+    const source = selections && typeof selections === "object" ? selections : {};
+    document.querySelectorAll(".map-flight-path-toggle[data-map-flight-overlay]").forEach((input) => {
+        const id = input.dataset.mapFlightOverlay;
+        if (!id) return;
+        const checked = source[id] === true || source[id] === "1";
+        input.checked = checked;
+        setCamFlightOverlayChecked(id, checked);
+    });
+    renderMapDrawings();
+}
+window.getCamFlightOverlaySelections = getCamFlightOverlaySelections;
+window.setCamFlightOverlaySelections = setCamFlightOverlaySelections;
+
 function rawOverlayPointsToLatLngs(points) {
     if (!Array.isArray(points)) return [];
     return points
