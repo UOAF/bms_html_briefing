@@ -807,7 +807,8 @@
       opacity: 1;
     }
 
-    .badge-row #toggle-toolbar {
+    .badge-row #toggle-toolbar,
+    .badge-row #help-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -821,6 +822,10 @@
       font-size: 1.05rem;
       white-space: nowrap;
       box-shadow: none;
+    }
+
+    .badge-row #help-btn {
+      padding-inline: 0.6rem;
     }
 
     .badge-row #quit-app-btn {
@@ -839,7 +844,8 @@
       box-shadow: none;
     }
 
-    .badge-row #toggle-toolbar:hover {
+    .badge-row #toggle-toolbar:hover,
+    .badge-row #help-btn:hover {
       color: var(--line);
       text-shadow: none;
       box-shadow: none;
@@ -854,7 +860,8 @@
       transform: none;
     }
 
-    .badge-row #toggle-toolbar:active:not(:disabled) {
+    .badge-row #toggle-toolbar:active:not(:disabled),
+    .badge-row #help-btn:active:not(:disabled) {
       background: #ffffff;
       color: #000000;
       text-shadow: none;
@@ -894,6 +901,83 @@
     .settings-meta a {
       text-transform: none;
       letter-spacing: inherit;
+    }
+
+    .help-dialog[hidden] {
+      display: none !important;
+    }
+
+    .help-dialog {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .help-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+    }
+
+    .help-panel {
+      position: relative;
+      width: min(620px, 100%);
+      max-height: min(80vh, 720px);
+      overflow-y: auto;
+      padding: 1rem 1.15rem;
+      border: 1px solid #ffffff;
+      background: var(--bg);
+      box-shadow: var(--shadow);
+      outline: none;
+    }
+
+    .help-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .help-panel h2 {
+      margin: 0;
+      color: var(--line);
+      font-size: 1.2rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .help-close-btn {
+      flex: 0 0 auto;
+      padding: 0.2rem 0.55rem;
+      background: var(--bg);
+      color: #ffffff;
+      border: 1px solid #ffffff;
+    }
+
+    .help-close-btn:hover,
+    .help-close-btn:focus-visible {
+      color: var(--line);
+      outline: none;
+    }
+
+    .help-panel ol,
+    .help-panel p {
+      margin: 0 0 0.85rem;
+      font-family: "IBMPlexMono";
+      line-height: 1.45;
+    }
+
+    .help-panel ol {
+      padding-left: 1.5rem;
+    }
+
+    .help-panel li {
+      margin-bottom: 0.35rem;
     }
 
     .shutdown-screen {
@@ -958,6 +1042,7 @@
       </div>
       <div class="badge-row">
         <button id="toggle-toolbar" type="button">Hide toolbar</button>
+        <button id="help-btn" type="button" aria-controls="help-dialog" aria-expanded="false">Help</button>
         <div class="badge" id="file-status" title="Briefing/callsign file changes">
           <span>FILES</span>
         </div>
@@ -1182,6 +1267,28 @@
     </div>
   </div>
 
+  <div id="help-dialog" class="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+    <div class="help-backdrop" data-help-close></div>
+    <div class="help-panel" tabindex="-1">
+      <div class="help-panel-head">
+        <h2 id="help-title">Basic Usage</h2>
+        <button id="help-close-btn" class="help-close-btn" type="button" aria-label="Close help">X</button>
+      </div>
+      <ol>
+        <li>Open the mission in the 2D map in BMS.</li>
+        <li>Click your flight, then click your seat.</li>
+        <li>Briefing &gt; Print.</li>
+        <li>Data Cartridge &gt; Save.</li>
+        <li>Press GEN BRF in the app.</li>
+      </ol>
+      <p>This will generate the briefing and show your flight path on the map. The briefing can now be exported to PDF and/or BMS kneeboards.</p>
+      <p>If you need more information, load the mission's .cam save file from the menu on the left.</p>
+      <p>You can then select another package to show its info and draw flight paths for other flights on the map.</p>
+      <p>DTC sections allow you to set cockpit defaults and offset navigation points.</p>
+      <p>For more information, see the provided README.</p>
+    </div>
+  </div>
+
   <script>
     const logEl = document.getElementById("log");
     const statusEl = document.getElementById("status-indicator");
@@ -1189,6 +1296,10 @@
     const overflowBadge = document.getElementById("overflow-status");
     const globalStatusBadge = document.getElementById("global-status-badge");
     const quitAppBtn = document.getElementById("quit-app-btn");
+    const helpBtn = document.getElementById("help-btn");
+    const helpDialog = document.getElementById("help-dialog");
+    const helpPanel = document.querySelector(".help-panel");
+    const helpCloseBtn = document.getElementById("help-close-btn");
     const bmsSelect = document.getElementById("bms_version");
     const availableVersionsInput = document.getElementById("bms_available_versions");
     const wineInput = document.getElementById("wine_prefix");
@@ -1895,6 +2006,47 @@
       `;
       document.title = "Application Stopped";
     }
+
+    let helpPreviousFocus = null;
+
+    function openHelpDialog() {
+      if (!helpDialog || !helpBtn) return;
+      helpPreviousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      helpDialog.hidden = false;
+      helpBtn.setAttribute("aria-expanded", "true");
+      window.requestAnimationFrame(() => {
+        if (helpPanel) helpPanel.focus();
+      });
+    }
+
+    function closeHelpDialog() {
+      if (!helpDialog || helpDialog.hidden) return;
+      helpDialog.hidden = true;
+      if (helpBtn) helpBtn.setAttribute("aria-expanded", "false");
+      if (helpPreviousFocus && typeof helpPreviousFocus.focus === "function") {
+        helpPreviousFocus.focus();
+      }
+      helpPreviousFocus = null;
+    }
+
+    if (helpBtn) {
+      helpBtn.addEventListener("click", openHelpDialog);
+    }
+    if (helpCloseBtn) {
+      helpCloseBtn.addEventListener("click", closeHelpDialog);
+    }
+    if (helpDialog) {
+      helpDialog.addEventListener("click", (event) => {
+        if (event.target instanceof HTMLElement && event.target.dataset.helpClose !== undefined) {
+          closeHelpDialog();
+        }
+      });
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && helpDialog && !helpDialog.hidden) {
+        closeHelpDialog();
+      }
+    });
 
     function populateVersionSelect(available, current) {
       const opts = (available || "").split(",").map(v => v.trim()).filter(Boolean);
