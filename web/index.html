@@ -1122,7 +1122,7 @@
             <button id="save-kneeboard-order-btn" type="button">Save order</button>
           </div>
           <div class="panel-head">
-            <h3 class="heading-zero">Kneeboard order</h3>
+            <h3 class="heading-zero">Kneeboard export order</h3>
           </div>
           <div id="kneeboard-order-grid" class="kneeboard-order-grid">
             <div>
@@ -1358,6 +1358,10 @@
       "Profile2_C2_BA": { id: "sms_16" },
       "Profile2_Release_Pulse": { id: "sms_17", displayOffset: 1 },
     };
+    const BRIEFING_DTC_LINKED_STORAGE_IDS = [
+      ...Object.values(BRIEFING_DTC_LINKED_FIELDS),
+      ...Object.values(BRIEFING_FCC_AGB_LINKS).map((meta) => meta.id),
+    ].filter(Boolean);
     const BRIEFING_FCC_CYCLE_OPTIONS = {
       "Profile1_Submode": [
         { value: "7", label: "CCIP" },
@@ -1903,6 +1907,18 @@
       localStorage.setItem("contenteditables", JSON.stringify(saved));
     }
 
+    function clearSavedBriefingDtcLinkedValues() {
+      const saved = getSavedEdits();
+      let changed = false;
+      BRIEFING_DTC_LINKED_STORAGE_IDS.forEach((id) => {
+        if (Object.prototype.hasOwnProperty.call(saved, id)) {
+          delete saved[id];
+          changed = true;
+        }
+      });
+      if (changed) localStorage.setItem("contenteditables", JSON.stringify(saved));
+    }
+
     function formatBriefingFccValue(fieldName, rawValue) {
       const meta = BRIEFING_FCC_AGB_LINKS[fieldName] || {};
       const cleanValue = String(rawValue ?? "").trim();
@@ -2165,7 +2181,6 @@
         const data = await fetchJSON("/api/status");
         const { hasError, appStateReset } = applyStatusData(data);
         if (appStateReset) {
-          await seedBriefingDtcLinkedValues({ overwrite: true });
           callBriefingLoadedFrame("saveContenteditablesDefaults");
           callBriefingLoadedFrame("loadChangedData");
           syncDtcLinkedFields();
@@ -2204,7 +2219,6 @@
         const data = await fetchJSON("/api/status");
         const { appStateReset } = applyStatusData(data);
         if (appStateReset) {
-          await seedBriefingDtcLinkedValues({ overwrite: true });
           callBriefingLoadedFrame("saveContenteditablesDefaults");
           callBriefingLoadedFrame("loadChangedData");
           syncDtcLinkedFields();
@@ -2931,7 +2945,6 @@
 
     async function reloadDtcFromIni() {
       try {
-        await seedBriefingDtcLinkedValues({ overwrite: true });
         callBriefingLoadedFrame("loadChangedData");
         ensureDtcFrameLoaded();
         await refreshDtc(true);
@@ -2986,11 +2999,11 @@
 
     if (briefFrame) {
       briefFrame.addEventListener("load", async () => {
-        const forceLinkedSeed = pendingBriefingResetFromToolbar;
+        const clearLinkedStorage = pendingBriefingResetFromToolbar;
         pendingBriefingResetFromToolbar = false;
-        await seedBriefingDtcLinkedValues({ overwrite: forceLinkedSeed });
+        if (clearLinkedStorage) clearSavedBriefingDtcLinkedValues();
         callBriefingLoadedFrame("loadChangedData");
-        if (forceLinkedSeed) syncDtcLinkedFields();
+        if (clearLinkedStorage) syncDtcLinkedFields();
         bindCamPackageSelectorInPreview();
         applyBriefingPageModeToFrame();
         const selectedIndex = getSelectedCamPackageIndex();

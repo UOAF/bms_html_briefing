@@ -11,6 +11,32 @@ from lib.parsers.parse_callsign_ini import Callsign_ini
 logger = logging.getLogger('html_brief_log')
 logger_ui = logging.getLogger('ui_logger')
 
+BRIEFING_FCC_AGB_LINKS = {
+    "Profile1_Submode": {"id": "sms_mode_1", "type": "cycle", "prefix": "MODE: "},
+    "Profile1_Fuze": {"id": "sms_1", "type": "cycle"},
+    "Profile1_SGL/PAIR": {"id": "sms_2", "type": "cycle"},
+    "Profile1_C1_AD1": {"id": "sms_7", "scale": 100, "decimals": 2},
+    "Profile1_Release_Spacing": {"id": "sms_8"},
+    "Profile1_C2_BA": {"id": "sms_14"},
+    "Profile1_Release_Pulse": {"id": "sms_15", "displayOffset": 1},
+    "Profile2_Submode": {"id": "sms_mode_2", "type": "cycle", "prefix": "MODE: "},
+    "Profile2_Fuze": {"id": "sms_3", "type": "cycle"},
+    "Profile2_SGL/PAIR": {"id": "sms_4", "type": "cycle"},
+    "Profile2_C1_AD1": {"id": "sms_9", "scale": 100, "decimals": 2},
+    "Profile2_Release_Spacing": {"id": "sms_10"},
+    "Profile2_C2_BA": {"id": "sms_16"},
+    "Profile2_Release_Pulse": {"id": "sms_17", "displayOffset": 1},
+}
+
+BRIEFING_FCC_CYCLE_OPTIONS = {
+    "Profile1_Submode": {"7": "CCIP", "8": "CCRP", "9": "DTOS", "10": "LADD"},
+    "Profile2_Submode": {"7": "CCIP", "8": "CCRP", "9": "DTOS", "10": "LADD"},
+    "Profile1_Fuze": {"1": "NOSE", "2": "TAIL", "0": "NSTL"},
+    "Profile2_Fuze": {"1": "NOSE", "2": "TAIL", "0": "NSTL"},
+    "Profile1_SGL/PAIR": {"0": "SGL", "1": "PAIR"},
+    "Profile2_SGL/PAIR": {"0": "SGL", "1": "PAIR"},
+}
+
 
 def page_contents_ini_to_list(conf):
     return [[s.strip(' \n') for s in value.split(',') if s != ''] for key, value in conf['pages'].items()]
@@ -27,6 +53,40 @@ def _page_contents_for_render(conf, brief_summary = None):
             for section in page
         ])
     return swapped_pages
+
+
+def _format_briefing_fcc_value(field_name, raw_value):
+    meta = BRIEFING_FCC_AGB_LINKS.get(field_name, {})
+    clean_value = "" if raw_value is None else str(raw_value).strip()
+    if meta.get("type") == "cycle":
+        options = BRIEFING_FCC_CYCLE_OPTIONS.get(field_name, {})
+        label = options.get(clean_value)
+        if label is None and options:
+            label = next(iter(options.values()))
+        return f"{meta.get('prefix', '')}{label}" if label is not None else clean_value
+    try:
+        number_value = float(clean_value)
+    except (TypeError, ValueError):
+        return clean_value
+    display_offset = float(meta.get("displayOffset", 0) or 0)
+    offset_value = number_value + display_offset
+    scale = float(meta.get("scale", 0) or 0)
+    if scale:
+        decimals = int(meta.get("decimals", 0) or 0)
+        return f"{offset_value / scale:.{decimals}f}"
+    if offset_value.is_integer():
+        return str(int(offset_value))
+    return str(offset_value)
+
+
+def _briefing_fcc_display_values(fcc_settings):
+    agb_settings = {}
+    if isinstance(fcc_settings, dict) and isinstance(fcc_settings.get("FCC_AGB"), dict):
+        agb_settings = fcc_settings["FCC_AGB"]
+    values = {}
+    for field_name, meta in BRIEFING_FCC_AGB_LINKS.items():
+        values[meta["id"]] = _format_briefing_fcc_value(field_name, agb_settings.get(field_name))
+    return values
 
 
 def generate_html_file(
@@ -135,6 +195,8 @@ def generate_html_file(
                                                  wpntgts = ci.wpntgts,
                                                  brief_pages = page_contents,
                                                  cmds = ci.cmds,
+                                                 icp_settings = ci.icp_settings,
+                                                 briefing_fcc_display = _briefing_fcc_display_values(ci.fcc_settings),
                                                  num = page_num,
                                                  logo_present = logo_present,
                                                  brief_is_joined = True,

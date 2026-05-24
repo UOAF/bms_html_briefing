@@ -17,56 +17,56 @@
 <table width=100% id="sms" class="hidable">
     <colgroup>
         <col style="width:6%;">
+        <col style="width:7%;">
+        <col style="width:7%;">
         <col style="width:6%;">
         <col style="width:6%;">
+        <col style="width:7%;">
+        <col style="width:7%;">
         <col style="width:6%;">
-        <col style="width:6%;">
-        <col style="width:6%;">
-        <col style="width:6%;">
-        <col style="width:6%;">
-        <col style="width:26%;">
-        <col style="width:26%;">
+        <col style="width:24%;">
+        <col style="width:24%;">
     </colgroup>
     <thead>
       <tr>
-	  <th colspan="4" class="header sms-cycle-field" id="sms_mode_1" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Submode" tabindex="0">MODE: CCRP</th>
-	  <th colspan="4" class="header sms-cycle-field" id="sms_mode_2" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Submode" tabindex="0">MODE: CCIP</th>
+	  <th colspan="4" class="header sms-cycle-field" id="sms_mode_1" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Submode" tabindex="0">{{ briefing_fcc_display.get("sms_mode_1", "MODE: CCRP")|e if briefing_fcc_display is defined else "MODE: CCRP" }}</th>
+	  <th colspan="4" class="header sms-cycle-field" id="sms_mode_2" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Submode" tabindex="0">{{ briefing_fcc_display.get("sms_mode_2", "MODE: CCIP")|e if briefing_fcc_display is defined else "MODE: CCIP" }}</th>
 	  <th colspan="2" class="header">MISC: </th>
       </tr>
     </thead>
     <tbody>
       <tr>
 	<td class="header sms-nowrap">FUZE</td>
-	<td class="editable sms-cycle-field" id="sms_1" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Fuze" tabindex="0"></td>
-	<td class="editable sms-cycle-field" id="sms_2" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_SGL/PAIR" tabindex="0"></td>
+	<td class="editable sms-cycle-field" id="sms_1" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Fuze" tabindex="0">{{ briefing_fcc_display.get("sms_1", "")|e if briefing_fcc_display is defined else "" }}</td>
+	<td class="editable sms-cycle-field" id="sms_2" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_SGL/PAIR" tabindex="0">{{ briefing_fcc_display.get("sms_2", "")|e if briefing_fcc_display is defined else "" }}</td>
 	<td class="header sms-nowrap">RLS</td>
 	<td class="header sms-nowrap">FUZE</td>
-	<td class="editable sms-cycle-field" id="sms_3" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Fuze" tabindex="0">  </td>
-	<td class="editable sms-cycle-field" id="sms_4" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_SGL/PAIR" tabindex="0">  </td>
+	<td class="editable sms-cycle-field" id="sms_3" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Fuze" tabindex="0">{{ briefing_fcc_display.get("sms_3", "")|e if briefing_fcc_display is defined else "" }}</td>
+	<td class="editable sms-cycle-field" id="sms_4" data-persistent-field="true" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_SGL/PAIR" tabindex="0">{{ briefing_fcc_display.get("sms_4", "")|e if briefing_fcc_display is defined else "" }}</td>
 	<td class="header sms-nowrap">RLS</td>
 	<td contenteditable="true" class="editable" id="sms_5"></td>
 	<td contenteditable="true" class="editable" id="sms_6"></td>
       </tr>
       <tr>
 	<td class="header sms-nowrap">AD</td>
-	<td contenteditable="true" class="editable" id="sms_7" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_C1_AD1">  </td>
-	<td contenteditable="true" class="editable" id="sms_8" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Release_Spacing">  </td>
+	<td contenteditable="true" class="editable" id="sms_7" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_C1_AD1">{{ briefing_fcc_display.get("sms_7", "")|e if briefing_fcc_display is defined else "" }}</td>
+	<td contenteditable="true" class="editable" id="sms_8" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Release_Spacing">{{ briefing_fcc_display.get("sms_8", "")|e if briefing_fcc_display is defined else "" }}</td>
 	<td class="header sms-nowrap">SPC</td>
 	<td class="header sms-nowrap">AD</td>
-	<td contenteditable="true" class="editable" id="sms_9" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_C1_AD1">  </td>
-	<td contenteditable="true" class="editable" id="sms_10" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Release_Spacing">  </td>
+	<td contenteditable="true" class="editable" id="sms_9" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_C1_AD1">{{ briefing_fcc_display.get("sms_9", "")|e if briefing_fcc_display is defined else "" }}</td>
+	<td contenteditable="true" class="editable" id="sms_10" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Release_Spacing">{{ briefing_fcc_display.get("sms_10", "")|e if briefing_fcc_display is defined else "" }}</td>
 	<td class="header sms-nowrap">SPC</td>
 	<td contenteditable="true" class="editable" id="sms_12">  </td>
 	<td contenteditable="true" class="editable" id="sms_13">  </td>
       </tr>
       <tr>
 	<td class="header sms-nowrap">BA</td>
-	<td contenteditable="true" class="editable" id="sms_14" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_C2_BA">  </td>
-	<td contenteditable="true" class="editable" id="sms_15" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Release_Pulse">  </td>
+	<td contenteditable="true" class="editable" id="sms_14" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_C2_BA">{{ briefing_fcc_display.get("sms_14", "")|e if briefing_fcc_display is defined else "" }}</td>
+	<td contenteditable="true" class="editable" id="sms_15" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile1_Release_Pulse">{{ briefing_fcc_display.get("sms_15", "")|e if briefing_fcc_display is defined else "" }}</td>
 	<td class="header sms-nowrap">RP</td>
 	<td class="header sms-nowrap">BA</td>
-	<td contenteditable="true" class="editable" id="sms_16" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_C2_BA">  </td>
-	<td contenteditable="true" class="editable" id="sms_17" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Release_Pulse">  </td>
+	<td contenteditable="true" class="editable" id="sms_16" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_C2_BA">{{ briefing_fcc_display.get("sms_16", "")|e if briefing_fcc_display is defined else "" }}</td>
+	<td contenteditable="true" class="editable" id="sms_17" data-sms-fcc-section="FCC_AGB" data-sms-fcc-field="Profile2_Release_Pulse">{{ briefing_fcc_display.get("sms_17", "")|e if briefing_fcc_display is defined else "" }}</td>
 	<td class="header sms-nowrap">RP</td>
 	<td contenteditable="true" class="editable" id="sms_18">  </td>
 	<td contenteditable="true" class="editable" id="sms_19">  </td>

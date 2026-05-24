@@ -24,8 +24,8 @@
       </tr>
     </thead>
     <tbody>
-      <td contenteditable="true" class="editable" id="admin_1"></td>
-      <td contenteditable="true" class="editable" id="admin_2"></td>
+      <td contenteditable="true" class="editable" id="admin_1">{{ icp_settings.get("Alow AGL", "")|e if icp_settings is defined else "" }}</td>
+      <td contenteditable="true" class="editable" id="admin_2">{{ icp_settings.get("Alow MSL", "")|e if icp_settings is defined else "" }}</td>
       <div id="vhf">
       {% for i in range(package_size) %}
       {% if package[i].roster.own %}
@@ -35,7 +35,7 @@
       </div>
       <td contenteditable="true" class="editable" id="admin_4"></td>
       <td contenteditable="true" class="editable" id="admin_5"></td>
-      <td contenteditable="true" class="editable" id="admin_6"></td>
+      <td contenteditable="true" class="editable" id="admin_6">{{ icp_settings.get("Bingo_Fuel", "")|e if icp_settings is defined else "" }}</td>
       <td contenteditable="true" class="editable" id="admin_7"></td>
       <td contenteditable="true" class="editable" id="admin_8"></td>
     </tbody>

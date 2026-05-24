@@ -700,10 +700,9 @@
         : baseTitle;
     }
 
-    function saveBriefingStorageFromDtc() {
+    async function saveBriefingStorageFromDtc() {
       try {
-        const liveFrame = window.parent?.document?.getElementById("brief-frame");
-        liveFrame?.contentWindow?.saveChangedData?.();
+        await window.parent?.seedBriefingDtcLinkedValues?.({ overwrite: true });
       } catch (error) {
         console.warn("Unable to save linked briefing storage", error);
       }
@@ -872,7 +871,7 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
-        saveBriefingStorageFromDtc();
+        await saveBriefingStorageFromDtc();
         Object.assign(dtcIcpIniSettings, icpSettings);
         refreshDtcIcpDiffIndicators();
         const status = document.getElementById("dtc-icp-status");
@@ -937,7 +936,7 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
-        saveBriefingStorageFromDtc();
+        await saveBriefingStorageFromDtc();
         const status = document.getElementById("dtc-laser-status");
         if (status) status.textContent = "Laser saved to callsign.ini.";
       } catch (error) {
@@ -1185,7 +1184,7 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
-        saveBriefingStorageFromDtc();
+        await saveBriefingStorageFromDtc();
         Object.entries(fccSettings).forEach(([section, values]) => {
           dtcFccIniSettings[section] = dtcFccIniSettings[section] || {};
           Object.assign(dtcFccIniSettings[section], values);
@@ -2109,7 +2108,7 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
-        saveBriefingStorageFromDtc();
+        await saveBriefingStorageFromDtc();
       } catch (error) {
         console.error("Failed to save NAV OFFSETS", error);
       }
