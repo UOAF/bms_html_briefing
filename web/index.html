@@ -2901,6 +2901,10 @@
       } finally {
         setExportBusy(false);
         setPdfBusy(false);
+        updateMainViewControls();
+        if (currentMainView === "briefing") {
+          requestAnimationFrame(() => requestAnimationFrame(() => invalidateBriefingMap()));
+        }
       }
     }
 

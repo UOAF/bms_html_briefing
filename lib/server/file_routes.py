@@ -8,6 +8,18 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 
+class NoCacheAppStaticFiles(StaticFiles):
+    """StaticFiles variant that prevents stale app JS/CSS during local updates."""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if path.endswith((".js", ".css")):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
 def register_file_routes(
     app: FastAPI,
     *,
@@ -19,7 +31,7 @@ def register_file_routes(
     """Register static mounts and simple file-serving endpoints."""
 
     app.mount("/assets", StaticFiles(directory=static_root / "assets"), name="assets")
-    app.mount("/templates", StaticFiles(directory=static_root / "templates"), name="templates")
+    app.mount("/templates", NoCacheAppStaticFiles(directory=static_root / "templates"), name="templates")
     app.mount("/dist", StaticFiles(directory=static_root / "dist"), name="dist")
     app.mount("/kneeboards", StaticFiles(directory=kneeboards_dir), name="kneeboards")
     if web_dir.exists():
