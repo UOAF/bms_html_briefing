@@ -821,10 +821,6 @@
       document.querySelectorAll("[data-icp-field]").forEach((input) => {
         settings[input.dataset.icpField] = formatDtcIcpStoredValue(input);
       });
-      Object.keys(DTC_ICP_BRIEFING_LINKS).forEach((fieldName) => {
-        const linkedValue = readBriefingLinkedValue(fieldName);
-        if (linkedValue !== "") settings[fieldName] = formatDtcIcpDisplayValue(linkedValue);
-      });
       return settings;
     }
 
@@ -1159,14 +1155,6 @@
         const field = input.dataset.fccField;
         settings[section] = settings[section] || {};
         settings[section][field] = formatFccStoredValue(input);
-      });
-      Object.entries(DTC_FCC_BRIEFING_LINKS).forEach(([key]) => {
-        const [section, field] = key.split(":");
-        if (sectionName && section !== sectionName) return;
-        const displayValue = readDtcFccBriefingDisplayValue(section, field);
-        if (displayValue === "") return;
-        settings[section] = settings[section] || {};
-        settings[section][field] = formatDtcFccLinkedStoredValue(section, field, displayValue);
       });
       return settings;
     }

@@ -75,6 +75,11 @@ class KneeboardOrderUpdate(BaseModel):
     pages: List[KneeboardOrderItem]
 
 
+class SourceFileAckRequest(BaseModel):
+    brief_mtime: Optional[float] = None
+    callsign_mtime: Optional[float] = None
+
+
 def register_config_routes(
     app: FastAPI,
     *,
@@ -334,6 +339,8 @@ def register_config_routes(
                     "center_latitude": getattr(bms, "theater_center_latitude", None),
                     "center_longitude": getattr(bms, "theater_center_longitude", None),
                     "center_source": getattr(bms, "theater_center_source", ""),
+                    "brief_mtime": brief_mtime,
+                    "callsign_mtime": callsign_mtime,
                     "brief_changed": None if (app.state.brief_mtime_ref is None or brief_mtime is None) else brief_mtime > app.state.brief_mtime_ref,
                     "callsign_changed": None if (app.state.callsign_mtime_ref is None or callsign_mtime is None) else callsign_mtime > app.state.callsign_mtime_ref,
                 }
@@ -341,6 +348,29 @@ def register_config_routes(
         else:
             data.update({"error": "BMS config not loaded"})
         return data
+
+    @app.post("/api/status/ack-source-files")
+    def ack_source_files(payload: SourceFileAckRequest = None) -> Dict[str, Any]:
+        bms = app.state.bms_cfg
+        if bms is None:
+            raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
+        brief_path = Path(bms.base_dir) / "User" / "Briefings" / "briefing.txt"
+        callsign_path = callsign_ini_path(bms)
+        brief_mtime = brief_path.stat().st_mtime if brief_path.exists() else None
+        callsign_mtime = callsign_path.stat().st_mtime if callsign_path.exists() else None
+        brief_ref = payload.brief_mtime if payload and payload.brief_mtime is not None else brief_mtime
+        callsign_ref = payload.callsign_mtime if payload and payload.callsign_mtime is not None else callsign_mtime
+        if brief_ref is not None:
+            app.state.brief_mtime_ref = brief_ref
+        if callsign_ref is not None:
+            app.state.callsign_mtime_ref = callsign_ref
+        return {
+            "status": "ok",
+            "brief_mtime": brief_mtime,
+            "callsign_mtime": callsign_mtime,
+            "brief_mtime_ref": app.state.brief_mtime_ref,
+            "callsign_mtime_ref": app.state.callsign_mtime_ref,
+        }
 
 
 def _serialize_config(cfg: configparser.ConfigParser) -> Dict[str, Dict[str, str]]:

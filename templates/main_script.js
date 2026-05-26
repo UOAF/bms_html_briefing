@@ -192,7 +192,7 @@ function serializeEditableContent(el) {
     return clone.innerHTML;
 }
 
-function saveChangedData() {
+function collectChangedData() {
     const contenteditableElements = getPersistentContenteditableElements();
     const contentData = {};
     contenteditableElements.forEach(el => {
@@ -221,6 +221,11 @@ function saveChangedData() {
 	}
 
     }
+    return contentData;
+}
+
+function saveChangedData() {
+    const contentData = collectChangedData();
     localStorage.setItem('contenteditables', JSON.stringify(contentData));
     return contentData;
 }

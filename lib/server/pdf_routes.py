@@ -59,6 +59,11 @@ class PdfRequest(BaseModel):
     system: Optional[Dict[str, str]] = None
     theater: Optional[Dict[str, Any]] = None
     selected_package_index: Optional[int] = None
+    update_change_refs: Optional[bool] = True
+
+
+class PdfClientErrorRequest(BaseModel):
+    detail: str = "PDF preparation failed"
 
 
 def register_pdf_routes(
@@ -71,6 +76,17 @@ def register_pdf_routes(
     pdf_render_timeout_seconds: int,
 ) -> None:
     """Register PDF generation endpoint."""
+
+    @app.post("/api/pdf/client-error")
+    def report_pdf_client_error(payload: PdfClientErrorRequest) -> Dict[str, str]:
+        detail = str(payload.detail or "PDF preparation failed").strip() or "PDF preparation failed"
+        if len(detail) > 2000:
+            detail = detail[:1997] + "..."
+        app.state.pdf_status = "error"
+        app.state.pdf_error = detail
+        app.state.pdf_overflow = None
+        logger_ui.error("PDF client preparation failed: %s", detail)
+        return {"status": "ok", "pdf_status": "error", "pdf_error": detail}
 
     @app.post("/api/pdf")
     def generate_pdf(payload: PdfRequest) -> Dict[str, str]:
@@ -174,15 +190,16 @@ def register_pdf_routes(
                     output_size,
                     (time.perf_counter() - step_started) * 1000.0,
                 )
-                try:
-                    app.state.brief_mtime_ref = os.path.getmtime(
-                        Path(bms_cfg_pdf.base_dir) / "User" / "Briefings" / "briefing.txt"
-                    )
-                    app.state.callsign_mtime_ref = os.path.getmtime(
-                        callsign_ini_path(bms_cfg_pdf)
-                    )
-                except Exception:
-                    pass
+                if payload.update_change_refs is not False:
+                    try:
+                        app.state.brief_mtime_ref = os.path.getmtime(
+                            Path(bms_cfg_pdf.base_dir) / "User" / "Briefings" / "briefing.txt"
+                        )
+                        app.state.callsign_mtime_ref = os.path.getmtime(
+                            callsign_ini_path(bms_cfg_pdf)
+                        )
+                    except Exception:
+                        pass
 
                 pdf_path = job.pdf_final_path
 
@@ -280,4 +297,4 @@ def register_pdf_routes(
         return {"status": "ok", "pdf_file": str(pdf_path)}
 
 
-__all__ = ["PdfRequest", "register_pdf_routes"]
+__all__ = ["PdfRequest", "PdfClientErrorRequest", "register_pdf_routes"]

@@ -23,6 +23,7 @@ class PreviewRequest(BaseModel):
     theater: Optional[Dict[str, Any]] = None
     kneeboard_order: Optional[List[Dict[str, Any]]] = None
     selected_package_index: Optional[int] = None
+    update_change_refs: Optional[bool] = True
 
 
 def resolve_brief_render_state(
@@ -128,7 +129,8 @@ def register_render_routes(
             )
             output_file = resolve_path(cfg_preview["system"]["output_dir"]) / "index.html"
             app.state.last_brief_path = str(output_file)
-            _update_brief_mtime_state(app, bms_cfg_preview)
+            if payload.update_change_refs is not False:
+                _update_brief_mtime_state(app, bms_cfg_preview)
             app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_preview))
         except Exception as exc:
             logger.error("Failed to generate preview HTML: %s", exc)

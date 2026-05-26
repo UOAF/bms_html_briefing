@@ -1424,6 +1424,10 @@
     let filesChangedState = false;
     let pendingAutoExport = false;
     let skipNextAutoExportEdge = false;
+    const AUTO_EXPORT_MAX_RETRIES = 3;
+    let autoExportRetryCount = 0;
+    let autoExportActiveChangeKey = "";
+    let autoExportSuppressedChangeKey = "";
     let currentPdfOverflow = null;
     let autoExportOnChange = false;
     let autoExportPdfOnly = false;
@@ -1867,6 +1871,38 @@
       }
     }
 
+    async function withBriefingFrameMeasurable(task) {
+      if (!briefFrame || !briefFrame.hidden) {
+        return task();
+      }
+      const previousHidden = briefFrame.hidden;
+      const previousStyle = briefFrame.getAttribute("style");
+      briefFrame.hidden = false;
+      Object.assign(briefFrame.style, {
+        position: "absolute",
+        left: "-100000px",
+        top: "0",
+        width: "850px",
+        maxWidth: "850px",
+        visibility: "hidden",
+        pointerEvents: "none"
+      });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      invalidateBriefingMap();
+      try {
+        return await task();
+      } finally {
+        briefFrame.hidden = previousHidden;
+        if (previousStyle === null) {
+          briefFrame.removeAttribute("style");
+        } else {
+          briefFrame.setAttribute("style", previousStyle);
+        }
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        invalidateBriefingMap();
+      }
+    }
+
     function showBriefingPage(pageIndex) {
       if (!Array.isArray(pages) || pages.length === 0) return;
       currentBriefPageIndex = Math.max(0, Math.min(pageIndex, pages.length - 1));
@@ -1968,6 +2004,28 @@
       }
     }
 
+    function updatePdfBadge({ pdfOverflow, pdfStatus, pdfError }) {
+      if (!overflowBadge) return;
+      overflowBadge.classList.remove("ok", "error", "warn", "muted");
+      let cls = "ok";
+      const normalizedPdfStatus = typeof pdfStatus === "string" ? pdfStatus.toLowerCase() : "";
+      if (normalizedPdfStatus === "timeout" || normalizedPdfStatus === "error") {
+        cls = "error";
+      } else if (normalizedPdfStatus === "overflow" || pdfOverflow === true) {
+        cls = "warn";
+      } else if (!normalizedPdfStatus || normalizedPdfStatus === "unknown" || normalizedPdfStatus === "running" || pdfOverflow === undefined || pdfOverflow === null) {
+        cls = "muted";
+      }
+      overflowBadge.classList.add(cls);
+      if (cls === "error") {
+        overflowBadge.title = normalizedPdfStatus === "timeout"
+          ? "PDF generation timed out; no PDF was generated"
+          : (pdfError || "PDF generation failed");
+      } else {
+        overflowBadge.title = cls === "warn" ? "PDF has more pages than layout" : (cls === "ok" ? "PDF matches layout page count" : "PDF status unknown (generate PDF once)");
+      }
+    }
+
     function updateBadges({ briefChanged, callsignChanged, pdfOverflow, pdfStatus, pdfError }) {
       if (fileBadge) {
         fileBadge.classList.remove("ok", "error", "warn", "muted");
@@ -1979,26 +2037,7 @@
         if (cls === "error") fileBadge.title = "Briefing.txt or callsign.ini changed on disk";
         if (cls === "muted") fileBadge.title = "File change status unknown (generate/preview once)";
       }
-      if (overflowBadge) {
-        overflowBadge.classList.remove("ok", "error", "warn", "muted");
-        let cls = "ok";
-        const normalizedPdfStatus = typeof pdfStatus === "string" ? pdfStatus.toLowerCase() : "";
-        if (normalizedPdfStatus === "timeout" || normalizedPdfStatus === "error") {
-          cls = "error";
-        } else if (normalizedPdfStatus === "overflow" || pdfOverflow === true) {
-          cls = "warn";
-        } else if (!normalizedPdfStatus || normalizedPdfStatus === "unknown" || normalizedPdfStatus === "running" || pdfOverflow === undefined || pdfOverflow === null) {
-          cls = "muted";
-        }
-        overflowBadge.classList.add(cls);
-        if (cls === "error") {
-          overflowBadge.title = normalizedPdfStatus === "timeout"
-            ? "PDF generation timed out; no PDF was generated"
-            : (pdfError || "PDF generation failed");
-        } else {
-          overflowBadge.title = cls === "warn" ? "PDF has more pages than layout" : (cls === "ok" ? "PDF matches layout page count" : "PDF status unknown (generate PDF once)");
-        }
-      }
+      updatePdfBadge({ pdfOverflow, pdfStatus, pdfError });
     }
 
     function showShutdownScreen() {
@@ -2594,14 +2633,14 @@
       const started = performance.now();
       let dataFromFrame = null;
       const cw = briefFrame?.contentWindow;
-      if (cw && typeof cw.saveChangedData === "function") {
+      if (cw && typeof cw.collectChangedData === "function") {
         try {
-          const data = cw.saveChangedData();
+          const data = cw.collectChangedData();
           if (data && typeof data === "object" && !Array.isArray(data)) {
             dataFromFrame = data;
           }
         } catch (err) {
-          log(`saveChangedData failed: ${err.message}`);
+          log(`collectChangedData failed: ${err.message}`);
         }
       }
       const saved = getSavedEdits();
@@ -2713,12 +2752,59 @@
       return "Warning: number of pages in the .pdf exceeds selected number of pages in the briefing: likely layout overflow; are you sure you want to export?";
     }
 
+    function autoExportChangeKey(data) {
+      return [
+        data && data.brief_mtime != null ? String(data.brief_mtime) : "",
+        data && data.callsign_mtime != null ? String(data.callsign_mtime) : "",
+        data && data.brief_changed ? "b1" : "b0",
+        data && data.callsign_changed ? "c1" : "c0"
+      ].join("|");
+    }
+
+    async function acknowledgeAutoExportSourceFiles(data) {
+      await fetchJSON("/api/status/ack-source-files", {
+        method: "POST",
+        body: JSON.stringify({
+          brief_mtime: data && data.brief_mtime != null ? Number(data.brief_mtime) : null,
+          callsign_mtime: data && data.callsign_mtime != null ? Number(data.callsign_mtime) : null
+        })
+      });
+      autoExportRetryCount = 0;
+      autoExportActiveChangeKey = "";
+      autoExportSuppressedChangeKey = "";
+      pendingAutoExport = false;
+      filesChangedState = false;
+    }
+
+    async function reportPdfClientError(detail) {
+      const message = String(detail || "PDF preparation failed").trim() || "PDF preparation failed";
+      currentPdfOverflow = null;
+      updatePdfBadge({ pdfOverflow: null, pdfStatus: "error", pdfError: message });
+      try {
+        await fetchJSON("/api/pdf/client-error", {
+          method: "POST",
+          body: JSON.stringify({ detail: message })
+        });
+      } catch (err) {
+        debugLog(`PDF client error report failed: ${err.message}`);
+      }
+    }
+
     async function runPdfGeneration({ source = "manual", overrides = null, includeTheater = false, started = performance.now() } = {}) {
       const activeOverrides = overrides || currentOverrides();
-      const payload = { content: getLatestEdits(), ...activeOverrides };
-      const mapImage = await captureMapImage();
-      if (mapImage) {
-        payload.content.map_image = mapImage;
+      let payload;
+      try {
+        payload = { content: getLatestEdits(), ...activeOverrides };
+        if (source === "auto") {
+          payload.update_change_refs = false;
+        }
+        const mapImage = await captureMapImage();
+        if (mapImage) {
+          payload.content.map_image = mapImage;
+        }
+      } catch (err) {
+        await reportPdfClientError(err && err.message ? err.message : err);
+        throw err;
       }
       if (includeTheater) {
         payload.theater = {
@@ -2740,28 +2826,41 @@
     }
 
     async function runExportFlow(source = "manual") {
-      if (pdfBusy || exportBusy) return;
+      if (pdfBusy || exportBusy) return { ok: false, skipped: true };
       setPdfBusy(true);
       setExportBusy(true);
       const started = performance.now();
       try {
         const overrides = currentOverrides();
         const pdfOnlyAuto = source === "auto" && autoExportPdfOnly;
-        if (source === "auto") {
-          try {
-            const prevRes = await fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(overrides) });
-            log(`Auto-export preview refreshed at ${prevRes.output_file}`);
-            await refreshBrief(true);
-          } catch (err) {
-            log(`Auto-export preview refresh failed: ${err.message}`);
+        const prepareAndRun = async () => {
+          if (source === "auto") {
+            try {
+              const prevRes = await fetchJSON("/api/preview", {
+                method: "POST",
+                body: JSON.stringify({ ...overrides, update_change_refs: false })
+              });
+              log(`Auto-export preview refreshed at ${prevRes.output_file}`);
+              const refreshed = await refreshBrief(true);
+              if (!refreshed) {
+                throw new Error("Auto-export preview refresh timed out");
+              }
+            } catch (err) {
+              const message = `Auto-export preview refresh failed: ${err && err.message ? err.message : err}`;
+              await reportPdfClientError(message);
+              throw new Error(message);
+            }
           }
-        }
-        const { payload } = await runPdfGeneration({
-          source,
-          overrides,
-          includeTheater: true,
-          started
-        });
+          return runPdfGeneration({
+            source,
+            overrides,
+            includeTheater: true,
+            started
+          });
+        };
+        const { payload } = source === "auto"
+          ? await withBriefingFrameMeasurable(prepareAndRun)
+          : await prepareAndRun();
         await pollStatusBadges();
         if (currentPdfOverflow === true) {
           const warning = pdfOverflowExportWarning();
@@ -2773,14 +2872,16 @@
           }
         }
         if (!pdfOnlyAuto) {
-          const expRes = await fetchJSON("/api/export", {
-            method: "POST",
-            body: JSON.stringify({
-              ...overrides,
-              theater: payload.theater,
-              kneeboard_order: readKneeboardOrderRows()
+          const expRes = await withActiveLogPolling(
+            fetchJSON("/api/export", {
+              method: "POST",
+              body: JSON.stringify({
+                ...overrides,
+                theater: payload.theater,
+                kneeboard_order: readKneeboardOrderRows()
+              })
             })
-          });
+          );
           log(`Exported kneeboards to ${expRes.target_folder}`);
         } else {
           log("Auto-export PDF-only mode: skipped DDS kneeboard export");
@@ -2792,9 +2893,11 @@
           skipNextAutoExportEdge = true;
         }
         await pollStatusBadges();
+        return { ok: true };
       } catch (err) {
         const prefix = source === "auto" ? "Auto-export failed" : "Export failed";
         log(`${prefix} after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);
+        return { ok: false, error: err };
       } finally {
         setExportBusy(false);
         setPdfBusy(false);
@@ -2803,19 +2906,23 @@
 
     async function maybeAutoExportOnFileChange(data) {
       const filesChangedNow = !!(data.brief_changed || data.callsign_changed);
-      if (skipNextAutoExportEdge && !filesChangedNow) {
+      if (!filesChangedNow) {
         skipNextAutoExportEdge = false;
-      }
-      const changeEdge = filesChangedNow && !filesChangedState;
-      if (changeEdge && (pdfBusy || exportBusy)) {
-        pendingAutoExport = true;
-      }
-      filesChangedState = filesChangedNow;
-      if (!changeEdge && !pendingAutoExport) return;
-      if (pendingAutoExport && !filesChangedNow) {
+        filesChangedState = false;
         pendingAutoExport = false;
+        autoExportRetryCount = 0;
+        autoExportActiveChangeKey = "";
+        autoExportSuppressedChangeKey = "";
         return;
       }
+      const changeKey = autoExportChangeKey(data);
+      if (changeKey !== autoExportActiveChangeKey) {
+        autoExportActiveChangeKey = changeKey;
+        autoExportRetryCount = 0;
+        autoExportSuppressedChangeKey = "";
+        pendingAutoExport = false;
+      }
+      filesChangedState = true;
       if (skipNextAutoExportEdge) {
         skipNextAutoExportEdge = false;
         return;
@@ -2824,11 +2931,40 @@
         pendingAutoExport = false;
         return;
       }
-      if (pdfBusy || exportBusy) return;
+      if (autoExportSuppressedChangeKey === changeKey) return;
+      if (pdfBusy || exportBusy) {
+        pendingAutoExport = true;
+        return;
+      }
       pendingAutoExport = false;
       const pdfOnlyAuto = autoExportPdfOnly;
-      log(`File change detected. Running auto-export${pdfOnlyAuto ? " (PDF only)" : ""}.`);
-      await runExportFlow("auto");
+      const retryText = autoExportRetryCount > 0 ? ` retry ${autoExportRetryCount + 1}/${AUTO_EXPORT_MAX_RETRIES}` : "";
+      log(`File change detected. Running auto-export${pdfOnlyAuto ? " (PDF only)" : ""}${retryText}.`);
+      const result = await runExportFlow("auto");
+      if (result && result.ok) {
+        try {
+          await acknowledgeAutoExportSourceFiles(data);
+        } catch (err) {
+          log(`Auto-export completed but failed to acknowledge source files: ${err.message}`);
+          autoExportRetryCount += 1;
+          if (autoExportRetryCount >= AUTO_EXPORT_MAX_RETRIES) {
+            autoExportSuppressedChangeKey = changeKey;
+            pendingAutoExport = false;
+            log(`Auto-export disabled for this file change after ${AUTO_EXPORT_MAX_RETRIES} failed attempts. It will retry after briefing.txt or callsign.ini changes again.`);
+          }
+        }
+        return;
+      }
+      if (result && result.skipped) {
+        pendingAutoExport = true;
+        return;
+      }
+      autoExportRetryCount += 1;
+      if (autoExportRetryCount >= AUTO_EXPORT_MAX_RETRIES) {
+        autoExportSuppressedChangeKey = changeKey;
+        pendingAutoExport = false;
+        log(`Auto-export disabled for this file change after ${AUTO_EXPORT_MAX_RETRIES} failed attempts. It will retry after briefing.txt or callsign.ini changes again.`);
+      }
     }
 
     document.getElementById("pdf-btn").addEventListener("click", async () => {
