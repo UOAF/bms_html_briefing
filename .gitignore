@@ -11,6 +11,7 @@ assets/*
 !assets/bullseye.png
 !assets/targets
 !assets/fonts
+!assets/logo.png
 
 backup/
 
