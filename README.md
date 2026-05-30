@@ -1,4 +1,6 @@
-<img src="examples/1.png" alt="left" width="50%"/>
+<img src="examples/1.png" alt="left" width="45%"/>
+<img src="examples/3.png" alt="right" width="45%"/>
+
 
 # Falcon BMS HTML Briefings
 This is a tool to generate editable kneeboard files for use with Falcon BMS.
