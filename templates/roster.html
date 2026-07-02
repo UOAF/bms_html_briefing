@@ -14,7 +14,7 @@
             <col style="width:{% if logo_present %}14%{% else %}15%{% endif %};">
         </colgroup>
         <tr>
-	    {% if logo_present %}<th rowspan="6" style="vertical-align: middle; text-align: center;"> <img src="assets/logo.png" width="100%"></th>{% endif %}
+	    {% if logo_present %}<th rowspan="6" class="roster-logo-cell" style="vertical-align: middle; text-align: center;"> <img class="roster-logo" src="assets/logo.png" width="100%"></th>{% endif %}
             <th></th>
             <th>Name</th>
             <th>TCN <button class="refreshButton" onclick='restoreDefaultAtId("tcn")'>⟳</button></th>
