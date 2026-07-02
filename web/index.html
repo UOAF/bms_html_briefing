@@ -1259,9 +1259,9 @@
           <button id="copy_to_kto_btn" class="auto-export-mode-btn mfd-bottom-btn" type="button">COPY TO KTO<br>OFF</button>
         </section>
         <div class="settings-meta">
-          <span>v1.0</span>
+          <span id="app-version">v__APP_VERSION__</span><span id="app-latest" hidden> (<a id="app-latest-link" href="" target="_blank" rel="noopener noreferrer"></a>)</span>
           <span aria-hidden="true">|</span>
-          <a href="https://codeberg.org/wsywsy/bms_html_briefing" target="_blank" rel="noopener noreferrer">source</a>
+          <a id="app-source-link" href="https://codeberg.org/wsywsy/bms_html_briefing" target="_blank" rel="noopener noreferrer">source</a>
         </div>
       </div>
     </div>
@@ -1302,6 +1302,10 @@
     const helpCloseBtn = document.getElementById("help-close-btn");
     const bmsSelect = document.getElementById("bms_version");
     const availableVersionsInput = document.getElementById("bms_available_versions");
+    const appVersionEl = document.getElementById("app-version");
+    const appLatestEl = document.getElementById("app-latest");
+    const appLatestLink = document.getElementById("app-latest-link");
+    const appSourceLink = document.getElementById("app-source-link");
     const wineInput = document.getElementById("wine_prefix");
     const layoutEl = document.querySelector(".layout");
     const toggleToolbarBtn = document.getElementById("toggle-toolbar");
@@ -2167,6 +2171,28 @@
         setSelectedMapSource(selectedMapSourceId);
       } catch (err) {
         log(`Failed to load map sources: ${err.message}`);
+      }
+    }
+
+    async function loadAppVersion() {
+      try {
+        const data = await fetchJSON("/api/app-version");
+        const current = String(data.current_version || "").trim();
+        const latest = String(data.latest_version || "").trim();
+        const latestUrl = String(data.latest_url || "").trim();
+        if (appVersionEl && current) {
+          appVersionEl.textContent = `v${current}`;
+        }
+        if (appSourceLink && data.source_url) {
+          appSourceLink.href = String(data.source_url);
+        }
+        if (appLatestEl && appLatestLink && data.outdated === true && latest && latestUrl) {
+          appLatestLink.href = latestUrl;
+          appLatestLink.textContent = `latest v${latest}`;
+          appLatestEl.hidden = false;
+        }
+      } catch {
+        if (appLatestEl) appLatestEl.hidden = true;
       }
     }
 
@@ -3796,6 +3822,7 @@
     async function initializeUi() {
       log("Loading configuration...");
       logPollTimer = setInterval(pollLogs, 1000);
+      await loadAppVersion();
       await loadMapSources();
       await loadConfig();
       log("Loading status and generating initial preview if needed...");

@@ -27,6 +27,7 @@ def register_file_routes(
     web_dir: Path,
     kneeboards_dir: Path,
     resolve_path: Callable[[str], Path],
+    app_version: str,
 ) -> None:
     """Register static mounts and simple file-serving endpoints."""
 
@@ -42,7 +43,8 @@ def register_file_routes(
         ui_path = web_dir / "index.html"
         if not ui_path.exists():
             raise HTTPException(status_code=500, detail="UI not found. Did you delete web/index.html?")
-        return HTMLResponse(ui_path.read_text(encoding="utf-8"))
+        html = ui_path.read_text(encoding="utf-8").replace("__APP_VERSION__", app_version)
+        return HTMLResponse(html)
 
     @app.get("/api/logs")
     def get_logs() -> JSONResponse:

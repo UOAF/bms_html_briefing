@@ -1,4 +1,5 @@
 import configparser
+import json
 import logging
 import os
 import sys
@@ -7,8 +8,10 @@ import multiprocessing
 from contextlib import asynccontextmanager
 from threading import Thread
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
+from urllib.request import Request as UrlRequest, urlopen
 import webbrowser
 
 from fastapi import FastAPI, HTTPException
@@ -45,6 +48,33 @@ PDF_RENDER_TIMEOUT_SECONDS = int(os.environ.get("BMS_HTML_BRIEF_PDF_TIMEOUT", "2
 DEFAULT_CONFIG_PATH = RUN_DIR / "config.ini"
 WEB_DIR = STATIC_ROOT / "web"
 KNEEBOARDS_DIR = RUN_DIR / "kneeboards"
+APP_VERSION = "1.0"
+APP_SOURCE_URL = "https://codeberg.org/wsywsy/bms_html_briefing"
+APP_RELEASE_API_URL = f"{APP_SOURCE_URL.replace('https://codeberg.org/', 'https://codeberg.org/api/v1/repos/')}/releases/latest"
+
+
+def version_pair(version: str) -> tuple[int, int]:
+    major, minor = str(version).strip().lstrip("v").split(".", 1)
+    return int(major), int(minor)
+
+
+def app_version_status() -> Dict[str, Any]:
+    data: Dict[str, Any] = {
+        "current_version": APP_VERSION,
+        "source_url": APP_SOURCE_URL,
+        "outdated": False,
+    }
+    try:
+        request = UrlRequest(APP_RELEASE_API_URL, headers={"Accept": "application/json"})
+        with urlopen(request, timeout=3) as response:
+            release = json.load(response)
+        latest = str(release.get("tag_name", "")).strip().lstrip("v")
+        latest_url = str(release.get("html_url", "")).strip()
+        if latest and latest_url and version_pair(latest) > version_pair(APP_VERSION):
+            data.update({"latest_version": latest, "latest_url": latest_url, "outdated": True})
+    except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("App release check failed: %s", exc)
+    return data
 
 
 def config_bool(cfg: configparser.ConfigParser, section: str, key: str, default: bool = False) -> bool:
@@ -243,6 +273,7 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
         web_dir=WEB_DIR,
         kneeboards_dir=KNEEBOARDS_DIR,
         resolve_path=resolve_path,
+        app_version=APP_VERSION,
     )
 
     @app.post("/api/quit")
@@ -260,6 +291,10 @@ def create_app(config_path: Path = DEFAULT_CONFIG_PATH, theater_ini_pattern: Opt
 
         Thread(target=delayed_shutdown, name="html-brief-ui-quit", daemon=True).start()
         return {"status": "ok"}
+
+    @app.get("/api/app-version")
+    def get_app_version() -> Dict[str, Any]:
+        return app_version_status()
 
     register_config_routes(
         app,
