@@ -26,7 +26,7 @@ from lib.pdf_export import (
     render_pdf_isolated,
 )
 from lib.pdf_print_render import render_print_html
-from lib.server.render_routes import resolve_brief_render_state
+from lib.server.render_routes import resolve_brief_render_state, selected_package_index_provided
 
 logger = logging.getLogger("html_brief_log")
 logger_ui = logging.getLogger("ui_logger")
@@ -178,6 +178,7 @@ def register_pdf_routes(
             brief_summary, selected_package_index = resolve_brief_render_state(
                 app,
                 payload.selected_package_index,
+                request_index_provided=selected_package_index_provided(payload),
             )
             logger.debug(
                 "PDF[%s] render state resolved: selected_package_index=%r package_count=%d elapsed_ms=%.1f",

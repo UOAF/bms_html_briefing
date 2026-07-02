@@ -85,7 +85,7 @@
     <input id="cam-support-package-query" type="search" placeholder="# / role" title="Type to filter package list">
     <select id="cam-support-package-select" title="CAM supporting package" {% if not package_options %}disabled{% endif %}>
       {% if package_options %}
-      <option value="">Select package</option>
+      <option value="">No supporting package</option>
       {% for option in package_options %}
       <option value="{{option.index}}" data-search="{{option.search_text}}" {% if option.selected %}selected{% endif %}>{{option.label}}</option>
       {% endfor %}

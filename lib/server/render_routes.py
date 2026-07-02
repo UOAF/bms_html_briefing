@@ -29,6 +29,8 @@ class PreviewRequest(BaseModel):
 def resolve_brief_render_state(
     app: FastAPI,
     request_index: Optional[int],
+    *,
+    request_index_provided: bool = True,
 ) -> tuple[Optional[Dict[str, Any]], Optional[int]]:
     brief_summary = app.state.last_brief_summary if isinstance(app.state.last_brief_summary, dict) else None
     if brief_summary is None:
@@ -41,11 +43,23 @@ def resolve_brief_render_state(
         app.state.last_selected_package_index = None
         return brief_summary, None
 
-    selected_index = request_index if isinstance(request_index, int) else app.state.last_selected_package_index
+    if request_index_provided:
+        selected_index = request_index if isinstance(request_index, int) else None
+    else:
+        selected_index = app.state.last_selected_package_index
     if not isinstance(selected_index, int) or selected_index < 0 or selected_index >= package_count:
-        selected_index = 0
+        selected_index = None
     app.state.last_selected_package_index = selected_index
     return brief_summary, selected_index
+
+
+def selected_package_index_provided(payload: Any) -> bool:
+    if payload is None:
+        return False
+    fields_set = getattr(payload, "model_fields_set", None)
+    if fields_set is None:
+        fields_set = getattr(payload, "__fields_set__", set())
+    return "selected_package_index" in fields_set
 
 
 def register_render_routes(
@@ -81,6 +95,7 @@ def register_render_routes(
             brief_summary, selected_package_index = resolve_brief_render_state(
                 app,
                 getattr(payload, "selected_package_index", None) if payload else None,
+                request_index_provided=selected_package_index_provided(payload),
             )
             generate_html_file(
                 cfg_generate,
@@ -119,6 +134,7 @@ def register_render_routes(
             brief_summary, selected_package_index = resolve_brief_render_state(
                 app,
                 payload.selected_package_index,
+                request_index_provided=selected_package_index_provided(payload),
             )
             generate_html_file(
                 cfg_preview,
@@ -150,4 +166,9 @@ def _update_brief_mtime_state(app: FastAPI, bms_cfg: BmsConfig) -> None:
         pass
 
 
-__all__ = ["PreviewRequest", "register_render_routes", "resolve_brief_render_state"]
+__all__ = [
+    "PreviewRequest",
+    "register_render_routes",
+    "resolve_brief_render_state",
+    "selected_package_index_provided",
+]

@@ -308,15 +308,30 @@
 <th class="header" id="map_header">Map</th>
 {% endif %}
   </tr>
-</table>
+	</table>
 		<table width="100%" id="map" class="hidable">
-	    {% if map_flight_overlays|default([]) or map_tanker_overlay|default(none) %}
+	    {% set has_player_flight_path = stpt_coords|default([])|length >= 2 %}
+	    {% set own_callsign = own_flight.callsign if own_flight is defined and own_flight and own_flight.callsign else "Own flight" %}
+	    {% set own_flight_number = own_flight.flight if own_flight is defined and own_flight and own_flight.flight else "" %}
+	    {% set own_role = own_flight.role if own_flight is defined and own_flight and own_flight.role else "" %}
+	    {% set own_aircraft = own_flight.aircraft if own_flight is defined and own_flight and own_flight.aircraft else "" %}
+	    {% set player_flight_path_label %}{{ own_callsign }}{% if own_flight_number %} {{ own_flight_number }}{% endif %}{% if own_role or own_aircraft %} - {% if own_role %}{{ own_role }}{% endif %}{% if own_role and own_aircraft %} / {% endif %}{% if own_aircraft %}{{ own_aircraft }}{% endif %}{% endif %} (Player package){% endset %}
+	    {% if has_player_flight_path or map_flight_overlays|default([]) or map_tanker_overlay|default(none) %}
 	    <tr class="map-flight-path-controls-row">
 	      <td colspan="2">
 	        <details id="mapFlightPathControls" class="map-flight-path-controls">
 	          <summary>Flight paths</summary>
 	          <table class="map-flight-path-table">
 	            <tbody>
+	            {% if has_player_flight_path %}
+	            <tr><td>
+	            <label title="{{ player_flight_path_label }}">
+	              <input type="checkbox" class="map-flight-path-toggle" data-map-flight-overlay="player-flight-path">
+	              <span class="map-flight-path-swatch" style="background: yellow"></span>
+	              <span class="map-flight-path-label">{{ player_flight_path_label }}</span>
+	            </label>
+	            </td></tr>
+	            {% endif %}
 	            {% for overlay in map_flight_overlays|default([]) %}
 	            <tr><td>
 	            <label title="{{ overlay.label }}">
@@ -363,6 +378,7 @@ const WEB_TILE_MAX_ZOOM = {{ web_tile_max_zoom|default(19)|tojson }};
 const WEB_TILE_RUNTIME_MAX_ZOOM = Math.min(Number(WEB_TILE_MAX_ZOOM) || 19, 18);
 const CAM_FLIGHT_OVERLAYS = {{ map_flight_overlays|default([])|tojson }};
 const CAM_TANKER_OVERLAY = {{ map_tanker_overlay|default(none)|tojson }};
+const PLAYER_FLIGHT_PATH_OVERLAY_ID = "player-flight-path";
 const BULLSEYE_RING_NM = Array.from({ length: 20 }, (_, index) => (index + 1) * 25);
 const BULLSEYE_STROKE = "#009900";
 const NM_TO_FEET = 6076.12;
@@ -1098,14 +1114,25 @@ function camFlightOverlayStorageKey(id) {
 
 function isCamFlightOverlayChecked(id) {
     if (!id) return false;
-    return localStorage.getItem(camFlightOverlayStorageKey(id)) === "1";
+    const value = localStorage.getItem(camFlightOverlayStorageKey(id));
+    if (id === PLAYER_FLIGHT_PATH_OVERLAY_ID) return value !== "0";
+    return value === "1";
 }
 
 function setCamFlightOverlayChecked(id, checked) {
     if (!id) return;
     const key = camFlightOverlayStorageKey(id);
+    if (id === PLAYER_FLIGHT_PATH_OVERLAY_ID) {
+        if (checked) localStorage.removeItem(key);
+        else localStorage.setItem(key, "0");
+        return;
+    }
     if (checked) localStorage.setItem(key, "1");
     else localStorage.removeItem(key);
+}
+
+function isPlayerFlightPathChecked() {
+    return isCamFlightOverlayChecked(PLAYER_FLIGHT_PATH_OVERLAY_ID);
 }
 
 function getCamFlightOverlaySelections() {
@@ -1225,6 +1252,7 @@ function addTooltipMarker(latlng, html, tooltipOptions) {
 }
 
 function renderFlightPlanLeaflet() {
+    if (!isPlayerFlightPathChecked()) return;
     const routeCoords = getFlightRouteCoords();
     getEndpointEntries().forEach((entry) => {
         const style = entry.kind === "start" ? MAP_STYLE.startMarker : MAP_STYLE.endMarker;
@@ -1603,6 +1631,7 @@ function drawCanvasText(ctx, text, point, style) {
 }
 
 function renderFlightPlanCanvas(ctx) {
+    if (!isPlayerFlightPathChecked()) return;
     drawCanvasPolyline(ctx, getFlightRouteCoords(), MAP_STYLE.flightPath);
     getEndpointEntries().forEach((entry) => {
         const point = latLngToCanvasPoint(entry.latlng);

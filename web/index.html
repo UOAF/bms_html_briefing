@@ -1335,6 +1335,7 @@
     const CAM_LAST_SAVE_PATH_KEY = "cam_last_save_path";
     const CAM_SUPPORT_PACKAGE_CONTENT_KEY = "__cam_support_package_index";
     const CAM_MAP_OVERLAYS_CONTENT_KEY = "__cam_map_flight_overlays";
+    const PLAYER_FLIGHT_PATH_OVERLAY_ID = "player-flight-path";
     const APP_INSTANCE_SEEN_KEY = "app_instance_id_seen";
     const MAIN_VIEW_STORAGE_KEY = "main_view";
     const BRIEFING_DTC_LINKED_FIELDS = {
@@ -1561,6 +1562,12 @@
       const source = selections && typeof selections === "object" && !Array.isArray(selections) ? selections : {};
       Object.entries(source).forEach(([id, checked]) => {
         if (!id) return;
+        if (id === PLAYER_FLIGHT_PATH_OVERLAY_ID) {
+          if (checked === false || checked === "0") {
+            localStorage.setItem(CAM_MAP_FLIGHT_OVERLAY_KEY_PREFIX + id, "0");
+          }
+          return;
+        }
         if (checked === true || checked === "1") {
           localStorage.setItem(CAM_MAP_FLIGHT_OVERLAY_KEY_PREFIX + id, "1");
         }
@@ -1672,7 +1679,7 @@
       select.innerHTML = "";
       const placeholder = document.createElement("option");
       placeholder.value = "";
-      placeholder.textContent = options.length ? "Select package" : "No matching packages";
+      placeholder.textContent = options.length ? "No supporting package" : "No matching packages";
       select.appendChild(placeholder);
       options.forEach((optionData) => {
         const option = document.createElement("option");
@@ -1693,7 +1700,6 @@
 
     async function applySelectedCamPackageFromPreview() {
       const selected = getSelectedCamPackageIndex();
-      if (!Number.isFinite(selected)) return false;
       clearSavedCamRenderedValues({ clearSupportPackage: true });
       saveCamSupportPackageIndex(selected);
       await doPreview(currentOverrides());
@@ -2414,6 +2420,7 @@
         selected_package_index: (() => {
           const selected = getSelectedCamPackageIndex();
           if (Number.isFinite(selected)) return selected;
+          if (getPreviewCamPackageSelect()) return null;
           const saved = getSavedCamSupportPackageIndex();
           return Number.isFinite(saved) ? saved : null;
         })()
@@ -2567,7 +2574,7 @@
         if (camData && Array.isArray(camData.warnings) && camData.warnings.length) {
           if (!silent) log(`CAM warnings: ${camData.warnings.join(" | ")}`);
         }
-        const selectedIndex = Number.isFinite(response.selected_package_index) ? response.selected_package_index : 0;
+        const selectedIndex = Number.isFinite(response.selected_package_index) ? response.selected_package_index : null;
         clearSavedCamRenderedValues({ clearBullseye: true, clearSupportPackage: true });
         clearSavedCamMapFlightOverlays();
         saveCamSupportPackageIndex(selectedIndex);

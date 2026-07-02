@@ -426,13 +426,13 @@ def _build_summary_render_context(
     packages = [pkg for pkg in packages_raw if isinstance(pkg, dict)] if isinstance(packages_raw, list) else []
 
     selected_index = selected_package_index if isinstance(selected_package_index, int) else None
-    if packages and (selected_index is None or selected_index < 0 or selected_index >= len(packages)):
+    if packages and selected_index is not None and (selected_index < 0 or selected_index >= len(packages)):
         logger.debug(
-            "Brief render selection reset to first package: requested=%r package_count=%d",
+            "Brief render selection ignored: requested=%r package_count=%d",
             selected_package_index,
             len(packages),
         )
-        selected_index = 0
+        selected_index = None
 
     package_options: list[dict[str, Any]] = []
     for idx, pkg in enumerate(packages):

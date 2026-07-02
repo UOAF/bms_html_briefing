@@ -129,8 +129,7 @@ def register_cam_routes(
 
         app.state.last_brief_summary_path = str(json_path)
         app.state.last_brief_summary = cam_data
-        packages = cam_data.get("packages")
-        app.state.last_selected_package_index = 0 if isinstance(packages, list) and packages else None
+        app.state.last_selected_package_index = None
 
         return {
             "status": "ok",
