@@ -8,7 +8,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from bs4 import BeautifulSoup, NavigableString
 
@@ -70,6 +70,16 @@ class PdfRenderTimeout(TimeoutError):
         self.pid = pid
         super().__init__(
             f"WeasyPrint did not finish within {timeout_seconds}s"
+            f" (last stage: {last_stage}, pid: {pid or 'unknown'})"
+        )
+
+
+class PdfRenderCancelled(RuntimeError):
+    def __init__(self, last_stage: str, pid: int | None):
+        self.last_stage = last_stage
+        self.pid = pid
+        super().__init__(
+            f"WeasyPrint render was cancelled"
             f" (last stage: {last_stage}, pid: {pid or 'unknown'})"
         )
 
@@ -380,6 +390,10 @@ def render_pdf_isolated(
     base_url: Path,
     pdf_path: Path,
     timeout_seconds: int,
+    *,
+    on_process_start: Callable[[multiprocessing.Process], None] | None = None,
+    on_process_done: Callable[[], None] | None = None,
+    is_cancel_requested: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     ctx = multiprocessing.get_context("spawn")
     result_queue = ctx.Queue(maxsize=1)
@@ -390,6 +404,8 @@ def render_pdf_isolated(
         name="html-brief-weasyprint",
     )
     process.start()
+    if on_process_start is not None:
+        on_process_start(process)
     logger.debug(
         "WeasyPrint worker process started: pid=%s parent_pid=%s timeout_s=%d",
         process.pid,
@@ -399,12 +415,30 @@ def render_pdf_isolated(
     deadline = time.monotonic() + timeout_seconds
     last_stage = "process_started"
     while process.is_alive():
+        if is_cancel_requested is not None and is_cancel_requested():
+            break
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
         process.join(min(0.25, remaining))
         last_stage = _drain_progress(progress_queue, last_stage)
     last_stage = _drain_progress(progress_queue, last_stage)
+    if is_cancel_requested is not None and is_cancel_requested():
+        logger.warning(
+            "WeasyPrint worker cancellation requested: pid=%s last_stage=%s",
+            process.pid,
+            last_stage,
+        )
+        if process.is_alive():
+            process.terminate()
+            process.join(10)
+            if process.is_alive():
+                logger.error("WeasyPrint worker still alive after cancel terminate; killing pid=%s", process.pid)
+                process.kill()
+                process.join(5)
+        if on_process_done is not None:
+            on_process_done()
+        raise PdfRenderCancelled(last_stage, process.pid)
     if process.is_alive():
         logger.error(
             "WeasyPrint worker timeout: pid=%s last_stage=%s timeout_s=%d",
@@ -418,7 +452,11 @@ def render_pdf_isolated(
             logger.error("WeasyPrint worker still alive after terminate; killing pid=%s", process.pid)
             process.kill()
             process.join(5)
+        if on_process_done is not None:
+            on_process_done()
         raise PdfRenderTimeout(timeout_seconds, last_stage, process.pid)
+    if on_process_done is not None:
+        on_process_done()
     logger.debug(
         "WeasyPrint worker process exited: pid=%s exitcode=%s last_stage=%s",
         process.pid,
@@ -442,6 +480,7 @@ __all__ = [
     "materialize_pdf_artifacts",
     "PdfExportJob",
     "PdfImageArtifact",
+    "PdfRenderCancelled",
     "PdfRenderTimeout",
     "render_pdf_isolated",
     "write_data_url_artifact",

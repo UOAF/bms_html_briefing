@@ -19,6 +19,7 @@ from lib.map_sources import map_selection as select_map
 from lib.map_tiles import local_map_available, resolve_local_map_file
 from lib.pdf_export import (
     PdfExportJob,
+    PdfRenderCancelled,
     PdfRenderTimeout,
     content_payload_stats,
     materialize_pdf_artifacts,
@@ -88,6 +89,40 @@ def register_pdf_routes(
         logger_ui.error("PDF client preparation failed: %s", detail)
         return {"status": "ok", "pdf_status": "error", "pdf_error": detail}
 
+    def is_pdf_cancel_requested() -> bool:
+        with app.state.pdf_control_lock:
+            return bool(app.state.pdf_cancel_requested)
+
+    def set_pdf_worker(process: Any) -> None:
+        with app.state.pdf_control_lock:
+            app.state.pdf_worker_process = process
+
+    def clear_pdf_worker() -> None:
+        with app.state.pdf_control_lock:
+            app.state.pdf_worker_process = None
+
+    @app.post("/api/pdf/cancel")
+    def cancel_pdf() -> Dict[str, str]:
+        with app.state.pdf_control_lock:
+            if not app.state.pdf_busy:
+                return {"status": "idle"}
+            app.state.pdf_cancel_requested = True
+            app.state.pdf_status = "cancelling"
+            app.state.pdf_error = None
+            trace = app.state.pdf_current_trace
+            process = app.state.pdf_worker_process
+
+        pid = getattr(process, "pid", None)
+        if process is not None:
+            try:
+                if process.is_alive():
+                    logger.warning("PDF[%s] cancellation requested: terminating worker pid=%s", trace, pid)
+                    process.terminate()
+            except Exception as exc:
+                logger.warning("PDF[%s] cancellation request could not terminate worker pid=%s: %s", trace, pid, exc)
+        logger_ui.warning("PDF[%s] cancellation requested", trace or "unknown")
+        return {"status": "cancelling", "pdf_status": "cancelling"}
+
     @app.post("/api/pdf")
     def generate_pdf(payload: PdfRequest) -> Dict[str, str]:
         if app.state.bms_cfg is None:
@@ -102,6 +137,10 @@ def register_pdf_routes(
         app.state.pdf_busy = True
         app.state.pdf_status = "running"
         app.state.pdf_error = None
+        with app.state.pdf_control_lock:
+            app.state.pdf_cancel_requested = False
+            app.state.pdf_worker_process = None
+            app.state.pdf_current_trace = pdf_trace
         pdf_path: Optional[Path] = None
         try:
             payload_stats = content_payload_stats(payload.content)
@@ -215,6 +254,9 @@ def register_pdf_routes(
                     static_root,
                     job.pdf_temp_path,
                     pdf_render_timeout_seconds,
+                    on_process_start=set_pdf_worker,
+                    on_process_done=clear_pdf_worker,
+                    is_cancel_requested=is_pdf_cancel_requested,
                 )
                 render_elapsed_ms = float(worker_result.get("render_elapsed_ms", 0.0))
                 write_elapsed_ms = float(worker_result.get("write_elapsed_ms", 0.0))
@@ -283,6 +325,13 @@ def register_pdf_routes(
             logger.exception("PDF[%s] timed out after %.1fms", pdf_trace, (time.perf_counter() - req_started) * 1000.0)
             logger_ui.error("PDF[%s] timed out; no PDF was generated: %s", pdf_trace, exc)
             raise HTTPException(status_code=504, detail=f"PDF generation timed out; no PDF was generated: {exc}")
+        except PdfRenderCancelled as exc:
+            app.state.pdf_status = "cancelled"
+            app.state.pdf_error = str(exc)
+            app.state.pdf_overflow = None
+            logger.warning("PDF[%s] cancelled after %.1fms: %s", pdf_trace, (time.perf_counter() - req_started) * 1000.0, exc)
+            logger_ui.warning("PDF[%s] cancelled; no PDF was generated", pdf_trace)
+            raise HTTPException(status_code=499, detail=f"PDF generation cancelled; no PDF was generated: {exc}")
         except Exception as exc:
             app.state.pdf_status = "error"
             app.state.pdf_error = str(exc)
@@ -291,6 +340,10 @@ def register_pdf_routes(
             logger_ui.error("PDF[%s] failed: %s", pdf_trace, exc)
             raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {exc}")
         finally:
+            with app.state.pdf_control_lock:
+                app.state.pdf_cancel_requested = False
+                app.state.pdf_worker_process = None
+                app.state.pdf_current_trace = None
             app.state.pdf_busy = False
             pdf_lock.release()
             logger.debug("PDF[%s] lock released", pdf_trace)

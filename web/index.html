@@ -1420,6 +1420,9 @@
     let pdfBusy = false;
     let localPdfBusy = false;
     let serverPdfBusy = false;
+    let pdfStartedAt = 0;
+    let pdfElapsedTimer = null;
+    let pdfCancelRequested = false;
     let exportBusy = false;
     let filesChangedState = false;
     let pendingAutoExport = false;
@@ -2009,18 +2012,20 @@
       overflowBadge.classList.remove("ok", "error", "warn", "muted");
       let cls = "ok";
       const normalizedPdfStatus = typeof pdfStatus === "string" ? pdfStatus.toLowerCase() : "";
-      if (normalizedPdfStatus === "timeout" || normalizedPdfStatus === "error") {
+      if (normalizedPdfStatus === "timeout" || normalizedPdfStatus === "error" || normalizedPdfStatus === "cancelled") {
         cls = "error";
       } else if (normalizedPdfStatus === "overflow" || pdfOverflow === true) {
         cls = "warn";
-      } else if (!normalizedPdfStatus || normalizedPdfStatus === "unknown" || normalizedPdfStatus === "running" || pdfOverflow === undefined || pdfOverflow === null) {
+      } else if (!normalizedPdfStatus || normalizedPdfStatus === "unknown" || normalizedPdfStatus === "running" || normalizedPdfStatus === "cancelling" || pdfOverflow === undefined || pdfOverflow === null) {
         cls = "muted";
       }
       overflowBadge.classList.add(cls);
       if (cls === "error") {
         overflowBadge.title = normalizedPdfStatus === "timeout"
           ? "PDF generation timed out; no PDF was generated"
-          : (pdfError || "PDF generation failed");
+          : (normalizedPdfStatus === "cancelled"
+            ? "PDF generation was cancelled; no PDF was generated"
+            : (pdfError || "PDF generation failed"));
       } else {
         overflowBadge.title = cls === "warn" ? "PDF has more pages than layout" : (cls === "ok" ? "PDF matches layout page count" : "PDF status unknown (generate PDF once)");
       }
@@ -2694,11 +2699,57 @@
       }
     }
 
+    function formatPdfElapsed() {
+      if (!pdfStartedAt) return "0:00";
+      const totalSeconds = Math.max(0, Math.floor((performance.now() - pdfStartedAt) / 1000));
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function startPdfElapsedTimer() {
+      pdfStartedAt = performance.now();
+      pdfCancelRequested = false;
+      if (pdfElapsedTimer) clearInterval(pdfElapsedTimer);
+      pdfElapsedTimer = setInterval(updateBusyUi, 1000);
+    }
+
+    function stopPdfElapsedTimer() {
+      if (pdfElapsedTimer) {
+        clearInterval(pdfElapsedTimer);
+        pdfElapsedTimer = null;
+      }
+      pdfStartedAt = 0;
+      pdfCancelRequested = false;
+    }
+
+    async function cancelPdfGeneration() {
+      if (!pdfBusy || pdfCancelRequested) return;
+      pdfCancelRequested = true;
+      updateBusyUi();
+      log("PDF cancellation requested");
+      try {
+        await fetchJSON("/api/pdf/cancel", { method: "POST" });
+        await pollStatusBadges();
+      } catch (err) {
+        log(`PDF cancellation request failed: ${err.message}`);
+      }
+    }
+
     function updateBusyUi() {
       const pipelineBusy = pdfBusy || exportBusy;
       if (pdfBtn) {
-        pdfBtn.disabled = pipelineBusy;
-        pdfBtn.title = pipelineBusy ? "PDF generation in progress" : "";
+        if (pdfBusy) {
+          pdfBtn.disabled = pdfCancelRequested;
+          pdfBtn.textContent = pdfCancelRequested
+            ? `Stopping ${formatPdfElapsed()}`
+            : `Stop PDF Gen (${formatPdfElapsed()})`;
+          pdfBtn.title = pdfCancelRequested ? "Stopping PDF generation" : "Stop PDF generation";
+        } else {
+          pdfBtn.disabled = exportBusy;
+          pdfBtn.textContent = "Gen PDF";
+          pdfBtn.title = exportBusy ? "Kneeboard export in progress" : "";
+        }
       }
       if (exportBtn) {
         exportBtn.disabled = pipelineBusy;
@@ -2729,7 +2780,13 @@
     }
 
     function refreshPdfBusy() {
+      const wasPdfBusy = pdfBusy;
       pdfBusy = !!(localPdfBusy || serverPdfBusy);
+      if (pdfBusy && !wasPdfBusy) {
+        startPdfElapsedTimer();
+      } else if (!pdfBusy && wasPdfBusy) {
+        stopPdfElapsedTimer();
+      }
       updateBusyUi();
     }
 
@@ -2972,7 +3029,11 @@
     }
 
     document.getElementById("pdf-btn").addEventListener("click", async () => {
-      if (pdfBusy || exportBusy) return;
+      if (pdfBusy) {
+        await cancelPdfGeneration();
+        return;
+      }
+      if (exportBusy) return;
       setPdfBusy(true);
       const started = performance.now();
       try {
@@ -2983,7 +3044,12 @@
         });
         await pollStatusBadges();
       } catch (err) {
-        log(`PDF generation failed after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);
+        if (pdfCancelRequested) {
+          log(`PDF generation cancelled after ${(performance.now() - started).toFixed(1)}ms`);
+        } else {
+          log(`PDF generation failed after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);
+        }
+        await pollStatusBadges();
       } finally {
         setPdfBusy(false);
       }

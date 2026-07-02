@@ -64,6 +64,10 @@ def initialize_app_state(
     app.state.instance_id = uuid.uuid4().hex
     app.state.pdf_busy = False
     app.state.pdf_lock = Lock()
+    app.state.pdf_control_lock = Lock()
+    app.state.pdf_cancel_requested = False
+    app.state.pdf_worker_process = None
+    app.state.pdf_current_trace: Optional[str] = None
     app.state.shutdown_callback = None
 
 
