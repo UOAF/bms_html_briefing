@@ -58,9 +58,9 @@ PDF_RENDER_TIMEOUT_SECONDS = int(os.environ.get("BMS_HTML_BRIEF_PDF_TIMEOUT", "2
 DEFAULT_CONFIG_PATH = RUN_DIR / "config.ini"
 WEB_DIR = STATIC_ROOT / "web"
 KNEEBOARDS_DIR = RUN_DIR / "kneeboards"
-APP_VERSION = "1.0"
-APP_SOURCE_URL = "https://codeberg.org/wsywsy/bms_html_briefing"
-APP_RELEASE_API_URL = f"{APP_SOURCE_URL.replace('https://codeberg.org/', 'https://codeberg.org/api/v1/repos/')}/releases/latest"
+APP_VERSION = "1.1"
+APP_SOURCE_URL = "https://github.com/UOAF/bms_html_briefing"
+APP_RELEASE_API_URL = "https://api.github.com/repos/UOAF/bms_html_briefing/releases/latest"
 
 
 def version_pair(version: str) -> tuple[int, int]:
@@ -75,7 +75,7 @@ def app_version_status() -> Dict[str, Any]:
         "outdated": False,
     }
     try:
-        request = UrlRequest(APP_RELEASE_API_URL, headers={"Accept": "application/json"})
+        request = UrlRequest(APP_RELEASE_API_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": "bms-html-briefing"})
         with urlopen(request, timeout=3) as response:
             release = json.load(response)
         latest = str(release.get("tag_name", "")).strip().lstrip("v")
