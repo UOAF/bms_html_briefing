@@ -5,6 +5,16 @@ import os
 import sys
 import time
 import multiprocessing
+
+# PyInstaller multiprocessing children and the dedicated PDF worker must divert
+# before importing FastAPI, tray/GUI libraries, or the rest of the application.
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    if len(sys.argv) > 1 and sys.argv[1] == "--html-brief-pdf-worker":
+        from lib.pdf_worker import main as run_pdf_worker
+
+        raise SystemExit(run_pdf_worker(sys.argv[2:]))
+
 from contextlib import asynccontextmanager
 from threading import Thread
 from pathlib import Path

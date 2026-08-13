@@ -2,7 +2,7 @@
 
 import sys
 
-hiddenimports = []
+hiddenimports = ["lib.pdf_worker"]
 hooksconfig = {}
 if sys.platform == "win32":
     hiddenimports.append("pystray._win32")

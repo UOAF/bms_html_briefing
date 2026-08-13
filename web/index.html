@@ -1428,11 +1428,13 @@
     let pdfStartedAt = 0;
     let pdfElapsedTimer = null;
     let pdfCancelRequested = false;
+    let activePdfAbortController = null;
     let exportBusy = false;
     let filesChangedState = false;
     let pendingAutoExport = false;
     let skipNextAutoExportEdge = false;
     const AUTO_EXPORT_MAX_RETRIES = 3;
+    const PDF_MAP_CAPTURE_TIMEOUT_MS = 20000;
     let autoExportRetryCount = 0;
     let autoExportActiveChangeKey = "";
     let autoExportSuppressedChangeKey = "";
@@ -1844,7 +1846,43 @@
       }
     }
 
-    async function withBriefingMapPageMeasurable(task) {
+    function waitForAnimationFrames(frameWindow, signal = null, frameCount = 2, timeoutMs = 1000) {
+      throwIfPdfAborted(signal);
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let frameId = null;
+        let framesRemaining = Math.max(1, frameCount);
+        const cleanup = () => {
+          clearTimeout(timeoutId);
+          if (signal) signal.removeEventListener("abort", onAbort);
+          if (frameId !== null && typeof frameWindow.cancelAnimationFrame === "function") {
+            frameWindow.cancelAnimationFrame(frameId);
+          }
+        };
+        const finish = (error = null) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (error) reject(error);
+          else resolve();
+        };
+        const onAbort = () => finish(createPdfAbortError(signal?.reason));
+        const onFrame = () => {
+          frameId = null;
+          framesRemaining -= 1;
+          if (framesRemaining <= 0) {
+            finish();
+            return;
+          }
+          frameId = frameWindow.requestAnimationFrame(onFrame);
+        };
+        const timeoutId = setTimeout(() => finish(), timeoutMs);
+        if (signal) signal.addEventListener("abort", onAbort, { once: true });
+        frameId = frameWindow.requestAnimationFrame(onFrame);
+      });
+    }
+
+    async function withBriefingMapPageMeasurable(task, signal = null) {
       const cw = briefFrame?.contentWindow;
       if (!cw || !cw.document || briefingScrollMode !== "paged") {
         return task();
@@ -1868,9 +1906,10 @@
           pointerEvents: "none"
         });
       }
-      await new Promise((resolve) => cw.requestAnimationFrame(() => cw.requestAnimationFrame(resolve)));
-      invalidateBriefingMap(cw);
       try {
+        await waitForAnimationFrames(cw, signal);
+        invalidateBriefingMap(cw);
+        throwIfPdfAborted(signal);
         return await task();
       } finally {
         mapPage.hidden = previousHidden;
@@ -1879,12 +1918,12 @@
         } else {
           mapPage.setAttribute("style", previousStyle);
         }
-        await new Promise((resolve) => cw.requestAnimationFrame(() => cw.requestAnimationFrame(resolve)));
+        await waitForAnimationFrames(cw, null);
         invalidateBriefingMap(cw);
       }
     }
 
-    async function withBriefingFrameMeasurable(task) {
+    async function withBriefingFrameMeasurable(task, signal = null) {
       if (!briefFrame || !briefFrame.hidden) {
         return task();
       }
@@ -1900,9 +1939,10 @@
         visibility: "hidden",
         pointerEvents: "none"
       });
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      invalidateBriefingMap();
       try {
+        await waitForAnimationFrames(window, signal);
+        invalidateBriefingMap();
+        throwIfPdfAborted(signal);
         return await task();
       } finally {
         briefFrame.hidden = previousHidden;
@@ -1911,7 +1951,7 @@
         } else {
           briefFrame.setAttribute("style", previousStyle);
         }
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await waitForAnimationFrames(window, null);
         invalidateBriefingMap();
       }
     }
@@ -2708,7 +2748,41 @@
       return Array.isArray(pages) && pages.some((page) => Array.isArray(page) && page.includes("map"));
     }
 
-    async function captureMapImage() {
+    function createPdfAbortError(reason = null) {
+      const message = typeof reason === "string"
+        ? reason
+        : (reason && typeof reason.message === "string" ? reason.message : "PDF generation cancelled");
+      const error = new Error(message || "PDF generation cancelled");
+      error.name = "AbortError";
+      return error;
+    }
+
+    function isPdfAbortError(error) {
+      return !!error && error.name === "AbortError";
+    }
+
+    function throwIfPdfAborted(signal) {
+      if (signal?.aborted) {
+        throw createPdfAbortError(signal.reason);
+      }
+    }
+
+    function beginPdfClientOperation() {
+      if (activePdfAbortController && !activePdfAbortController.signal.aborted) {
+        activePdfAbortController.abort(createPdfAbortError("A newer PDF operation replaced this one"));
+      }
+      const controller = new AbortController();
+      activePdfAbortController = controller;
+      return controller;
+    }
+
+    function finishPdfClientOperation(controller) {
+      if (activePdfAbortController === controller) {
+        activePdfAbortController = null;
+      }
+    }
+
+    async function captureMapImage(signal = null) {
       if (!layoutIncludesMap()) return null;
       const cw = briefFrame?.contentWindow;
       if (cw && cw.htmlBriefMapAvailable === false) return null;
@@ -2716,9 +2790,26 @@
         throw new Error("Map capture unavailable: preview frame is not ready");
       }
       const started = performance.now();
+      const captureController = new AbortController();
+      let captureTimedOut = false;
+      const forwardAbort = () => captureController.abort(signal?.reason || createPdfAbortError());
+      if (signal?.aborted) {
+        forwardAbort();
+      } else if (signal) {
+        signal.addEventListener("abort", forwardAbort, { once: true });
+      }
+      const timeoutId = setTimeout(() => {
+        captureTimedOut = true;
+        captureController.abort(createPdfAbortError("Map capture timed out"));
+      }, PDF_MAP_CAPTURE_TIMEOUT_MS);
       debugLog("PDF prep: map capture start");
       try {
-        const dataUrl = await withBriefingMapPageMeasurable(() => cw.exportMapImage());
+        throwIfPdfAborted(captureController.signal);
+        const dataUrl = await withBriefingMapPageMeasurable(
+          () => cw.exportMapImage({ signal: captureController.signal }),
+          captureController.signal
+        );
+        throwIfPdfAborted(captureController.signal);
         if (!dataUrl) {
           const err = cw.exportMapLastError || "unknown";
           const logTrail = Array.isArray(cw.exportMapLog) ? cw.exportMapLog.join(" | ") : "";
@@ -2728,7 +2819,16 @@
         }
         return dataUrl;
       } catch (err) {
+        if (captureTimedOut) {
+          throw new Error(`Map capture timed out after ${PDF_MAP_CAPTURE_TIMEOUT_MS}ms`);
+        }
+        if (signal?.aborted || isPdfAbortError(err)) {
+          throw createPdfAbortError(signal?.reason || err);
+        }
         throw new Error(`Map capture failed after ${(performance.now() - started).toFixed(1)}ms: ${err && err.message ? err.message : err}`);
+      } finally {
+        clearTimeout(timeoutId);
+        if (signal) signal.removeEventListener("abort", forwardAbort);
       }
     }
 
@@ -2759,6 +2859,9 @@
     async function cancelPdfGeneration() {
       if (!pdfBusy || pdfCancelRequested) return;
       pdfCancelRequested = true;
+      if (activePdfAbortController && !activePdfAbortController.signal.aborted) {
+        activePdfAbortController.abort(createPdfAbortError());
+      }
       updateBusyUi();
       log("PDF cancellation requested");
       try {
@@ -2880,20 +2983,24 @@
       }
     }
 
-    async function runPdfGeneration({ source = "manual", overrides = null, includeTheater = false, started = performance.now() } = {}) {
+    async function runPdfGeneration({ source = "manual", overrides = null, includeTheater = false, started = performance.now(), signal = null } = {}) {
       const activeOverrides = overrides || currentOverrides();
       let payload;
       try {
+        throwIfPdfAborted(signal);
         payload = { content: getLatestEdits(), ...activeOverrides };
         if (source === "auto") {
           payload.update_change_refs = false;
         }
-        const mapImage = await captureMapImage();
+        const mapImage = await captureMapImage(signal);
+        throwIfPdfAborted(signal);
         if (mapImage) {
           payload.content.map_image = mapImage;
         }
       } catch (err) {
-        await reportPdfClientError(err && err.message ? err.message : err);
+        if (!isPdfAbortError(err)) {
+          await reportPdfClientError(err && err.message ? err.message : err);
+        }
         throw err;
       }
       if (includeTheater) {
@@ -2907,8 +3014,13 @@
       } catch (err) {
         debugLog(`PDF request: failed to measure payload size: ${err.message}`);
       }
+      throwIfPdfAborted(signal);
       debugLog("PDF request: POST /api/pdf start");
-      const pdfRes = await fetchJSON("/api/pdf", { method: "POST", body: JSON.stringify(payload) });
+      const pdfRes = await fetchJSON("/api/pdf", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        signal
+      });
       debugLog(`PDF request: POST /api/pdf done elapsed_ms=${(performance.now() - started).toFixed(1)}`);
       log(`PDF generated at ${pdfRes.pdf_file}`);
       await loadKneeboardOrder(true, { preserveCurrent: true });
@@ -2919,6 +3031,8 @@
       if (pdfBusy || exportBusy) return { ok: false, skipped: true };
       setPdfBusy(true);
       setExportBusy(true);
+      const pdfController = beginPdfClientOperation();
+      const { signal } = pdfController;
       const started = performance.now();
       try {
         const overrides = currentOverrides();
@@ -2928,7 +3042,8 @@
             try {
               const prevRes = await fetchJSON("/api/preview", {
                 method: "POST",
-                body: JSON.stringify({ ...overrides, update_change_refs: false })
+                body: JSON.stringify({ ...overrides, update_change_refs: false }),
+                signal
               });
               log(`Auto-export preview refreshed at ${prevRes.output_file}`);
               const refreshed = await refreshBrief(true);
@@ -2936,6 +3051,7 @@
                 throw new Error("Auto-export preview refresh timed out");
               }
             } catch (err) {
+              if (isPdfAbortError(err)) throw err;
               const message = `Auto-export preview refresh failed: ${err && err.message ? err.message : err}`;
               await reportPdfClientError(message);
               throw new Error(message);
@@ -2945,13 +3061,15 @@
             source,
             overrides,
             includeTheater: true,
-            started
+            started,
+            signal
           });
         };
         const { payload } = source === "auto"
-          ? await withBriefingFrameMeasurable(prepareAndRun)
+          ? await withBriefingFrameMeasurable(prepareAndRun, signal)
           : await prepareAndRun();
         await pollStatusBadges();
+        throwIfPdfAborted(signal);
         if (currentPdfOverflow === true) {
           const warning = pdfOverflowExportWarning();
           if (source === "auto") {
@@ -2985,10 +3103,15 @@
         await pollStatusBadges();
         return { ok: true };
       } catch (err) {
+        if (isPdfAbortError(err)) {
+          log(`${source === "auto" ? "Auto-export" : "Export"} cancelled after ${(performance.now() - started).toFixed(1)}ms`);
+          return { ok: false, cancelled: true };
+        }
         const prefix = source === "auto" ? "Auto-export failed" : "Export failed";
         log(`${prefix} after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);
         return { ok: false, error: err };
       } finally {
+        finishPdfClientOperation(pdfController);
         setExportBusy(false);
         setPdfBusy(false);
         updateMainViewControls();
@@ -3068,22 +3191,25 @@
       }
       if (exportBusy) return;
       setPdfBusy(true);
+      const pdfController = beginPdfClientOperation();
       const started = performance.now();
       try {
         await runPdfGeneration({
           source: "manual",
           overrides: currentOverrides(),
-          started
+          started,
+          signal: pdfController.signal
         });
         await pollStatusBadges();
       } catch (err) {
-        if (pdfCancelRequested) {
+        if (pdfCancelRequested || isPdfAbortError(err)) {
           log(`PDF generation cancelled after ${(performance.now() - started).toFixed(1)}ms`);
         } else {
           log(`PDF generation failed after ${(performance.now() - started).toFixed(1)}ms: ${err.message}`);
         }
         await pollStatusBadges();
       } finally {
+        finishPdfClientOperation(pdfController);
         setPdfBusy(false);
       }
     });

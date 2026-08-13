@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 import logging
-import multiprocessing
 import os
 import base64
+import json
 import re
+import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Event, Lock, Thread
 from typing import Any, Callable
 
 from bs4 import BeautifulSoup, NavigableString
 
 
 logger = logging.getLogger("html_brief_log")
+
+PDF_WORKER_FLAG = "--html-brief-pdf-worker"
+PDF_WORKER_START_TIMEOUT_SECONDS = 30.0
 
 DATA_URL_RE = re.compile(r"^data:(image/(?:png|jpeg|jpg|gif|webp));base64,(.*)$", re.IGNORECASE | re.DOTALL)
 TARGET_REF_CELLS = {
@@ -64,7 +70,7 @@ class PdfExportJob:
 
 
 class PdfRenderTimeout(TimeoutError):
-    def __init__(self, timeout_seconds: int, last_stage: str, pid: int | None):
+    def __init__(self, timeout_seconds: float, last_stage: str, pid: int | None):
         self.timeout_seconds = timeout_seconds
         self.last_stage = last_stage
         self.pid = pid
@@ -334,55 +340,166 @@ def finalize_print_html(
     return patched
 
 
-def _queue_progress(progress_queue: Any, stage: str) -> None:
-    try:
-        progress_queue.put({"stage": stage, "pid": os.getpid(), "time": time.time()})
-    except Exception:
-        pass
+class PdfWorkerProcess:
+    """Small compatibility wrapper used by the route's existing cancel logic."""
 
+    def __init__(self, process: subprocess.Popen[Any]):
+        self._process = process
 
-def _render_pdf_worker(html_filename: str, base_url: str, pdf_filename: str, result_queue: Any, progress_queue: Any) -> None:
-    """Run WeasyPrint in a child process so a native Windows layout hang is killable."""
-    try:
-        _queue_progress(progress_queue, "import_weasyprint_start")
-        from weasyprint import HTML as WorkerHTML
+    @property
+    def pid(self) -> int | None:
+        return self._process.pid
 
-        _queue_progress(progress_queue, "import_weasyprint_done")
-        started = time.perf_counter()
-        _queue_progress(progress_queue, "render_start")
-        pdf_doc = WorkerHTML(filename=html_filename, base_url=base_url).render()
-        render_elapsed_ms = (time.perf_counter() - started) * 1000.0
-        page_count = len(pdf_doc.pages)
-        started = time.perf_counter()
-        _queue_progress(progress_queue, "write_pdf_start")
-        pdf_doc.write_pdf(pdf_filename)
-        write_elapsed_ms = (time.perf_counter() - started) * 1000.0
-        _queue_progress(progress_queue, "write_pdf_done")
-        result_queue.put(
-            {
-                "ok": True,
-                "pages": page_count,
-                "render_elapsed_ms": render_elapsed_ms,
-                "write_elapsed_ms": write_elapsed_ms,
-                "pid": os.getpid(),
-            }
-        )
-    except Exception as exc:
+    @property
+    def exitcode(self) -> int | None:
+        return self._process.poll()
+
+    def is_alive(self) -> bool:
+        return self._process.poll() is None
+
+    def join(self, timeout: float | None = None) -> None:
         try:
-            result_queue.put({"ok": False, "error": repr(exc), "pid": os.getpid()})
-        except Exception:
+            self._process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
             pass
 
+    def terminate(self) -> None:
+        if self.is_alive():
+            self._process.terminate()
 
-def _drain_progress(progress_queue: Any, last_stage: str) -> str:
-    while True:
+    def kill(self) -> None:
+        if self.is_alive():
+            self._process.kill()
+
+
+def _pdf_worker_command(
+    html_path: Path,
+    base_url: Path,
+    pdf_path: Path,
+    result_path: Path,
+    progress_path: Path,
+) -> list[str]:
+    worker_args = [
+        "--html",
+        str(html_path),
+        "--base-url",
+        str(base_url),
+        "--pdf",
+        str(pdf_path),
+        "--result",
+        str(result_path),
+        "--progress",
+        str(progress_path),
+    ]
+    if getattr(sys, "frozen", False):
+        return [sys.executable, PDF_WORKER_FLAG, *worker_args]
+    return [sys.executable, str(Path(__file__).with_name("pdf_worker.py")), *worker_args]
+
+
+def _launch_pdf_worker(command: list[str]) -> PdfWorkerProcess:
+    creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        creationflags=creation_flags,
+    )
+    return PdfWorkerProcess(process)
+
+
+def _stop_worker_process(process: Any, *, reason: str) -> None:
+    pid = getattr(process, "pid", None)
+    try:
+        if not process.is_alive():
+            return
+        logger.warning("Stopping PDF worker: pid=%s reason=%s", pid, reason)
+        process.terminate()
+        process.join(10)
+        if process.is_alive():
+            logger.error("PDF worker still alive after terminate; killing pid=%s", pid)
+            process.kill()
+            process.join(5)
+    except Exception as exc:
+        logger.warning("Could not stop PDF worker pid=%s reason=%s: %s", pid, reason, exc)
+
+
+def _launch_worker_with_watchdog(
+    command: list[str],
+    timeout_seconds: float,
+    is_cancel_requested: Callable[[], bool] | None,
+) -> PdfWorkerProcess:
+    launch_done = Event()
+    abandoned = Event()
+    cleanup_lock = Lock()
+    state: dict[str, Any] = {}
+    cleanup_claimed = False
+
+    def cleanup_late_process() -> None:
+        nonlocal cleanup_claimed
+        with cleanup_lock:
+            if cleanup_claimed:
+                return
+            process = state.get("process")
+            if process is None:
+                return
+            cleanup_claimed = True
+        _stop_worker_process(process, reason="abandoned process launch")
+
+    def launch() -> None:
         try:
-            event = progress_queue.get_nowait()
-        except Exception:
-            return last_stage
-        stage = event.get("stage") if isinstance(event, dict) else None
-        if stage:
-            last_stage = str(stage)
+            state["process"] = _launch_pdf_worker(command)
+        except BaseException as exc:
+            state["error"] = exc
+        finally:
+            launch_done.set()
+        if abandoned.is_set():
+            cleanup_late_process()
+
+    Thread(target=launch, name="html-brief-pdf-worker-launch", daemon=True).start()
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    while not launch_done.is_set():
+        if is_cancel_requested is not None and is_cancel_requested():
+            abandoned.set()
+            if launch_done.is_set():
+                cleanup_late_process()
+            raise PdfRenderCancelled("process_start", None)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            abandoned.set()
+            if launch_done.is_set():
+                cleanup_late_process()
+            raise PdfRenderTimeout(timeout_seconds, "process_start", None)
+        launch_done.wait(min(0.1, remaining))
+
+    if is_cancel_requested is not None and is_cancel_requested():
+        abandoned.set()
+        cleanup_late_process()
+        raise PdfRenderCancelled("process_start", getattr(state.get("process"), "pid", None))
+    if "error" in state:
+        error = state["error"]
+        if isinstance(error, Exception):
+            raise error
+        raise RuntimeError(f"PDF worker launch failed: {error!r}")
+    process = state.get("process")
+    if process is None:
+        raise RuntimeError("PDF worker launch finished without a process")
+    return process
+
+
+def _read_worker_json(path: Path) -> dict[str, Any] | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _read_worker_progress(path: Path, last_stage: str) -> str:
+    event = _read_worker_json(path)
+    stage = event.get("stage") if event else None
+    return str(stage) if stage else last_stage
 
 
 def render_pdf_isolated(
@@ -391,87 +508,104 @@ def render_pdf_isolated(
     pdf_path: Path,
     timeout_seconds: int,
     *,
-    on_process_start: Callable[[multiprocessing.Process], None] | None = None,
+    on_process_start: Callable[[PdfWorkerProcess], None] | None = None,
     on_process_done: Callable[[], None] | None = None,
     is_cancel_requested: Callable[[], bool] | None = None,
+    process_start_timeout_seconds: float = PDF_WORKER_START_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    ctx = multiprocessing.get_context("spawn")
-    result_queue = ctx.Queue(maxsize=1)
-    progress_queue = ctx.Queue()
-    process = ctx.Process(
-        target=_render_pdf_worker,
-        args=(str(html_path), str(base_url), str(pdf_path), result_queue, progress_queue),
-        name="html-brief-weasyprint",
-    )
-    process.start()
-    if on_process_start is not None:
-        on_process_start(process)
-    logger.debug(
-        "WeasyPrint worker process started: pid=%s parent_pid=%s timeout_s=%d",
-        process.pid,
-        os.getpid(),
-        timeout_seconds,
-    )
-    deadline = time.monotonic() + timeout_seconds
-    last_stage = "process_started"
-    while process.is_alive():
-        if is_cancel_requested is not None and is_cancel_requested():
-            break
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        process.join(min(0.25, remaining))
-        last_stage = _drain_progress(progress_queue, last_stage)
-    last_stage = _drain_progress(progress_queue, last_stage)
-    if is_cancel_requested is not None and is_cancel_requested():
-        logger.warning(
-            "WeasyPrint worker cancellation requested: pid=%s last_stage=%s",
-            process.pid,
-            last_stage,
+    result_path = pdf_path.with_name(f".{pdf_path.name}.worker-result.json")
+    progress_path = pdf_path.with_name(f".{pdf_path.name}.worker-progress.json")
+    for marker_path in (result_path, progress_path):
+        try:
+            marker_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    command = _pdf_worker_command(html_path, base_url, pdf_path, result_path, progress_path)
+    process: PdfWorkerProcess | None = None
+    try:
+        process = _launch_worker_with_watchdog(
+            command,
+            process_start_timeout_seconds,
+            is_cancel_requested,
         )
-        if process.is_alive():
-            process.terminate()
-            process.join(10)
-            if process.is_alive():
-                logger.error("WeasyPrint worker still alive after cancel terminate; killing pid=%s", process.pid)
-                process.kill()
-                process.join(5)
-        if on_process_done is not None:
-            on_process_done()
-        raise PdfRenderCancelled(last_stage, process.pid)
-    if process.is_alive():
-        logger.error(
-            "WeasyPrint worker timeout: pid=%s last_stage=%s timeout_s=%d",
+        if on_process_start is not None:
+            try:
+                on_process_start(process)
+            except Exception:
+                _stop_worker_process(process, reason="process registration failed")
+                raise
+        logger.debug(
+            "WeasyPrint worker process started: pid=%s parent_pid=%s start_timeout_s=%s render_timeout_s=%d",
             process.pid,
-            last_stage,
+            os.getpid(),
+            process_start_timeout_seconds,
             timeout_seconds,
         )
-        process.terminate()
-        process.join(10)
+        last_stage = "process_started"
+        ready_stages = {"import_weasyprint_done", "render_start", "render_done", "write_pdf_start", "write_pdf_done"}
+        bootstrap_deadline = time.monotonic() + process_start_timeout_seconds
+        while process.is_alive() and last_stage not in ready_stages:
+            if is_cancel_requested is not None and is_cancel_requested():
+                _stop_worker_process(process, reason="PDF cancellation during worker bootstrap")
+                raise PdfRenderCancelled(last_stage, process.pid)
+            remaining = bootstrap_deadline - time.monotonic()
+            if remaining <= 0:
+                logger.error(
+                    "WeasyPrint worker bootstrap timeout: pid=%s last_stage=%s timeout_s=%s",
+                    process.pid,
+                    last_stage,
+                    process_start_timeout_seconds,
+                )
+                _stop_worker_process(process, reason=f"{process_start_timeout_seconds}s bootstrap timeout")
+                raise PdfRenderTimeout(process_start_timeout_seconds, last_stage, process.pid)
+            process.join(min(0.1, remaining))
+            last_stage = _read_worker_progress(progress_path, last_stage)
+
+        deadline = time.monotonic() + timeout_seconds
+        while process.is_alive():
+            if is_cancel_requested is not None and is_cancel_requested():
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            process.join(min(0.25, remaining))
+            last_stage = _read_worker_progress(progress_path, last_stage)
+        last_stage = _read_worker_progress(progress_path, last_stage)
+        if is_cancel_requested is not None and is_cancel_requested():
+            logger.warning(
+                "WeasyPrint worker cancellation requested: pid=%s last_stage=%s",
+                process.pid,
+                last_stage,
+            )
+            _stop_worker_process(process, reason="PDF cancellation")
+            raise PdfRenderCancelled(last_stage, process.pid)
         if process.is_alive():
-            logger.error("WeasyPrint worker still alive after terminate; killing pid=%s", process.pid)
-            process.kill()
-            process.join(5)
+            logger.error(
+                "WeasyPrint worker timeout: pid=%s last_stage=%s timeout_s=%d",
+                process.pid,
+                last_stage,
+                timeout_seconds,
+            )
+            _stop_worker_process(process, reason=f"{timeout_seconds}s render timeout")
+            raise PdfRenderTimeout(timeout_seconds, last_stage, process.pid)
+        logger.debug(
+            "WeasyPrint worker process exited: pid=%s exitcode=%s last_stage=%s",
+            process.pid,
+            process.exitcode,
+            last_stage,
+        )
+        result = _read_worker_json(result_path)
+        if result is None:
+            raise RuntimeError(f"WeasyPrint worker exited with code {process.exitcode} without a result")
+        if not result.get("ok"):
+            worker_traceback = result.get("traceback")
+            if worker_traceback:
+                logger.debug("WeasyPrint worker traceback:\n%s", worker_traceback)
+            raise RuntimeError(result.get("error") or "WeasyPrint worker failed")
+        return result
+    finally:
         if on_process_done is not None:
             on_process_done()
-        raise PdfRenderTimeout(timeout_seconds, last_stage, process.pid)
-    if on_process_done is not None:
-        on_process_done()
-    logger.debug(
-        "WeasyPrint worker process exited: pid=%s exitcode=%s last_stage=%s",
-        process.pid,
-        process.exitcode,
-        last_stage,
-    )
-    if process.exitcode not in (0, None) and result_queue.empty():
-        raise RuntimeError(f"WeasyPrint worker exited with code {process.exitcode}")
-    try:
-        result = result_queue.get_nowait()
-    except Exception as exc:
-        raise RuntimeError("WeasyPrint worker finished without a result") from exc
-    if not result.get("ok"):
-        raise RuntimeError(result.get("error") or "WeasyPrint worker failed")
-    return result
 
 
 __all__ = [
@@ -482,6 +616,7 @@ __all__ = [
     "PdfImageArtifact",
     "PdfRenderCancelled",
     "PdfRenderTimeout",
+    "PdfWorkerProcess",
     "render_pdf_isolated",
     "write_data_url_artifact",
 ]

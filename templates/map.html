@@ -2312,43 +2312,206 @@ if (mapSourceSelect) {
     });
 }
 
-async function toDataUrl(url) {
+const MAP_EXPORT_RESOURCE_TIMEOUT_MS = 5000;
+const MAP_EXPORT_TILE_TIMEOUT_MS = 2500;
+const MAP_EXPORT_FRAME_TIMEOUT_MS = 1000;
+
+function mapExportAbortError(reason = null) {
+    const message = typeof reason === "string"
+        ? reason
+        : (reason && typeof reason.message === "string" ? reason.message : "Map export cancelled");
+    const error = new Error(message || "Map export cancelled");
+    error.name = "AbortError";
+    return error;
+}
+
+function isMapExportAbortError(error) {
+    return !!error && error.name === "AbortError";
+}
+
+function throwIfMapExportAborted(signal) {
+    if (signal?.aborted) throw mapExportAbortError(signal.reason);
+}
+
+function waitForMapExportTask(task, {
+    signal = null,
+    timeoutMs = MAP_EXPORT_RESOURCE_TIMEOUT_MS,
+    label = "Map export resource",
+    timeoutIsError = true
+} = {}) {
+    throwIfMapExportAborted(signal);
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            if (signal) signal.removeEventListener("abort", onAbort);
+        };
+        const finish = (value, error = null) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            if (error) reject(error);
+            else resolve(value);
+        };
+        const onAbort = () => finish(null, mapExportAbortError(signal?.reason));
+        const timeoutId = setTimeout(() => {
+            if (timeoutIsError) {
+                finish(null, new Error(`${label} timed out after ${timeoutMs}ms`));
+            } else {
+                finish(null);
+            }
+        }, timeoutMs);
+        if (signal) signal.addEventListener("abort", onAbort, { once: true });
+        Promise.resolve(task).then(
+            (value) => finish(value),
+            (error) => finish(null, error)
+        );
+    });
+}
+
+function waitForMapAnimationFrames(signal = null, frameCount = 2) {
+    throwIfMapExportAborted(signal);
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        let frameId = null;
+        let remaining = Math.max(1, frameCount);
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            if (signal) signal.removeEventListener("abort", onAbort);
+            if (frameId !== null) cancelAnimationFrame(frameId);
+        };
+        const finish = (error = null) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            if (error) reject(error);
+            else resolve();
+        };
+        const onAbort = () => finish(mapExportAbortError(signal?.reason));
+        const onFrame = () => {
+            frameId = null;
+            remaining -= 1;
+            if (remaining <= 0) {
+                finish();
+                return;
+            }
+            frameId = requestAnimationFrame(onFrame);
+        };
+        const timeoutId = setTimeout(() => finish(), MAP_EXPORT_FRAME_TIMEOUT_MS);
+        if (signal) signal.addEventListener("abort", onAbort, { once: true });
+        frameId = requestAnimationFrame(onFrame);
+    });
+}
+
+async function toDataUrl(url, { signal = null } = {}) {
+    throwIfMapExportAborted(signal);
     if (!url || url.startsWith("data:")) return url;
+    const fetchController = new AbortController();
+    let timedOut = false;
+    const forwardAbort = () => fetchController.abort(signal?.reason || mapExportAbortError());
+    if (signal?.aborted) {
+        forwardAbort();
+    } else if (signal) {
+        signal.addEventListener("abort", forwardAbort, { once: true });
+    }
+    const timeoutId = setTimeout(() => {
+        timedOut = true;
+        fetchController.abort(mapExportAbortError("Map image fetch timed out"));
+    }, MAP_EXPORT_RESOURCE_TIMEOUT_MS);
     try {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: fetchController.signal });
+        if (!res.ok) throw new Error(`Map image request failed: ${res.status}`);
         const blob = await res.blob();
         return await new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
+            let settled = false;
+            const cleanup = () => {
+                fetchController.signal.removeEventListener("abort", onAbort);
+                reader.onload = null;
+                reader.onerror = null;
+                reader.onabort = null;
+            };
+            const finish = (value, error = null) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                if (error) reject(error);
+                else resolve(value);
+            };
+            const onAbort = () => {
+                try { reader.abort(); } catch {}
+                finish(null, mapExportAbortError(fetchController.signal.reason));
+            };
+            reader.onload = () => finish(reader.result);
+            reader.onerror = () => finish(null, reader.error || new Error("Map image read failed"));
+            reader.onabort = () => finish(null, mapExportAbortError(fetchController.signal.reason));
+            fetchController.signal.addEventListener("abort", onAbort, { once: true });
             reader.readAsDataURL(blob);
         });
     } catch (e) {
+        if (signal?.aborted) throw mapExportAbortError(signal.reason);
+        if (isMapExportAbortError(e) && !timedOut) throw e;
         return null;
+    } finally {
+        clearTimeout(timeoutId);
+        if (signal) signal.removeEventListener("abort", forwardAbort);
     }
 }
 
-async function ensureMapFontsLoaded() {
+async function ensureMapFontsLoaded(signal = null) {
     if (!document.fonts || typeof document.fonts.load !== "function") return;
-    await Promise.all([
-        document.fonts.load('700 12px "Map Overlay Mono"'),
-        document.fonts.load('400 12px "Map Overlay Mono"')
-    ]);
+    try {
+        await waitForMapExportTask(Promise.all([
+            document.fonts.load('700 12px "Map Overlay Mono"'),
+            document.fonts.load('400 12px "Map Overlay Mono"')
+        ]), {
+            signal,
+            timeoutMs: 3000,
+            label: "Map fonts",
+            timeoutIsError: false
+        });
+    } catch (error) {
+        if (isMapExportAbortError(error)) throw error;
+        window.exportMapLog?.push(`Map fonts unavailable: ${error?.message || error}`);
+    }
 }
 
-function waitForVisibleTiles() {
+function waitForVisibleTiles(signal = null) {
     if ((mapBaseMode !== "tiles" && mapBaseMode !== "web") || map_tile_layers.length === 0) return Promise.resolve();
-    return Promise.all(map_tile_layers.map((tileLayer) => new Promise((resolve) => {
+    throwIfMapExportAborted(signal);
+    return Promise.all(map_tile_layers.map((tileLayer) => new Promise((resolve, reject) => {
         let settled = false;
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            if (signal) signal.removeEventListener("abort", onAbort);
+            tileLayer.off("load", done);
+        };
         const done = () => {
             if (settled) return;
             settled = true;
-            tileLayer.off("load", done);
+            cleanup();
             setTimeout(resolve, 0);
         };
+        const onAbort = () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(mapExportAbortError(signal?.reason));
+        };
+        const timeoutId = setTimeout(done, 1500);
         tileLayer.on("load", done);
-        setTimeout(done, 1500);
-        tileLayer.redraw();
+        if (signal) signal.addEventListener("abort", onAbort, { once: true });
+        if (signal?.aborted) {
+            onAbort();
+            return;
+        }
+        try {
+            tileLayer.redraw();
+        } catch (error) {
+            settled = true;
+            cleanup();
+            reject(error);
+        }
     }))).then(() => undefined);
 }
 
@@ -2382,28 +2545,87 @@ function renderBullseyeCanvas(ctx) {
     });
 }
 
-async function waitForImageElement(img) {
-    if (!img || img.complete) return;
-    await new Promise((resolve) => {
-        img.addEventListener("load", resolve, { once: true });
-        img.addEventListener("error", resolve, { once: true });
+async function waitForImageElement(img, {
+    signal = null,
+    timeoutMs = MAP_EXPORT_TILE_TIMEOUT_MS,
+    label = "Map tile",
+    timeoutIsError = false,
+    errorIsFatal = false,
+    requireConnected = true,
+    start = null
+} = {}) {
+    if (!img) return;
+    throwIfMapExportAborted(signal);
+    await new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            img.removeEventListener("load", onLoad);
+            img.removeEventListener("error", onError);
+            if (signal) signal.removeEventListener("abort", onAbort);
+        };
+        const finish = (error = null) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            if (error) reject(error);
+            else resolve();
+        };
+        const onLoad = () => finish();
+        const onError = () => finish(errorIsFatal ? new Error(`${label} failed to load`) : null);
+        const onAbort = () => finish(mapExportAbortError(signal?.reason));
+        const timeoutId = setTimeout(() => {
+            finish(timeoutIsError ? new Error(`${label} timed out after ${timeoutMs}ms`) : null);
+        }, timeoutMs);
+
+        // Subscribe before checking state or changing src to avoid missing a cached load event.
+        img.addEventListener("load", onLoad, { once: true });
+        img.addEventListener("error", onError, { once: true });
+        if (signal) signal.addEventListener("abort", onAbort, { once: true });
+        if (signal?.aborted) {
+            onAbort();
+            return;
+        }
+        try {
+            if (typeof start === "function") start();
+        } catch (error) {
+            finish(error);
+            return;
+        }
+        if (requireConnected && !img.isConnected) {
+            finish();
+        } else if (img.complete) {
+            if (errorIsFatal && img.naturalWidth === 0) onError();
+            else onLoad();
+        }
     });
 }
 
-async function drawVisibleMapTiles(ctx) {
-    await waitForVisibleTiles();
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+async function drawVisibleMapTiles(ctx, signal = null) {
+    await waitForVisibleTiles(signal);
+    await waitForMapAnimationFrames(signal);
+    throwIfMapExportAborted(signal);
     const containerRect = map.getContainer().getBoundingClientRect();
-    const tileImgs = Array.from(map.getContainer().querySelectorAll("img.leaflet-tile")).sort((a, b) => {
+    const tileImgs = Array.from(map.getContainer().querySelectorAll("img.leaflet-tile")).filter((img) => {
+        if (!img.isConnected) return false;
+        const rect = img.getBoundingClientRect();
+        return rect.width > 0
+            && rect.height > 0
+            && rect.right > containerRect.left
+            && rect.left < containerRect.right
+            && rect.bottom > containerRect.top
+            && rect.top < containerRect.bottom;
+    }).sort((a, b) => {
         const paneA = a.closest(".leaflet-pane");
         const paneB = b.closest(".leaflet-pane");
         const zA = Number(paneA ? window.getComputedStyle(paneA).zIndex : 0);
         const zB = Number(paneB ? window.getComputedStyle(paneB).zIndex : 0);
         return (Number.isFinite(zA) ? zA : 0) - (Number.isFinite(zB) ? zB : 0);
     });
-    await Promise.all(tileImgs.map(waitForImageElement));
+    await Promise.all(tileImgs.map((img) => waitForImageElement(img, { signal })));
+    throwIfMapExportAborted(signal);
     tileImgs.forEach((img) => {
-        if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
+        if (!img.isConnected || !img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
         const pane = img.closest(".leaflet-pane");
         if (pane && pane.dataset.exportLayer === "0") return;
         const rect = img.getBoundingClientRect();
@@ -2430,25 +2652,30 @@ async function drawVisibleMapTiles(ctx) {
     });
 }
 
-async function exportMapImage() {
+async function exportMapImage(options = {}) {
+    const signal = options && options.signal ? options.signal : null;
     try {
         window.exportMapLog = [];
+        throwIfMapExportAborted(signal);
         const el = document.getElementById("image-map");
         if (!el) {
             window.exportMapLastError = "No map element";
             return null;
         }
         if (mapBaseMode !== "tiles" && mapBaseMode !== "web") {
-            const baseData = await toDataUrl(mapBaseDataUrl || "assets/maps/map.png");
+            const baseData = await toDataUrl(mapBaseDataUrl || "assets/maps/map.png", { signal });
             if (baseData) {
                 if (mapBaseDataUrl !== baseData) {
                     mapBaseDataUrl = baseData;
                     window.exportMapLog.push("Loaded base map data URL, length " + baseData.length);
-                    await new Promise((res) => {
-                        const imgEl = map_overlay.getElement();
-                        const onload = () => { res(); imgEl.removeEventListener("load", onload); };
-                        imgEl.addEventListener("load", onload);
-                        map_overlay.setUrl(baseData);
+                    const imgEl = map_overlay.getElement();
+                    await waitForImageElement(imgEl, {
+                        signal,
+                        timeoutMs: MAP_EXPORT_RESOURCE_TIMEOUT_MS,
+                        label: "Map overlay",
+                        timeoutIsError: true,
+                        errorIsFatal: true,
+                        start: () => map_overlay.setUrl(baseData)
                     });
                 }
             } else {
@@ -2457,8 +2684,9 @@ async function exportMapImage() {
                 return null;
             }
         }
-        await ensureMapFontsLoaded();
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await ensureMapFontsLoaded(signal);
+        await waitForMapAnimationFrames(signal);
+        throwIfMapExportAborted(signal);
         const size = map.getSize();
         const canvas = document.createElement("canvas");
         canvas.width = size.x * MAP_EXPORT_SCALE;
@@ -2472,18 +2700,18 @@ async function exportMapImage() {
 
         // base map
         if (mapBaseMode === "tiles" || mapBaseMode === "web") {
-            await drawVisibleMapTiles(ctx);
+            await drawVisibleMapTiles(ctx, signal);
         } else {
             const baseImg = new Image();
             baseImg.crossOrigin = "anonymous";
-            baseImg.src = mapBaseDataUrl;
-            await new Promise((res, rej) => {
-                baseImg.onload = res;
-                baseImg.onerror = (e) => {
-                    window.exportMapLastError = "Base image load failed";
-                    window.exportMapLog.push(window.exportMapLastError);
-                    rej(e);
-                };
+            await waitForImageElement(baseImg, {
+                signal,
+                timeoutMs: MAP_EXPORT_RESOURCE_TIMEOUT_MS,
+                label: "Base map image",
+                timeoutIsError: true,
+                errorIsFatal: true,
+                requireConnected: false,
+                start: () => { baseImg.src = mapBaseDataUrl; }
             });
             const baseRect = getOverlayDrawRect(map_overlay);
             ctx.drawImage(baseImg, baseRect.x, baseRect.y, baseRect.width, baseRect.height);
@@ -2503,6 +2731,7 @@ async function exportMapImage() {
     } catch (e) {
         window.exportMapLastError = e?.message || e || "Unknown error";
         window.exportMapLog.push(window.exportMapLastError);
+        if (isMapExportAbortError(e)) throw e;
         return null;
     }
 }

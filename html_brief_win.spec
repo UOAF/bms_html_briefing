@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-hiddenimports = ['pystray._win32']
+hiddenimports = ['pystray._win32', 'lib.pdf_worker']
 
 a = Analysis(
     ['html_brief.py'],
