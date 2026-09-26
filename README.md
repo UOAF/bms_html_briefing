@@ -47,9 +47,6 @@ Replace ```assets/logo.png``` with your own logo (appears in the flight roster s
 2. ```pip install -r requirements.txt```
 3. ```python html_brief.py```
 
-When launched from a frozen executable, the app starts in the system tray by default.
-If tray support fails to load, the app logs the error and continues without the tray, as if launched with `--no-tray`. This fallback also applies when using `--tray`.
-
 ### Configuration
 - The app reads and writes `config.ini` next to the executable (or this repository root when run from source). If it does not exist, a default one is created on first launch.
 - Settings changed in the UI are saved back to `config.ini` and theatersXXX.ini on "Save config" click.
