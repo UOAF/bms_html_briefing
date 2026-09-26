@@ -304,6 +304,7 @@ class ChartService:
             except Exception as exc:
                 message = f"Charts: {role.value} airfield is unavailable: {exc}"
                 plan.unresolved_roles.add(role)
+                plan.warnings.append(message)
                 logger.debug(message)
                 for selection in requested:
                     if selection.role is role:

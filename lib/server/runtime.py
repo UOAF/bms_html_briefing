@@ -14,10 +14,12 @@ try:
     from PIL import Image
 except Exception:  # pragma: no cover - optional dependency
     Image = None
+_pystray_import_error: Optional[Exception] = None
 try:
     import pystray
-except Exception:  # pragma: no cover - optional dependency
+except Exception as exc:  # pragma: no cover - optional dependency
     pystray = None
+    _pystray_import_error = exc
 
 logger = logging.getLogger("html_brief_log")
 
@@ -77,7 +79,7 @@ def load_tray_icon_image(static_root: Path) -> Any:
 
 def run_with_tray(app: FastAPI, host: str, port: int, *, static_root: Path) -> None:
     if pystray is None:
-        raise RuntimeError("pystray is not installed")
+        raise RuntimeError("System tray is unavailable because pystray failed to load") from _pystray_import_error
 
     icon_image = load_tray_icon_image(static_root)
     server = ServerController(app, host, port)
@@ -169,6 +171,12 @@ def run_cli(
         app.state.auto_open_url = f"http://127.0.0.1:{args.port}"
 
     use_tray = args.tray or (is_frozen and not args.no_tray)
+    if use_tray and pystray is None:
+        logger.warning(
+            "Failed to load pystray; continuing without the system tray (--no-tray)",
+            exc_info=_pystray_import_error,
+        )
+        use_tray = False
 
     if use_tray:
         run_with_tray(app, host="127.0.0.1", port=args.port, static_root=static_root)

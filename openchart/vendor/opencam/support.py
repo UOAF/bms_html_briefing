@@ -675,7 +675,12 @@ def load_atc_airbase(path: str | Path) -> AtcAirbaseData:
 def load_atc_airbases(
     directory: str | Path | None,
 ) -> dict[int, AtcAirbaseData]:
-    """Load every ATC airbase file, preserving the first duplicate CampID."""
+    """Load every ATC airbase file, preserving the first duplicate CampID.
+
+    ATC data is a best-effort supplement (callers fall back to ``None`` per
+    airbase), so a malformed or non-conforming file is skipped rather than
+    aborting every other airbase's chart generation.
+    """
 
     if directory is None:
         return {}
@@ -689,7 +694,10 @@ def load_atc_airbases(
     ):
         if not path.is_file() or path.suffix.casefold() != ".dat":
             continue
-        entry = load_atc_airbase(path)
+        try:
+            entry = load_atc_airbase(path)
+        except BmsSupportError:
+            continue
         entries.setdefault(entry.campaign_id, entry)
     return entries
 

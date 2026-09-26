@@ -249,10 +249,15 @@ class TheaterSource:
         candidates = list(self._repository.entries)
         if name is not None:
             normalized_name = _normalize_name(name)
-            candidates = [
+            exact = [
                 entry
                 for entry in candidates
                 if normalized_name in _airfield_aliases(entry)
+            ]
+            candidates = exact if exact else [
+                entry
+                for entry in candidates
+                if _is_leading_alias_prefix(normalized_name, entry)
             ]
             if not candidates:
                 raise AirfieldNotFoundError(
@@ -672,6 +677,23 @@ def _airfield_aliases(entry: AirfieldIndexEntry) -> frozenset[str]:
         if tokens:
             aliases.add(" ".join(tokens))
     return frozenset(alias for alias in aliases if alias)
+
+
+def _is_leading_alias_prefix(normalized_name: str, entry: AirfieldIndexEntry) -> bool:
+    """Match ATC callsigns that abbreviate a multi-word airfield name.
+
+    BMS Comm Ladder tower callsigns are often just the leading word(s) of the
+    full airfield name (e.g. "Tel" for "Tel Nof"), so an exact alias match can
+    legitimately fail even though the airfield is unambiguous.
+    """
+
+    query_tokens = normalized_name.split()
+    if not query_tokens:
+        return False
+    return any(
+        _normalize_name(alias).split()[: len(query_tokens)] == query_tokens
+        for alias in _airfield_aliases(entry)
+    )
 
 
 def _validate_chart_kind(kind: ChartKind) -> ChartKind:
