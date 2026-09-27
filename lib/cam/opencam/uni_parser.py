@@ -27,7 +27,7 @@ from .support_files import ClassTableEntry, SupportData
 MAX_WAYPOINTS = 500
 SUPPORT_SLOT_COUNT = 4
 FLIGHT_SLOT_COUNT = 4
-LOADOUT_ENTRY_SIZE = 48
+FLIGHT_HARDPOINT_COUNT = 16
 WAYPOINT_TARGET_DATA_SIZE = 8 + 1 + ((8 + 1) * 4)
 
 AIR_UNIT_KINDS = {1: "flight", 2: "package", 3: "squadron"}
@@ -339,7 +339,11 @@ def _read_flight_record(fields: FieldMap, reader: BinaryReader, unit_type: int) 
     _set(fields, "mission_over_time", reader.u32(), U32)
     _set(fields, "mission_target", reader.i16(), I16)
     _set(fields, "loadouts", reader.u8(), U8)
-    _opaque(fields, reader, "loadout_raw", int(fields["loadouts"].value) * LOADOUT_ENTRY_SIZE)
+    _set(
+        fields, "loadout_entries",
+        tuple(_read_flight_loadout(reader) for _ in range(int(fields["loadouts"].value))),
+        FLIGHT_LOADOUTS,
+    )
     _set(fields, "mission", reader.u8(), U8)
     _set(fields, "old_mission", reader.u8(), U8)
     _set(fields, "last_direction", reader.u8(), U8)
@@ -501,3 +505,52 @@ def _encode_waypoint(waypoint: Waypoint) -> bytes:
         payload.extend(U32.encode(waypoint.depart_ms))
     return bytes(payload)
 
+
+
+@dataclass(frozen=True)
+class FlightLoadoutRecord:
+    """One serialized FreeFalcon ``LoadoutStruct`` for a flight."""
+
+    weapon_ids: tuple[int, ...]
+    weapon_counts: tuple[int, ...]
+
+
+
+@dataclass(frozen=True)
+class FlightLoadoutListCodec(Codec):
+    def encode(self, value: object) -> bytes:
+        return b"".join(_encode_flight_loadout(item) for item in as_tuple_value(value))
+
+
+
+def _read_flight_loadout(reader: BinaryReader) -> FlightLoadoutRecord:
+    return FlightLoadoutRecord(
+        weapon_ids=tuple(reader.i16() for _ in range(FLIGHT_HARDPOINT_COUNT)),
+        weapon_counts=tuple(reader.u8() for _ in range(FLIGHT_HARDPOINT_COUNT)),
+    )
+
+
+
+def _encode_flight_loadout(value: object) -> bytes:
+    if not isinstance(value, FlightLoadoutRecord):
+        raise TypeError("flight loadout values must be FlightLoadoutRecord instances")
+    if len(value.weapon_ids) != FLIGHT_HARDPOINT_COUNT:
+        raise ValueError(
+            f"flight loadout expected {FLIGHT_HARDPOINT_COUNT} weapon IDs, "
+            f"got {len(value.weapon_ids)}"
+        )
+    if len(value.weapon_counts) != FLIGHT_HARDPOINT_COUNT:
+        raise ValueError(
+            f"flight loadout expected {FLIGHT_HARDPOINT_COUNT} weapon counts, "
+            f"got {len(value.weapon_counts)}"
+        )
+    return b"".join(
+        (
+            *(I16.encode(weapon_id) for weapon_id in value.weapon_ids),
+            bytes(value.weapon_counts),
+        )
+    )
+
+
+
+FLIGHT_LOADOUTS = FlightLoadoutListCodec()

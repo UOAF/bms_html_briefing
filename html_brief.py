@@ -220,22 +220,25 @@ def ensure_dirs(cfg: configparser.ConfigParser) -> None:
 
 def copy_config_with_overrides(cfg: configparser.ConfigParser, pages: Optional[Dict[str, str]] = None,
                                bms: Optional[Dict[str, str]] = None,
-                               system: Optional[Dict[str, str]] = None) -> configparser.ConfigParser:
+                               system: Optional[Dict[str, str]] = None,
+                               briefing_style: Optional[Dict[str, str | None]] = None) -> configparser.ConfigParser:
     new_cfg = configparser.ConfigParser()
     for section in cfg.sections():
         new_cfg[section] = dict(cfg[section])
     if pages:
         new_cfg["pages"] = pages
-    if bms:
-        if "bms" not in new_cfg:
-            new_cfg["bms"] = {}
-        for k, v in bms.items():
-            new_cfg["bms"][k] = v
-    if system:
-        if "system" not in new_cfg:
-            new_cfg["system"] = {}
-        for k, v in system.items():
-            new_cfg["system"][k] = v
+    for section, values in (("bms", bms), ("system", system), ("briefing_style", briefing_style)):
+        if not values:
+            continue
+        if section not in new_cfg:
+            new_cfg[section] = {}
+        for key, value in values.items():
+            if section == "briefing_style" and value is None:
+                new_cfg[section].pop(key, None)
+            else:
+                new_cfg[section][key] = value
+        if section == "briefing_style" and not new_cfg[section]:
+            new_cfg.remove_section(section)
     if "system" in new_cfg:
         for key in ("output_dir", "pdf_output_dir"):
             if key in new_cfg["system"] and new_cfg["system"][key]:

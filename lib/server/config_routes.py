@@ -55,6 +55,7 @@ class ConfigUpdate(BaseModel):
     system: Optional[Dict[str, str]] = None
     bms: Optional[Dict[str, str]] = None
     pages: Optional[Dict[str, str]] = None
+    briefing_style: Optional[Dict[str, Optional[str]]] = None
 
 
 class TheaterUpdate(BaseModel):
@@ -253,7 +254,12 @@ def register_config_routes(
                 for stale_key in REPLACED_MAP_SYSTEM_KEYS:
                     app.state.cfg[section].pop(stale_key, None)
             for key, value in values.items():
-                app.state.cfg[section][key] = str(value)
+                if section == "briefing_style" and value is None:
+                    app.state.cfg[section].pop(key, None)
+                else:
+                    app.state.cfg[section][key] = str(value)
+            if section == "briefing_style" and not app.state.cfg[section]:
+                app.state.cfg.remove_section(section)
 
         # Persist only explicitly provided fields so runtime-only overrides
         # (set via /api/config/runtime) are not accidentally written to disk.
@@ -265,7 +271,12 @@ def register_config_routes(
                 for stale_key in REPLACED_MAP_SYSTEM_KEYS:
                     cfg_to_persist[section].pop(stale_key, None)
             for key, value in values.items():
-                cfg_to_persist[section][key] = str(value)
+                if section == "briefing_style" and value is None:
+                    cfg_to_persist[section].pop(key, None)
+                else:
+                    cfg_to_persist[section][key] = str(value)
+            if section == "briefing_style" and not cfg_to_persist[section]:
+                cfg_to_persist.remove_section(section)
         save_config(cfg_to_persist, app.state.config_path)
         ensure_dirs(app.state.cfg)
         configure_debug_file_logging(app.state.cfg)
@@ -287,7 +298,12 @@ def register_config_routes(
                 for stale_key in REPLACED_MAP_SYSTEM_KEYS:
                     app.state.cfg[section].pop(stale_key, None)
             for key, value in values.items():
-                app.state.cfg[section][key] = str(value)
+                if section == "briefing_style" and value is None:
+                    app.state.cfg[section].pop(key, None)
+                else:
+                    app.state.cfg[section][key] = str(value)
+            if section == "briefing_style" and not app.state.cfg[section]:
+                app.state.cfg.remove_section(section)
         ensure_dirs(app.state.cfg)
         configure_debug_file_logging(app.state.cfg)
         try:
@@ -364,12 +380,16 @@ def register_config_routes(
     def status() -> Dict[str, Any]:
         bms = app.state.bms_cfg
         cfg = app.state.cfg
+        layout_warnings = []
+        pages = page_contents_ini_to_list(cfg, warnings=layout_warnings)
         data: Dict[str, Any] = {
             "app_instance_id": app.state.instance_id,
             "config_path": str(app.state.config_path),
             "output_dir": cfg["system"]["output_dir"],
             "pdf_output_dir": cfg["system"]["pdf_output_dir"],
-            "pages": page_contents_ini_to_list(cfg),
+            "pages": pages,
+            "layout_warnings": layout_warnings,
+            "page_keys": [key for key in cfg["pages"] if key.startswith("page") and key[4:].isdigit()],
             "pdf_pages": app.state.pdf_page_count,
             "pdf_combined_pages": app.state.pdf_combined_page_count,
             "brief_pages": app.state.brief_pages_ref,

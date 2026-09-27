@@ -1,3 +1,21 @@
+let popupBriefingPlan = null;
+
+function getPopupMagneticVariation() {
+  const variation = dtcMagneticVariation[cleanOffsetValue(dtcSelectedStptNumber)];
+  return Number.isFinite(variation) ? variation : null;
+}
+
+function popupHeadingReference(variation) {
+  return Number.isFinite(variation) ? "MHDG" : "THDG";
+}
+
+function formatPopupHeading(trueHeading, plan) {
+  const heading = Number.parseFloat(trueHeading);
+  if (!Number.isFinite(heading)) return "---";
+  const magnetic = normalizeBearing(heading - (plan.magneticVariation ?? 0));
+  return formatPopupDegrees((Math.round(magnetic * 10) / 10) % 360);
+}
+
 function getSelectedPopupMode() {
   if (selectedHasVip()) return "vip";
   if (selectedHasVrp()) return "vrp";
@@ -115,11 +133,11 @@ function formatPopupNumber(value, decimals) {
 
 function formatPopupDegrees(value, decimals = 1) {
   const formatted = formatPopupNumber(value, decimals);
-  return formatted ? formatted + "°" : "";
+  return formatted ? formatted + " deg" : "";
 }
 
 function formatPopupBearingText(value) {
-  return value ? value + "°" : "---";
+  return value ? value + " deg" : "---";
 }
 
 const POPUP_OUTPUT_LABEL_TITLES = {
@@ -186,7 +204,7 @@ const POPUP_OUTPUT_TOKEN_TITLES = {
 };
 
 function getPopupOutputLabelTitle(label) {
-  const normalized = cleanOffsetValue(label).toUpperCase();
+  const normalized = cleanOffsetValue(label).toUpperCase().replace(/\b[MT]HDG\b/g, "HDG");
   if (!normalized) return "";
   if (POPUP_OUTPUT_LABEL_TITLES[normalized]) return POPUP_OUTPUT_LABEL_TITLES[normalized];
   if (POPUP_OUTPUT_TOKEN_TITLES[normalized]) return POPUP_OUTPUT_TOKEN_TITLES[normalized];
@@ -312,6 +330,12 @@ function computeDragBombTrajectory(releaseAltitude, releaseSpeed, diveAngle, ran
 }
 
 function updatePopupInputState() {
+  const headingReference = cleanOffsetValue(dtcSelectedStptNumber)
+    ? popupHeadingReference(getPopupMagneticVariation()) : "MHDG";
+  const headingLabel = document.getElementById("dtc-popup-heading-label");
+  if (headingLabel) headingLabel.textContent = headingReference;
+  const headingMode = document.getElementById("dtc-popup-heading-mode");
+  if (headingMode) headingMode.textContent = (getPopupValue("headingMode") === "ingress" ? "Ingress " : "Attack ") + headingReference;
   const rangeModel = getPopupValue("rangeModel") === "manual" ? "manual" : "computed";
   const bombRangeInput = document.querySelector("[data-popup-field='bombRange']");
   if (bombRangeInput) {
@@ -414,13 +438,16 @@ function computePopupPlan() {
   const popToPullDownDistance = (pullDownAltitude - ingressAltitude) / Math.tan(climbRadians);
   if (popToPullDownDistance <= 0) return { error: "Ingress altitude is above the computed pull-down altitude." };
 
+  const magneticVariation = getPopupMagneticVariation();
+  // Convert the pilot's heading once; geometry and DTC offset rows stay true.
+  const trueHeading = normalizeBearing(heading + (magneticVariation ?? 0));
   let attackHeading;
   let ingressHeading;
   if (headingMode === "attack") {
-    attackHeading = normalizeBearing(heading);
+    attackHeading = trueHeading;
     ingressHeading = normalizeBearing(attackHeading + (side === "right" ? -angleOff : angleOff));
   } else {
-    ingressHeading = normalizeBearing(heading);
+    ingressHeading = trueHeading;
     attackHeading = normalizeBearing(ingressHeading + (side === "right" ? angleOff : -angleOff));
   }
 
@@ -452,6 +479,7 @@ function computePopupPlan() {
   return {
     mode,
     stptNumber,
+    magneticVariation,
     selectedCoord,
     targetCoord,
     actionCoord,
@@ -519,6 +547,7 @@ function computePopupPlan() {
 function formatPopupOutput(plan, supportOpen = false) {
   if (!plan || plan.error) return popupMessage(plan?.error || "");
   const v = plan.values;
+  const headingReference = popupHeadingReference(plan.magneticVariation);
   const pdpTerrainFeet = getCachedPopupTerrainElevationFeet(plan.pdpCoord);
   const releaseTerrainFeet = getCachedPopupTerrainElevationFeet(plan.releaseCoord || plan.targetCoord);
   const referenceToPupFeet = coordDistanceFeet(plan.selectedCoord, plan.pupCoord);
@@ -529,7 +558,7 @@ function formatPopupOutput(plan, supportOpen = false) {
   const mapToTargetFeet = coordDistanceFeet(plan.mapCoord, plan.targetCoord);
   const title = "POP-UP STPT " + plan.stptNumber + " " + plan.mode.toUpperCase();
   const primaryLines = [
-    popupLine("POP", popupMetric("BRG", formatPopupBearingText(pupToTargetMetrics?.brg), "primary"), popupMetric("RNG", formatPopupNmFromFeet(pupToTargetFeet), "primary")),
+    popupLine("POP", popupMetric(headingReference, formatPopupHeading(pupToTargetMetrics?.brg, plan), "primary"), popupMetric("RNG", formatPopupNmFromFeet(pupToTargetFeet), "primary")),
     popupLine("DA", popupMetric("", formatPopupDegrees(v.diveAngle))),
     popupLine("CA", popupMetric("", formatPopupDegrees(v.climbAngle))),
     popupAglMslLine("PDWN", v.pullDownAltitude, pdpTerrainFeet),
@@ -545,7 +574,7 @@ function formatPopupOutput(plan, supportOpen = false) {
     popupLine("TOF STICK", popupMetric("", formatPopupSeconds(v.stickTimeOfFall))),
   ];
   const supportLines = [
-    popupLine("ACTION", popupMetric("Range", formatPopupNumber(v.actionRangeNm, 1) + " NM"), popupMetric("Ingress HDG", formatPopupDegrees(v.ingressHeading))),
+    popupLine("ACTION", popupMetric("Range", formatPopupNumber(v.actionRangeNm, 1) + " NM"), popupMetric("Ingress " + headingReference, formatPopupHeading(v.ingressHeading, plan))),
     popupLine("STICK", popupMetric("RPL", formatPopupNumber(v.ripplePulses, 0)), popupMetric("SPC", formatPopupFeet(v.stickSpacing)), popupMetric("Mode", v.stickMode.toUpperCase())),
     popupLine("STICK LEN", popupMetric("", formatPopupFeet(v.stickLength))),
     popupLine("STICK DUR", popupMetric("", formatPopupSeconds(v.stickDuration))),
@@ -553,13 +582,13 @@ function formatPopupOutput(plan, supportOpen = false) {
     popupLine("REF-TO-PUP", popupMetric("", formatPopupFeet(referenceToPupFeet))),
     popupLine("PUP-TO-PDP", popupMetric("", formatPopupFeet(pupToPdpFeet))),
     popupLine("PUP-TO-TGT", popupMetric("", formatPopupFeet(pupToTargetFeet))),
-    popupLine("HDG TO PDP", popupMetric("", formatPopupDegrees(v.offsetLegHeading))),
+    popupLine(headingReference + " TO PDP", popupMetric("", formatPopupHeading(v.offsetLegHeading, plan))),
     popupLine("PUP OFFSET", popupMetric("BRG", formatPopupBearingText(plan.pupMetrics.brg)), popupMetric("RNG", plan.pupMetrics.rng + " ft")),
     popupLine("PDP-TO-TGT", popupMetric("", formatPopupFeet(pdpToTargetFeet))),
     popupLine("ACTION-TO-PDP", popupMetric("", plan.offsetLegMetrics.rng + " ft")),
     popupLine("ANGLE OFF", popupMetric("", formatPopupDegrees(v.angleOff)), popupMetric("Side", v.side.toUpperCase())),
     popupLine("MAP-TO-TGT", popupMetric("", formatPopupFeet(mapToTargetFeet))),
-    popupLine("ATTACK HDG", popupMetric("", formatPopupDegrees(v.attackHeading))),
+    popupLine("ATTACK " + headingReference, popupMetric("", formatPopupHeading(v.attackHeading, plan))),
     popupLine("TRACK TIME", popupMetric("", formatPopupSeconds(v.timeOnFinal))),
     popupLine("TRACKING", popupMetric("", formatPopupFeet(v.horizontalTrackingDistance))),
     popupLine("BOMB RANGE", popupMetric("", formatPopupFeet(v.bombRange))),
@@ -598,7 +627,7 @@ function formatPopupOutputText(plan) {
   const title = "POP-UP STPT " + plan.stptNumber + " " + plan.mode.toUpperCase();
   return [
     title,
-    "POP: BRG " + formatPopupNumber(Number.parseFloat(pupToTargetMetrics?.brg), 1) + " / RNG " + formatPopupNmCopyFromFeet(pupToTargetFeet),
+    "POP: " + popupHeadingReference(plan.magneticVariation) + " " + formatPopupHeading(pupToTargetMetrics?.brg, plan) + " / RNG " + formatPopupNmCopyFromFeet(pupToTargetFeet),
     "DA " + formatPopupNumber(v.diveAngle, 1) + " / CA " + formatPopupNumber(v.climbAngle, 1),
     "STICK " + v.stickMode.toUpperCase() + " / RPL " + formatPopupNumber(v.ripplePulses, 0) + " / SPC " + formatPopupNumber(v.stickSpacing, 0),
       formatPopupAglMslCopyText("PDWN", v.pullDownAltitude, pdpTerrainFeet),
@@ -610,6 +639,41 @@ function formatPopupOutputText(plan) {
     "ALTLOSS " + formatPopupNumber(v.recoveryAltitudeLoss, 0) + " / GNDC " + formatPopupNumber(v.recoveryGroundClearance, 0) + " AGL",
     "TOF STICK: " + formatPopupSeconds(v.stickTimeOfFall),
   ].join("\n");
+}
+
+function formatPopupBriefing(plan) {
+  if (!plan || plan.error) return { reference: plan?.error || "Compute a plan in DTC → Pop-up." };
+  const v = plan.values;
+  const pdpTerrain = getCachedPopupTerrainElevationFeet(plan.pdpCoord);
+  const releaseTerrain = getCachedPopupTerrainElevationFeet(plan.releaseCoord || plan.targetCoord);
+  const pop = bearingRangeBetween(plan.pupCoord, plan.targetCoord);
+  const altitude = (agl, terrain) => formatPopupAglMslText("", agl, terrain).trim();
+  return {
+    reference: "STPT " + plan.stptNumber + " " + plan.mode.toUpperCase(),
+    pop_bearing: formatPopupHeading(pop?.brg, plan) + (Number.isFinite(plan.magneticVariation) ? " M" : " T"),
+    pop_range: formatPopupNmFromFeet(coordDistanceFeet(plan.pupCoord, plan.targetCoord)),
+    dive_angle: formatPopupDegrees(v.diveAngle),
+    climb_angle: formatPopupDegrees(v.climbAngle),
+    stick: v.stickMode.toUpperCase() + " / RPL " + formatPopupNumber(v.ripplePulses, 0)
+      + " / SPC " + formatPopupFeet(v.stickSpacing),
+    pull_down: altitude(v.pullDownAltitude, pdpTerrain),
+    apex: altitude(v.apexAltitude, pdpTerrain),
+    release_altitude: altitude(v.releaseAltitude, releaseTerrain),
+    mra: altitude(v.recoveryMraAltitude, releaseTerrain),
+    aod: formatPopupFeet(v.aod),
+    pup_to_pdp: formatPopupFeet(coordDistanceFeet(plan.pupCoord, plan.pdpCoord)),
+    turn_radius: formatPopupFeet(v.turnRadius),
+    map_to_target: formatPopupFeet(v.mapDistance),
+    altitude_loss: formatPopupFeet(v.recoveryAltitudeLoss),
+    ground_clearance: formatPopupFeet(v.recoveryGroundClearance) + " AGL",
+    tof_stick: formatPopupSeconds(v.stickTimeOfFall),
+  };
+}
+
+function refreshPopupBriefing() {
+  if (popupBriefingPlan) {
+    window.popupBriefingStore.publish(dtcPopupScope, formatPopupBriefing(popupBriefingPlan));
+  }
 }
 
 function addDtcPopupConnector(coords, options) {
@@ -705,24 +769,24 @@ function renderPopupMapLayer(plan) {
   const pdpTerrainFeet = getCachedPopupTerrainElevationFeet(plan.pdpCoord);
   const releaseTerrainFeet = getCachedPopupTerrainElevationFeet(plan.releaseCoord || plan.targetCoord);
   addDtcPopupMarker("action", "", plan.actionCoord, "Action point", formatPopupPointContent("AP", [
-    "Offset: " + formatPopupNumber(plan.values.offsetAngle, 1) + "°",
+    "Offset: " + formatPopupNumber(plan.values.offsetAngle, 1) + " deg",
     "Action range: " + formatPopupNumber(plan.values.actionRangeNm, 1) + " NM",
-    "Ingress HDG: " + formatPopupNumber(plan.values.ingressHeading, 1) + "°",
+    "Ingress " + popupHeadingReference(plan.magneticVariation) + ": " + formatPopupHeading(plan.values.ingressHeading, plan),
   ]));
   addDtcPopupMarker("pup", "", plan.pupCoord, "Computed PUP", formatPopupPointContent("PUP", [
-    "Climb angle: " + formatPopupNumber(plan.values.climbAngle, 1) + "°",
-    "HDG to PDP: " + formatPopupNumber(plan.values.offsetLegHeading, 1) + "°",
+    "Climb angle: " + formatPopupNumber(plan.values.climbAngle, 1) + " deg",
+    popupHeadingReference(plan.magneticVariation) + " to PDP: " + formatPopupHeading(plan.values.offsetLegHeading, plan),
   ]));
   addDtcPopupMarker("pdp", "", plan.pdpCoord, "PDP", formatPopupPointContent("PDP", [
     formatPopupAglMslLine("PDP", plan.values.pullDownAltitude, pdpTerrainFeet),
     formatPopupAglMslLine("APEX", plan.values.apexAltitude, pdpTerrainFeet),
-    "Angle off: " + formatPopupNumber(plan.values.angleOff, 1) + "° " + plan.values.side.toUpperCase(),
+    "Angle off: " + formatPopupNumber(plan.values.angleOff, 1) + " deg " + plan.values.side.toUpperCase(),
   ]));
   addDtcPopupMarker("action", "", plan.mapCoord, "MAP / rollout", formatPopupPointContent("MAP", [
     "Tracking time: " + formatPopupNumber(plan.values.timeOnFinal, 0) + " sec",
     formatPopupAglMslLine("Release ALT", plan.values.releaseAltitude, releaseTerrainFeet),
-    "Attack HDG: " + formatPopupNumber(plan.values.attackHeading, 1) + "°",
-    "Dive angle: " + formatPopupNumber(plan.values.diveAngle, 1) + "°",
+    "Attack " + popupHeadingReference(plan.magneticVariation) + ": " + formatPopupHeading(plan.values.attackHeading, plan),
+    "Dive angle: " + formatPopupNumber(plan.values.diveAngle, 1) + " deg",
   ]));
   const vipTargetDragOptions = plan.mode === "vip" && dtcNavOffsets.vip
     ? {
@@ -736,7 +800,7 @@ function renderPopupMapLayer(plan) {
     : null;
   addDtcPopupMarker("tgt", "", plan.targetCoord, "Target", formatPopupPointContent("TGT", [
     "STPT " + plan.stptNumber + " " + plan.mode.toUpperCase(),
-    "Attack HDG: " + formatPopupNumber(plan.values.attackHeading, 1) + "°",
+    "Attack " + popupHeadingReference(plan.magneticVariation) + ": " + formatPopupHeading(plan.values.attackHeading, plan),
   ]), vipTargetDragOptions);
   addDtcPopupMarker("oa", "1", plan.oaCoord, "Computed OA1", formatPopupPointContent("OA1", [
     "AOD: " + formatPopupNumber(plan.values.aod, 0) + " ft",
@@ -759,6 +823,10 @@ function renderPopupComputer(statusText) {
     if (output && !hasSelection) output.innerHTML = popupMessage("Select a steerpoint.");
     const applyButton = document.getElementById("dtc-popup-apply");
     if (applyButton) applyButton.disabled = true;
+    if (!panel.hidden && !hasSelection) {
+      popupBriefingPlan = null;
+      window.popupBriefingStore.publish(dtcPopupScope, { reference: "Select a steerpoint in DTC → Pop-up." });
+    }
     return;
   }
 
@@ -767,6 +835,8 @@ function renderPopupComputer(statusText) {
   if (label) label.textContent = "STPT " + dtcSelectedStptNumber + " " + mode.toUpperCase();
   const plan = computePopupPlan();
   dtcPopupLastPlan = plan && !plan.error ? plan : null;
+  popupBriefingPlan = dtcPopupLastPlan;
+  window.popupBriefingStore.publish(dtcPopupScope, formatPopupBriefing(plan));
   const output = document.getElementById("dtc-popup-output");
   if (output) {
     output.innerHTML = formatPopupOutput(plan, dtcPopupSupportOpen);
@@ -844,4 +914,3 @@ async function applyPopupPlan() {
   if (defaultVrpRow) updateOffsetRowElevationFromOffset(plan.targetCoord, defaultVrpRow);
   renderPopupComputer("PUP/OA applied to NAV OFFSETS.");
 }
-

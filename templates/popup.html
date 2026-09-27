@@ -1,0 +1,28 @@
+<table width="100%">
+    <tr><th class="header clickable" onclick="toggleVisHeader(this)" id="popup_header"><span class="arrow">▼</span>Pop-up</th></tr>
+</table>
+<table width="100%" id="popup" class="hidable">
+    <colgroup>
+        {% for i in range(4) %}<col style="width:10%;"><col style="width:15%;">{% endfor %}
+    </colgroup>
+    <tr>
+        <th>Ref</th>
+        <td colspan="7" data-popup-result="reference" data-popup-empty="Compute a plan in DTC → Pop-up.">Compute a plan in DTC → Pop-up.</td>
+    </tr>
+    {% for row in [
+        [('POP BRG', 'pop_bearing'), ('POP RNG', 'pop_range'), ('DA', 'dive_angle'), ('CA', 'climb_angle')],
+        [('STICK', 'stick'), ('TOF STICK', 'tof_stick')],
+        [('PDWN', 'pull_down'), ('APEX', 'apex'), ('RALT', 'release_altitude'), ('MRA', 'mra')],
+        [('AOD', 'aod'), ('PUP', 'pup_to_pdp'), ('RADIUS', 'turn_radius'), ('MAP', 'map_to_target')],
+        [('ALTLOSS', 'altitude_loss'), ('GNDC', 'ground_clearance')],
+    ] %}
+    <tr>
+        {% for label, key in row %}
+        <th>{{ label }}</th><td colspan="{{ 3 if row|length == 2 else 1 }}" data-popup-result="{{ key }}"></td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+    <tr>
+        <th>Notes</th><td contenteditable="true" class="editable briefing-flow-field" id="popup_notes" colspan="7"></td>
+    </tr>
+</table>

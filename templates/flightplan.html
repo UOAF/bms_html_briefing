@@ -1,47 +1,52 @@
-<style>
-</style>
 <table width=100%>
       <tr>
 	  <th class="header clickable" onclick="toggleVisHeader(this)" id="flightplan_header"><span class="arrow">▼</span>Flightplan</th>
       </tr>
 </table>
+{% set fuel = fuel_plan|default({}) %}
+{% set fuel_tooltip = fuel.get('tooltip', 'Min. return fuel @ 30k, 0.8M + 500lb') %}
+{% set headings = flightplan_headings|default({}) %}
 <table width=100% id="flightplan" class="hidable">
     <colgroup>
-        <col style="width:3%;">
-        <col style="width:11%;">
+        <col style="width:4%;">
+        <col style="width:12%;">
         <col style="width:12%;">
         <col style="width:6%;">
-        <col style="width:5%;">
+        <col style="width:7%;">
         <col style="width:5%;">
         <col style="width:8%;">
-        <col style="width:15%;">
         <col style="width:11%;">
-        <col style="width:23%;">
+        <col style="width:11%;">
+        <col style="width:24%;">
     </colgroup>
-    <tr>
+    <thead>
+        <tr>
             <th>#</th>
             <th>Descr.</th>
             <th class="nowrap">Time</th>
             <th>Dist.</th>
-            <th>HDG</th>
+            <th class="nowrap">{{ 'MHDG' if dtc_fields is defined and dtc_fields.get('magnetic_variation') else 'THDG' }}</th>
             <th>CAS</th>
             <th>Alt.</th>
-            <th>Action</th>
+            <th title="{{ fuel_tooltip|e }}" aria-label="Minimum fuel in pounds. {{ fuel_tooltip|e }}">Min. fuel</th>
             <th>Form.</th>
 	    <th>Comment</th>
         </tr>
     </thead>
     <tbody>
       {% for stpt in steerpoints %}
+      {% set fuel_cell = fuel.get('steerpoints', {}).get(stpt.number|string, {}) %}
+      {% set fuel_value = fuel_cell.get('value') %}
+      {% set fuel_title = fuel_cell.get('tooltip', 'Minimum fuel unavailable: load the matching campaign save. ' ~ fuel_tooltip) %}
       <tr>
-	<td>{{stpt.number}}</td>
+	<td class="nowrap">{{stpt.number}}</td>
 	<td>{{stpt.description}}</td>
 	<td class="nowrap">{{stpt.time}}</td>
 	<td>{{stpt.distance}}</td>
-	<td>{{stpt.heading}}</td>
+	<td class="nowrap">{{headings.get(stpt.number|string, stpt.heading)}}</td>
 	<td>{{stpt.cas}}</td>
 	<td>{{stpt.altitude}}</td>
-	<td>{{stpt.action}}</td>
+	<td class="min-fuel nowrap" title="{{ fuel_title|e }}" aria-label="{{ fuel_title|e }}">{% if fuel_value is not none %}{{ '{:,}'.format(fuel_value) }}{% else %}-{% endif %}</td>
 	<td>{{stpt.form}}</td>
 	<td>{{stpt.comment}}</td>
       </tr>

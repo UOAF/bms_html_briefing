@@ -47,7 +47,7 @@ def run_pdf_worker(
         _write_progress(progress_path, "import_weasyprint_done")
         started = time.perf_counter()
         _write_progress(progress_path, "render_start")
-        pdf_doc = WorkerHTML(filename=str(html_path), base_url=str(base_url)).render()
+        pdf_doc = WorkerHTML(filename=str(html_path), base_url=str(base_url), encoding="utf-8").render()
         render_elapsed_ms = (time.perf_counter() - started) * 1000.0
         page_count = len(pdf_doc.pages)
         _write_progress(progress_path, "render_done")

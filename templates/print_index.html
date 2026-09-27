@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <head>
+<meta charset="utf-8">
 <title>HTML BRIEFING PDF</title>
 <link rel="stylesheet" href="templates/style_print.css">
 <style>
@@ -14,7 +15,7 @@
       text-align: center;
       align-items: center;
       vertical-align: middle;
-      padding: 3px;
+      padding: var(--brief-cell-padding, 3px);
   }
   .editable {
       background-color: #ffffff;
@@ -24,7 +25,7 @@
       vertical-align: top;
   }
   td {
-      height: 1.7em;
+      height: var(--brief-row-height, 1.7em);
   }
   .header {
       background-color: #dddddd;
@@ -38,9 +39,9 @@
   }
 </style>
 </head>
-<body>
+<body data-dtc-scope="{{ dtc_fields.scope|e }}" data-popup-scope="{{ dtc_fields.popup_scope|default(dtc_fields.scope)|e }}">
 {% for page in brief_pages %}
-<div {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}">
+<div {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}"{% if brief_page_styles is defined %} style="{{ brief_page_styles[loop.index0] }}"{% endif %}>
   {% for part in page %}
     {% if part == "map" %}
       {% include "print_map.html" %}

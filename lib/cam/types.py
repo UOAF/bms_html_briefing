@@ -57,6 +57,7 @@ class UniAircraftView(TypedDict):
     unit_class_index: int
     unit_class_name: str
     vehicle_ct_index: int
+    vehicle_number: int
     vehicle_name: str
     callsign_idx: int
     callsign_slots: int
@@ -171,6 +172,14 @@ class SummaryFlightTiming(TypedDict):
     time_on_target_ms: int | None
 
 
+class FuelProfile(TypedDict):
+    rate_lb_nm: int | None
+    internal_fuel_lb: float | None
+    aircraft_type_name: str | None
+    source_path: str | None
+    unavailable_reason: str | None
+
+
 class SummaryFlight(TypedDict):
     unit_id: VuidDict
     unit_kind: str
@@ -180,6 +189,7 @@ class SummaryFlight(TypedDict):
     aircraft_count: int | None
     tasking: SummaryTasking
     timing: SummaryFlightTiming
+    fuel_profile: FuelProfile
     steerpoints: list[UniWaypointView]
     l16: SummaryL16Record | dict[str, int]
 
@@ -211,6 +221,8 @@ class SummaryBullseye(TypedDict):
 
 class SummaryOutput(TypedDict):
     source_path: str
+    source_bms_base_dir: str | None
+    source_theater: str | None
     support_base_dir: str | None
     l16_source_path: str | None
     current_date: str | None

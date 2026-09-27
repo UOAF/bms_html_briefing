@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, cast
 
@@ -7,6 +8,7 @@ from lib.cam.types import (
     ParsedCmpData,
     ParsedL16Data,
     ParsedTwxData,
+    FuelProfile,
     SummaryFlight,
     SummaryOutput,
     SummaryPackage,
@@ -19,6 +21,9 @@ from lib.cam.types import (
 )
 
 from .opencam.uni_wrappers import FlightUnit, PackageUnit, Unit
+from lib.fuel import FuelModelError, cruise_rate_lb_nm
+
+logger = logging.getLogger("html_brief_log")
 
 
 def build_cam_brief_data(
@@ -30,6 +35,8 @@ def build_cam_brief_data(
     cmp_data: ParsedCmpData,
     units: tuple[Unit, ...],
     warnings: list[str],
+    bms_base_dir: str | Path | None = None,
+    theater_name: str | None = None,
 ) -> SummaryOutput:
     """Build the app-facing CAM brief JSON from parsed source data."""
 
@@ -46,6 +53,8 @@ def build_cam_brief_data(
 
     return {
         "source_path": str(source_path),
+        "source_bms_base_dir": str(Path(bms_base_dir).expanduser().resolve()) if bms_base_dir else None,
+        "source_theater": theater_name,
         "support_base_dir": str(support_base_dir) if support_base_dir is not None else None,
         "l16_source_path": str(l16_data.source_path) if l16_data.source_path is not None else None,
         "current_date": twx_data.current_date or None,
@@ -81,13 +90,14 @@ def _packages_from_units(
     packages.sort(key=lambda unit: unit.package_number)
 
     out: list[SummaryPackage] = []
+    fuel_cache: dict[int, FuelProfile] = {}
     for package in packages:
         flights: list[SummaryFlight] = []
         for element_id in package.element_ids:
             flight = by_id.get(element_id)
             if not isinstance(flight, FlightUnit):
                 continue
-            flight_row = _flight_row(flight, l16_by_flight)
+            flight_row = _flight_row(flight, l16_by_flight, fuel_cache)
             flights.append(flight_row)
         flights.sort(
             key=lambda item: item.get("flight_number")
@@ -114,6 +124,7 @@ def _packages_from_units(
 def _flight_row(
     flight: FlightUnit,
     l16_by_flight: dict[int, dict[str, int]],
+    fuel_cache: dict[int, FuelProfile],
 ) -> SummaryFlight:
     view = cast(UniFlightUnitView, flight.to_view())
     flight_view = view.get("flight", {})
@@ -158,10 +169,41 @@ def _flight_row(
         "tasking": _trim_tasking(tasking),
         "timing": timing,
         "steerpoints": list(view.get("steerpoints") or []),
+        "fuel_profile": _fuel_profile(flight, fuel_cache),
         "l16": dict(l16_by_flight.get(flight_number, {}))
         if isinstance(flight_number, int)
         else {},
     }
+
+
+def _fuel_profile(flight: FlightUnit, cache: dict[int, FuelProfile]) -> FuelProfile:
+    """Keep optional aircraft failures isolated and cache once per vehicle."""
+    vehicle_number = (flight.aircraft_view or {}).get("vehicle_number")
+    if vehicle_number in cache:
+        return cache[vehicle_number]
+    profile: FuelProfile = {
+        "rate_lb_nm": None,
+        "internal_fuel_lb": None,
+        "aircraft_type_name": None,
+        "source_path": None,
+        "unavailable_reason": None,
+    }
+    try:
+        aircraft = flight.aircraft_data
+        if aircraft is None:
+            raise FuelModelError("The saved flight has no resolved aircraft data.")
+        profile["aircraft_type_name"] = aircraft.aircraft_type.name
+        profile["source_path"] = str(aircraft.aircraft_type.acdata_path)
+        profile["rate_lb_nm"] = cruise_rate_lb_nm(aircraft.simulation_data)
+        profile["internal_fuel_lb"] = aircraft.simulation_data.airframe.internal_fuel_lb
+    except Exception as exc:
+        # Malformed/missing optional files must not discard the flight or package.
+        logger.debug("Minimum fuel unavailable for vehicle %s: %s", vehicle_number, exc)
+        profile["rate_lb_nm"] = None
+        profile["unavailable_reason"] = str(exc)
+    if isinstance(vehicle_number, int):
+        cache[vehicle_number] = profile
+    return profile
 
 
 def _trim_tasking(tasking: dict[str, Any]) -> SummaryTasking:

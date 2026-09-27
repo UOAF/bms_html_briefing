@@ -1,0 +1,9 @@
+.dtc-cycle-field {
+    cursor: pointer;
+    user-select: none;
+}
+
+[data-dtc-field][aria-invalid="true"] {
+    outline: 2px solid #c33;
+    outline-offset: -2px;
+}

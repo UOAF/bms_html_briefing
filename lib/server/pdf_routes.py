@@ -77,6 +77,7 @@ class PdfRequest(BaseModel):
     pages: Optional[Dict[str, str]] = None
     bms: Optional[Dict[str, str]] = None
     system: Optional[Dict[str, str]] = None
+    briefing_style: Optional[Dict[str, Optional[str]]] = None
     theater: Optional[Dict[str, Any]] = None
     kneeboard_order: Optional[Any] = None
     selected_package_index: Optional[int] = None
@@ -227,6 +228,7 @@ def register_pdf_routes(
                 pages=payload.pages,
                 bms=payload.bms,
                 system=payload.system,
+                briefing_style=payload.briefing_style,
             )
             try:
                 bms_cfg_pdf = BmsConfig(cfg_pdf, theater_ini_pattern=app.state.theater_ini_pattern)

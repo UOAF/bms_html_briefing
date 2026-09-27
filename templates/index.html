@@ -1,5 +1,6 @@
 <!DOCTYPE = html>
 <head>
+<meta charset="utf-8">
 <title>HTML BRIEFING {%- if not brief_is_joined %}- PAGE {{num}}{% endif %}</title>
 <link rel="shortcut icon" type="image/png" href="assets/icon.png">
 <link rel="stylesheet" href="templates/style_preview.css" media="screen">
@@ -19,7 +20,7 @@ table, th, td {
   text-align: center;
   align-items: center; 
   vertical-align : middle;
-  padding: 3px;
+  padding: var(--brief-cell-padding, 3px);
 }
 .editable {
   background-color: #ffffff;
@@ -29,7 +30,7 @@ table, th, td {
   vertical-align: top;
 }
 td {
-    height: 1.7em;
+    height: var(--brief-row-height, 1.7em);
 }
 .header {
     background-color: #dddddd;
@@ -58,13 +59,17 @@ width: 100%;
   }
 </style>
 
+<link rel="stylesheet" href="templates/dtc_fields.css" media="screen">
+<script src="templates/dtc_fields.js"></script>
+<script src="templates/popup_briefing.js"></script>
+<script>const dtcFieldPayload = {{ dtc_fields|tojson }};</script>
 <script src="templates/main_script.js"></script>
 
 </head>
-<body>
+<body{% if not brief_is_joined and brief_page_styles is defined %} style="{{ brief_page_styles[num - 1] }}"{% endif %}>
 {% if brief_is_joined %}
 {% for page in brief_pages %}
-<div {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}">
+<div {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}"{% if brief_page_styles is defined %} style="{{ brief_page_styles[loop.index0] }}"{% endif %}>
   {% for part in page %}
    {% include (part+".html") %}
   {% endfor %}

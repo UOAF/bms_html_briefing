@@ -36,6 +36,7 @@ def register_export_routes(
             pages=getattr(payload, "pages", None),
             bms=getattr(payload, "bms", None),
             system=getattr(payload, "system", None),
+            briefing_style=getattr(payload, "briefing_style", None),
         )
         runtime_kneeboard_order = getattr(payload, "kneeboard_order", None) if payload else None
         if runtime_kneeboard_order:

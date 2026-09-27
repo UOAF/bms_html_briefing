@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from lib.campaign_paths import infer_support_base_dir
+from lib.theater_paths import resolve_theater_data_root
 from lib.cam.brief_data import build_cam_brief_data
 from lib.cam.types import ParsedCmpData, ParsedL16Data, ParsedTwxData, SummaryOutput, Vuid
 from lib.parsers.parse_l16 import load_parsed_l16_for_save
@@ -17,6 +17,7 @@ from .opencam.support_files import (
     BmsSupportPaths,
     detect_container_version,
     load_support_data,
+    resolve_support_paths,
 )
 from .opencam.uni_parser import parse_uni_records
 from .opencam.uni_wrappers import Unit, wrap_units
@@ -35,7 +36,7 @@ def extract_cam_brief_data(
     """Parse a CAM-like save and return app brief JSON."""
 
     source_path = Path(cam_file_path).resolve()
-    support_base_dir = infer_support_base_dir(
+    support_base_dir = _resolve_support_root(
         bms_base_dir,
         theater_target_folder,
         theater_name=theater_name,
@@ -73,6 +74,8 @@ def extract_cam_brief_data(
         cmp_data=cmp_data,
         units=units,
         warnings=warnings,
+        bms_base_dir=bms_base_dir,
+        theater_name=theater_name,
     )
 
 
@@ -161,52 +164,39 @@ def _parse_uni_units(
         return ()
 
 
+def _resolve_support_root(
+    bms_base_dir: str | Path | None,
+    theater_target_folder: str | Path | None,
+    *,
+    theater_name: str | None = None,
+) -> Path | None:
+    """Resolve explicit theater context; never pick an arbitrary add-on."""
+    root = resolve_theater_data_root(bms_base_dir, theater_name)
+    if root is not None:
+        root = root.resolve()
+    if theater_target_folder:
+        target = Path(theater_target_folder).expanduser()
+        if not target.is_absolute() and bms_base_dir:
+            target = Path(bms_base_dir).expanduser() / target
+        target = target.resolve()
+        for candidate in (target, *target.parents):
+            if candidate.name.casefold() == "objects" and candidate.parent.name.casefold() == "terrdata":
+                target_root = candidate.parent.parent
+                return target_root if root is None or root == target_root else None
+    if root is not None:
+        return root
+    if bms_base_dir and not theater_name:
+        return (Path(bms_base_dir).expanduser() / "Data").resolve()
+    return None
+
+
 def _support_paths_from_base(support_base_dir: Path | None) -> BmsSupportPaths:
     if support_base_dir is None:
         raise BmsSupportError("support base directory could not be inferred")
 
-    support_base_dir = support_base_dir.resolve()
-    if support_base_dir.name.lower() == "objects":
-        objects_dir = support_base_dir
-        theater_dir = objects_dir.parent.parent
-    else:
-        theater_dir = support_base_dir
-        objects_dir = theater_dir / "TerrData" / "Objects"
-
-    paths = BmsSupportPaths(
-        theater_dir=theater_dir,
-        campaign_dir=theater_dir / "Campaign",
-        objects_dir=objects_dir,
-        strings_path=_case_insensitive_file(theater_dir / "Campaign", "Strings.txt"),
-        ct_path=_case_insensitive_file(objects_dir, "Falcon4_CT.xml"),
-        ucd_path=_case_insensitive_file(objects_dir, "Falcon4_UCD.xml"),
-        vcd_path=_case_insensitive_file(objects_dir, "Falcon4_VCD.xml"),
-    )
-
-    missing = [
-        path
-        for path in (paths.strings_path, paths.ct_path, paths.ucd_path, paths.vcd_path)
-        if not path.is_file()
-    ]
-    if missing:
-        raise BmsSupportError(
-            "missing required support files: " + ", ".join(str(path) for path in missing)
-        )
-    return paths
-
-
-def _case_insensitive_file(directory: Path, filename: str) -> Path:
-    candidate = directory / filename
-    if candidate.is_file():
-        return candidate
-    wanted = filename.lower()
-    try:
-        for child in directory.iterdir():
-            if child.is_file() and child.name.lower() == wanted:
-                return child
-    except Exception:
-        pass
-    return candidate
+    if not support_base_dir.is_dir():
+        raise BmsSupportError(f"missing required support files under {support_base_dir}")
+    return resolve_support_paths(support_base_dir)
 
 
 def _as_vuid(value: object) -> Vuid | None:

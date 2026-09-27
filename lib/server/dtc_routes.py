@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from lib.brief_render import build_brief_render_context
 from lib.bms_paths import callsign_ini_path
+from lib.dtc_fields import field_payload, validate_section
 from lib.map_sources import map_selection as select_map, map_source_options as get_map_source_options
 from lib.map_tiles import local_map_available, prepare_local_map_tiles, resolve_local_map_file
 from lib.parsers.parse_callsign_ini import Callsign_ini, replace_fcc_sections, replace_icp_section, replace_laser_section, replace_nav_offsets_section
@@ -26,10 +27,12 @@ class DtcNavOffsetsRequest(BaseModel):
 
 class DtcIcpRequest(BaseModel):
     icp_settings: Dict[str, Any]
+    scope: str | None = None
 
 
 class DtcFccRequest(BaseModel):
     fcc_settings: Dict[str, Any]
+    scope: str | None = None
 
 
 class DtcLaserRequest(BaseModel):
@@ -63,6 +66,7 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
                 icp_settings=ci.icp_settings,
                 fcc_settings=ci.fcc_settings,
                 laser_settings=ci.laser_settings,
+                dtc_fields=field_payload(ci, callsign_ini_path(bms_conf), bms_conf.theater, base_dir=bms_conf.base_dir),
                 callsign=bms_conf.callsign,
                 theater_name=bms_conf.theater,
                 enable_map_bullseye_edit=False,
@@ -90,6 +94,14 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
         logger_ui.info("DTC NAV OFFSETS saved to %s", callsignini_location)
         return {"status": "ok"}
 
+    @app.get("/api/dtc/fields")
+    def get_dtc_fields() -> Dict[str, Any]:
+        bms_conf = app.state.bms_cfg
+        if bms_conf is None:
+            raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
+        ci = Callsign_ini(_read_callsign_ini(bms_conf))
+        return field_payload(ci, callsign_ini_path(bms_conf), getattr(bms_conf, "theater", ""), base_dir=bms_conf.base_dir)
+
     @app.get("/api/dtc/icp")
     def get_dtc_icp() -> Dict[str, Dict[str, str]]:
         bms_conf = app.state.bms_cfg
@@ -101,14 +113,21 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
         return {"icp_settings": ci.icp_settings}
 
     @app.post("/api/dtc/icp")
-    def save_dtc_icp(payload: DtcIcpRequest) -> Dict[str, str]:
+    def save_dtc_icp(payload: DtcIcpRequest) -> Dict[str, Any]:
         bms_conf = app.state.bms_cfg
         if bms_conf is None:
             raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
 
         callsignini_location = _callsign_ini_path(bms_conf)
         callsignini_contents = _read_callsign_ini(bms_conf)
-        updated_contents = replace_icp_section(callsignini_contents, payload.icp_settings)
+        if payload.scope is not None and payload.scope != str(callsignini_location):
+            raise HTTPException(status_code=409, detail="The active callsign changed. Reload the DTC.")
+        try:
+            settings = {**Callsign_ini(callsignini_contents).icp_settings,
+                        **validate_section("ICP", payload.icp_settings)}
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        updated_contents = replace_icp_section(callsignini_contents, settings)
         try:
             with open(callsignini_location, "w", encoding="latin1", newline="") as callsignini_file:
                 callsignini_file.writelines(updated_contents)
@@ -117,7 +136,7 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
             logger_ui.error("Couldn't save DTC ICP: %s", exc)
             raise HTTPException(status_code=500, detail=f"Couldn't save ICP: {exc}")
         logger_ui.info("DTC ICP saved to %s", callsignini_location)
-        return {"status": "ok"}
+        return {"status": "ok", "icp_settings": settings}
 
     @app.get("/api/dtc/fcc")
     def get_dtc_fcc() -> Dict[str, Dict[str, Dict[str, str]]]:
@@ -130,14 +149,27 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
         return {"fcc_settings": ci.fcc_settings}
 
     @app.post("/api/dtc/fcc")
-    def save_dtc_fcc(payload: DtcFccRequest) -> Dict[str, str]:
+    def save_dtc_fcc(payload: DtcFccRequest) -> Dict[str, Any]:
         bms_conf = app.state.bms_cfg
         if bms_conf is None:
             raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
 
         callsignini_location = _callsign_ini_path(bms_conf)
         callsignini_contents = _read_callsign_ini(bms_conf)
-        updated_contents = replace_fcc_sections(callsignini_contents, payload.fcc_settings)
+        if payload.scope is not None and payload.scope != str(callsignini_location):
+            raise HTTPException(status_code=409, detail="The active callsign changed. Reload the DTC.")
+        current = Callsign_ini(callsignini_contents).fcc_settings
+        settings = {}
+        try:
+            if not payload.fcc_settings:
+                raise ValueError("Choose an FCC section to save")
+            for section, values in payload.fcc_settings.items():
+                if section not in current:
+                    raise ValueError(f"Unknown FCC section: {section}")
+                settings[section] = {**current[section], **validate_section(section, values)}
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        updated_contents = replace_fcc_sections(callsignini_contents, settings)
         try:
             with open(callsignini_location, "w", encoding="latin1", newline="") as callsignini_file:
                 callsignini_file.writelines(updated_contents)
@@ -146,7 +178,7 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
             logger_ui.error("Couldn't save DTC FCC: %s", exc)
             raise HTTPException(status_code=500, detail=f"Couldn't save FCC: {exc}")
         logger_ui.info("DTC FCC saved to %s", callsignini_location)
-        return {"status": "ok"}
+        return {"status": "ok", "fcc_settings": settings}
 
     @app.post("/api/dtc/laser")
     def save_dtc_laser(payload: DtcLaserRequest) -> Dict[str, str]:

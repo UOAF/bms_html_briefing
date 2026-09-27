@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="/dist/leaflet/leaflet.css">
   <script src="/dist/leaflet/leaflet.js"></script>
   <link rel="stylesheet" href="/templates/dtc.css">
+  <link rel="stylesheet" href="/templates/dtc_fields.css">
+  <script src="/templates/dtc_fields.js"></script>
+  <script src="/templates/popup_briefing.js"></script>
 </head>
 <body class="dtc-page">
   <div class="dtc-main-tabs" role="tablist" aria-label="DTC page">
@@ -124,7 +127,7 @@
               <div class="dtc-popup-field">
                 <label for="dtc-popup-dive">Dive angle</label>
                 <div class="dtc-slider-field">
-                  <input class="dtc-popup-slider" id="dtc-popup-dive" data-popup-field="diveAngle" type="range" min="5" max="45" step="1" value="15" data-slider-unit="°">
+                  <input class="dtc-popup-slider" id="dtc-popup-dive" data-popup-field="diveAngle" type="range" min="5" max="45" step="1" value="15" data-slider-unit=" deg">
                   <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="diveAngle" inputmode="decimal"><span class="dtc-popup-slider-unit">deg</span>
                 </div>
               </div>
@@ -179,12 +182,12 @@
             <div class="dtc-popup-grid">
               <div class="dtc-popup-field">
                 <label for="dtc-popup-heading-mode">Heading source</label>
-                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-heading-mode" data-popup-field="headingMode" data-popup-value="attack">Attack HDG</button>
+                <button type="button" class="dtc-popup-clicker interface-cycle-button" id="dtc-popup-heading-mode" data-popup-field="headingMode" data-popup-value="attack">Attack MHDG</button>
               </div>
               <div class="dtc-popup-field">
-                <label for="dtc-popup-heading">Heading</label>
+                <label for="dtc-popup-heading" id="dtc-popup-heading-label">MHDG</label>
                 <div class="dtc-slider-field">
-                  <input class="dtc-popup-slider" id="dtc-popup-heading" data-popup-field="heading" type="range" min="0" max="359" step="1" value="0" data-slider-unit="°">
+                  <input class="dtc-popup-slider" id="dtc-popup-heading" data-popup-field="heading" type="range" min="0" max="359" step="1" value="0" data-slider-unit=" deg">
                   <input class="dtc-popup-slider-value interface-text-input" data-slider-value-for="heading" inputmode="decimal"><span class="dtc-popup-slider-unit">deg</span>
                 </div>
               </div>
@@ -273,27 +276,27 @@
         <div class="dtc-icp-grid">
           <div class="dtc-fcc-row">
             <label for="dtc-icp-wingspan">Manual Wingspan</label>
-            <input class="dtc-icp-input interface-text-input" id="dtc-icp-wingspan" data-icp-field="Manual Wingspan" inputmode="decimal" autocomplete="off">
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-wingspan" data-dtc-field="ICP:Manual Wingspan" inputmode="decimal" autocomplete="off">
           </div>
           <div class="dtc-fcc-row">
             <label for="dtc-icp-bingo">Bingo fuel</label>
-            <input class="dtc-icp-input interface-text-input" id="dtc-icp-bingo" data-icp-field="Bingo_Fuel" inputmode="numeric" autocomplete="off">
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-bingo" data-dtc-field="ICP:Bingo_Fuel" inputmode="numeric" autocomplete="off">
           </div>
           <div class="dtc-fcc-row">
             <label for="dtc-icp-master-mode">Master Mode</label>
-            <button type="button" class="dtc-icp-cycle interface-cycle-button" id="dtc-icp-master-mode" data-icp-field="MasterMode" data-icp-value="0">NAV</button>
+            <button type="button" class="dtc-icp-cycle interface-cycle-button" id="dtc-icp-master-mode" data-dtc-field="ICP:MasterMode">NAV</button>
           </div>
           <div class="dtc-fcc-row">
             <label for="dtc-icp-alow-agl">ALOW AGL</label>
-            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-agl" data-icp-field="Alow AGL" inputmode="numeric" autocomplete="off">
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-agl" data-dtc-field="ICP:Alow AGL" inputmode="numeric" autocomplete="off">
           </div>
           <div class="dtc-fcc-row">
             <label for="dtc-icp-alow-msl">ALOW MSL</label>
-            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-msl" data-icp-field="Alow MSL" inputmode="numeric" autocomplete="off">
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-msl" data-dtc-field="ICP:Alow MSL" inputmode="numeric" autocomplete="off">
           </div>
           <div class="dtc-fcc-row">
             <label for="dtc-icp-alow-tfadv">ALOW TF ADV</label>
-            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-tfadv" data-icp-field="Alow TFAdv" inputmode="numeric" autocomplete="off">
+            <input class="dtc-icp-input interface-text-input" id="dtc-icp-alow-tfadv" data-dtc-field="ICP:Alow TFAdv" inputmode="numeric" autocomplete="off">
           </div>
         </div>
       <div class="dtc-icp-status" id="dtc-icp-status"></div>
@@ -326,17 +329,17 @@
         <legend>A-A missiles</legend>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-aim9-spot">AIM-9 Spot/Scan</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim9-spot" data-fcc-section="FCC_AIM" data-fcc-field="AIM-9_Spot/Scan" data-fcc-value="0">SPOT</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim9-spot" data-dtc-field="FCC_AIM:AIM-9_Spot/Scan">SPOT</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-aim9-tdbp">AIM-9 TD/BP</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim9-tdbp" data-fcc-section="FCC_AIM" data-fcc-field="AIM-9_TD/BP" data-fcc-value="0">BP</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim9-tdbp" data-dtc-field="FCC_AIM:AIM-9_TD/BP">BP</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-aim120-size">AIM-120 Target Size</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim120-size" data-fcc-section="FCC_AIM" data-fcc-field="AIM120_TargetSize" data-fcc-value="0">UNKN</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-aim120-size" data-dtc-field="FCC_AIM:AIM120_TargetSize">UNKN</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <button type="button" class="dtc-fcc-section-save" data-fcc-save-section="FCC_AIM">SAVE TO .INI</button>
@@ -346,17 +349,17 @@
         <legend>A-G missiles</legend>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-mav-power">Auto Power On</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-mav-power" data-fcc-section="FCC_AGM" data-fcc-field="Maverick_AutoPwr" data-fcc-value="0">OFF</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-mav-power" data-dtc-field="FCC_AGM:Maverick_AutoPwr">OFF</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-mav-dir">Auto Power Dir</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-mav-dir" data-fcc-section="FCC_AGM" data-fcc-field="Maverick_AutoPwrDir" data-fcc-value="1">North of</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-mav-dir" data-dtc-field="FCC_AGM:Maverick_AutoPwrDir">North of</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-mav-wpt">Auto Power Wpt</label>
-          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-mav-wpt" data-fcc-section="FCC_AGM" data-fcc-field="Maverick_AutoPwrWpt" inputmode="numeric" autocomplete="off">
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-mav-wpt" data-dtc-field="FCC_AGM:Maverick_AutoPwrWpt" inputmode="numeric" autocomplete="off">
           <span class="dtc-fcc-unit"></span>
         </div>
         <button type="button" class="dtc-fcc-section-save" data-fcc-save-section="FCC_AGM">SAVE TO .INI</button>
@@ -372,32 +375,32 @@
         <div class="dtc-fcc-profile-grid">
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-p{{ profile }}-submode">Sub Mode</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-submode" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Submode" data-fcc-value="{{ '8' if profile == 1 else '7' }}">{{ 'CCRP' if profile == 1 else 'CCIP' }}</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-submode" data-dtc-field="FCC_AGB:Profile{{ profile }}_Submode">{{ 'CCRP' if profile == 1 else 'CCIP' }}</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-p{{ profile }}-fuze">Fuze</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-fuze" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Fuze" data-fcc-value="1">NOSE</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-fuze" data-dtc-field="FCC_AGB:Profile{{ profile }}_Fuze">NOSE</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-p{{ profile }}-sglpair">SGL/PAIR</label>
-          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-sglpair" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_SGL/PAIR" data-fcc-value="0">SGL</button>
+          <button type="button" class="dtc-fcc-cycle interface-cycle-button" id="dtc-fcc-p{{ profile }}-sglpair" data-dtc-field="FCC_AGB:Profile{{ profile }}_SGL/PAIR">SGL</button>
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-p{{ profile }}-spacing">Spacing</label>
-          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-spacing" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Release_Spacing" inputmode="numeric" autocomplete="off">
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-spacing" data-dtc-field="FCC_AGB:Profile{{ profile }}_Release_Spacing" inputmode="numeric" autocomplete="off">
           <span class="dtc-fcc-unit">feet</span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-p{{ profile }}-pulse">Release Pulse</label>
-          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-pulse" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Release_Pulse" data-fcc-display-offset="1" inputmode="numeric" autocomplete="off">
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-pulse" data-dtc-field="FCC_AGB:Profile{{ profile }}_Release_Pulse" inputmode="numeric" autocomplete="off">
           <span class="dtc-fcc-unit"></span>
         </div>
         <div class="dtc-fcc-row">
           <label for="dtc-fcc-p{{ profile }}-angle">TOSS Angle</label>
-          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-angle" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_Release_Angle" inputmode="numeric" autocomplete="off">
+          <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-angle" data-dtc-field="FCC_AGB:Profile{{ profile }}_Release_Angle" inputmode="numeric" autocomplete="off">
           <span class="dtc-fcc-unit">deg</span>
         </div>
         </div>
@@ -406,12 +409,12 @@
           <legend>Bombs</legend>
           <div class="dtc-fcc-row">
             <label for="dtc-fcc-p{{ profile }}-c1ad1">C1 Arming Delay 1</label>
-            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c1ad1" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C1_AD1" data-fcc-scale="100" data-fcc-decimals="6" inputmode="decimal" autocomplete="off">
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c1ad1" data-dtc-field="FCC_AGB:Profile{{ profile }}_C1_AD1" inputmode="decimal" autocomplete="off">
             <span class="dtc-fcc-unit">sec</span>
           </div>
           <div class="dtc-fcc-row">
             <label for="dtc-fcc-p{{ profile }}-c1ad2">C1 Arming Delay 2</label>
-            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c1ad2" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C1_AD2" data-fcc-scale="100" data-fcc-decimals="6" inputmode="decimal" autocomplete="off">
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c1ad2" data-dtc-field="FCC_AGB:Profile{{ profile }}_C1_AD2" inputmode="decimal" autocomplete="off">
             <span class="dtc-fcc-unit">sec</span>
           </div>
         </fieldset>
@@ -419,12 +422,12 @@
           <legend>Cluster</legend>
           <div class="dtc-fcc-row">
             <label for="dtc-fcc-p{{ profile }}-c2ad">C2 Arming Delay</label>
-            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c2ad" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C2_AD" data-fcc-scale="100" data-fcc-decimals="6" inputmode="decimal" autocomplete="off">
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c2ad" data-dtc-field="FCC_AGB:Profile{{ profile }}_C2_AD" inputmode="decimal" autocomplete="off">
             <span class="dtc-fcc-unit">sec</span>
           </div>
           <div class="dtc-fcc-row">
             <label for="dtc-fcc-p{{ profile }}-c2ba">C2 Burst Alt</label>
-            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c2ba" data-fcc-section="FCC_AGB" data-fcc-field="Profile{{ profile }}_C2_BA" inputmode="numeric" autocomplete="off">
+            <input class="dtc-fcc-input interface-text-input" id="dtc-fcc-p{{ profile }}-c2ba" data-dtc-field="FCC_AGB:Profile{{ profile }}_C2_BA" inputmode="numeric" autocomplete="off">
             <span class="dtc-fcc-unit">feet</span>
           </div>
         </fieldset>
@@ -445,11 +448,11 @@
     function resetContenteditables() {}
 
     const dtcNavOffsets = {{ nav_offsets|tojson }};
-    const dtcIcpSettings = {{ icp_settings|tojson }};
-    const dtcFccSettings = {{ fcc_settings|tojson }};
+    const dtcBinding = DtcFields.attach(window, {{ dtc_fields|tojson }});
+    const dtcPopupScope = {{ dtc_fields.popup_scope|tojson }};
+    const dtcMagneticVariation = {{ dtc_fields.magnetic_variation|default({})|tojson }};
+    PopupBriefing.attach(window, dtcPopupScope);
     const dtcLaserSettings = {{ laser_settings|tojson }};
-    const dtcIcpIniSettings = JSON.parse(JSON.stringify(dtcIcpSettings || {}));
-    const dtcFccIniSettings = JSON.parse(JSON.stringify(dtcFccSettings || {}));
     let dtcSelectedLayer = null;
     let dtcSelectedStptNumber = "";
     let dtcOffsetMapLayer = null;
@@ -472,136 +475,10 @@
       vippup: "45",
       vrppup: "45",
     };
-    const DTC_ICP_DEFAULTS = {
-      "Manual Wingspan": "35",
-      "Bingo_Fuel": "1500",
-      "MasterMode": "0",
-      "Alow AGL": "100",
-      "Alow MSL": "10000",
-      "Alow TFAdv": "400",
-    };
-    const DTC_ICP_CYCLE_OPTIONS = {
-      "MasterMode": [
-        { value: "0", label: "NAV" },
-        { value: "1", label: "AG" },
-        { value: "2", label: "AA" },
-      ],
-    };
     const DTC_LASER_DEFAULTS = {
       "LaserST": "8",
       "LaserTGP": "1688",
       "LaserLST": "1688",
-    };
-    const DTC_ICP_BRIEFING_LINKS = {
-      "Bingo_Fuel": "admin_6",
-      "Alow AGL": "admin_1",
-      "Alow MSL": "admin_2",
-    };
-    const DTC_FCC_BRIEFING_LINKS = {
-      "FCC_AGB:Profile1_Submode": { id: "sms_mode_1", type: "cycle", prefix: "MODE: " },
-      "FCC_AGB:Profile1_Fuze": { id: "sms_1", type: "cycle" },
-      "FCC_AGB:Profile1_SGL/PAIR": { id: "sms_2", type: "cycle" },
-      "FCC_AGB:Profile1_C1_AD1": { id: "sms_7", scale: 100, decimals: 6 },
-      "FCC_AGB:Profile1_Release_Spacing": { id: "sms_8" },
-      "FCC_AGB:Profile1_C2_BA": { id: "sms_14" },
-      "FCC_AGB:Profile1_Release_Pulse": { id: "sms_15", displayOffset: 1 },
-      "FCC_AGB:Profile2_Submode": { id: "sms_mode_2", type: "cycle", prefix: "MODE: " },
-      "FCC_AGB:Profile2_Fuze": { id: "sms_3", type: "cycle" },
-      "FCC_AGB:Profile2_SGL/PAIR": { id: "sms_4", type: "cycle" },
-      "FCC_AGB:Profile2_C1_AD1": { id: "sms_9", scale: 100, decimals: 6 },
-      "FCC_AGB:Profile2_Release_Spacing": { id: "sms_10" },
-      "FCC_AGB:Profile2_C2_BA": { id: "sms_16" },
-      "FCC_AGB:Profile2_Release_Pulse": { id: "sms_17", displayOffset: 1 },
-    };
-    const DTC_FCC_DEFAULTS = {
-      FCC_AIM: {
-        "AIM-9_Spot/Scan": "0",
-        "AIM-9_TD/BP": "0",
-        "AIM120_TargetSize": "0",
-      },
-      FCC_AGM: {
-        "Maverick_AutoPwr": "0",
-        "Maverick_AutoPwrDir": "1",
-        "Maverick_AutoPwrWpt": "1",
-      },
-      FCC_AGB: {
-        "Profile1_Submode": "8",
-        "Profile1_Fuze": "1",
-        "Profile1_SGL/PAIR": "0",
-        "Profile1_Release_Spacing": "175",
-        "Profile1_Release_Pulse": "-1",
-        "Profile1_Release_Angle": "45",
-        "Profile1_C1_AD1": "400.000000",
-        "Profile1_C1_AD2": "600.000000",
-        "Profile1_C2_AD": "150.000000",
-        "Profile1_C2_BA": "500",
-        "Profile2_Submode": "7",
-        "Profile2_Fuze": "1",
-        "Profile2_SGL/PAIR": "0",
-        "Profile2_Release_Spacing": "175",
-        "Profile2_Release_Pulse": "-1",
-        "Profile2_Release_Angle": "45",
-        "Profile2_C1_AD1": "400.000000",
-        "Profile2_C1_AD2": "600.000000",
-        "Profile2_C2_AD": "150.000000",
-        "Profile2_C2_BA": "500",
-      },
-    };
-    const DTC_FCC_CYCLE_OPTIONS = {
-      "FCC_AIM:AIM-9_Spot/Scan": [
-        { value: "0", label: "SPOT" },
-        { value: "1", label: "SCAN" },
-      ],
-      "FCC_AIM:AIM-9_TD/BP": [
-        { value: "0", label: "BP" },
-        { value: "1", label: "TD" },
-      ],
-      "FCC_AIM:AIM120_TargetSize": [
-        { value: "0", label: "UNKN" },
-        { value: "1", label: "SMALL" },
-        { value: "2", label: "MEDIUM" },
-        { value: "3", label: "LARGE" },
-      ],
-      "FCC_AGM:Maverick_AutoPwr": [
-        { value: "0", label: "OFF" },
-        { value: "1", label: "ON" },
-      ],
-      "FCC_AGM:Maverick_AutoPwrDir": [
-        { value: "1", label: "North of" },
-        { value: "2", label: "East of" },
-        { value: "3", label: "South of" },
-        { value: "4", label: "West of" },
-      ],
-      "FCC_AGB:Profile1_Submode": [
-        { value: "7", label: "CCIP" },
-        { value: "8", label: "CCRP" },
-        { value: "9", label: "DTOS" },
-        { value: "10", label: "LADD" },
-      ],
-      "FCC_AGB:Profile2_Submode": [
-        { value: "7", label: "CCIP" },
-        { value: "8", label: "CCRP" },
-        { value: "9", label: "DTOS" },
-        { value: "10", label: "LADD" },
-      ],
-      "FCC_AGB:Profile1_Fuze": [
-        { value: "1", label: "NOSE" },
-        { value: "2", label: "TAIL" },
-        { value: "0", label: "NSTL" },
-      ],
-      "FCC_AGB:Profile2_Fuze": [
-        { value: "1", label: "NOSE" },
-        { value: "2", label: "TAIL" },
-        { value: "0", label: "NSTL" },
-      ],
-      "FCC_AGB:Profile1_SGL/PAIR": [
-        { value: "0", label: "SGL" },
-        { value: "1", label: "PAIR" },
-      ],
-      "FCC_AGB:Profile2_SGL/PAIR": [
-        { value: "0", label: "SGL" },
-        { value: "1", label: "PAIR" },
-      ],
     };
     const DTC_POPUP_CLICKER_OPTIONS = {
       rangeModel: [
@@ -671,226 +548,31 @@
       return next;
     }
 
-    function plainTextFromHtml(value) {
-      const container = document.createElement("div");
-      container.innerHTML = value == null ? "" : String(value);
-      return container.textContent.trim();
-    }
-
-    function storedValuesDiffer(currentValue, iniValue) {
-      const current = cleanOffsetValue(currentValue).toUpperCase();
-      const ini = cleanOffsetValue(iniValue).toUpperCase();
-      const currentNumber = Number.parseFloat(current);
-      const iniNumber = Number.parseFloat(ini);
-      if (Number.isFinite(currentNumber) && Number.isFinite(iniNumber)) {
-        return Math.abs(currentNumber - iniNumber) > 0.000001;
-      }
-      return current !== ini;
-    }
-
-    function markLinkedDiff(control, differs, iniValue) {
-      if (!control) return;
-      if (control.dataset.baseTitle == null) {
-        control.dataset.baseTitle = control.title || "";
-      }
-      control.classList.toggle("dtc-linked-diff", !!differs);
-      const baseTitle = control.dataset.baseTitle || "";
-      control.title = differs
-        ? `${baseTitle ? baseTitle + "\n" : ""}Differs from callsign.ini: ${iniValue}`
-        : baseTitle;
-    }
-
-    async function saveBriefingStorageFromDtc() {
+    async function saveDtcSection(section) {
+      const isIcp = section === "ICP";
+      const status = document.getElementById(isIcp ? "dtc-icp-status" : "dtc-fcc-status");
+      const buttons = document.querySelectorAll("#dtc-save-icp, [data-fcc-save-section]");
       try {
-        await window.parent?.seedBriefingDtcLinkedValues?.({ overwrite: true });
-      } catch (error) {
-        console.warn("Unable to save linked briefing storage", error);
-      }
-    }
-
-    async function refreshDtcLinkedIniBaselines() {
-      try {
-        const response = await fetch("/api/dtc/icp");
-        if (response.ok) {
-          const data = await response.json();
-          Object.assign(dtcIcpIniSettings, data.icp_settings || {});
-        }
-      } catch (error) {
-        console.warn("Unable to refresh ICP .ini baseline", error);
-      }
-      try {
-        const response = await fetch("/api/dtc/fcc");
-        if (response.ok) {
-          const data = await response.json();
-          const fccSettings = data.fcc_settings || {};
-          Object.entries(fccSettings).forEach(([section, values]) => {
-            dtcFccIniSettings[section] = dtcFccIniSettings[section] || {};
-            Object.assign(dtcFccIniSettings[section], values || {});
-          });
-        }
-      } catch (error) {
-        console.warn("Unable to refresh FCC .ini baseline", error);
-      }
-      refreshDtcIcpDiffIndicators();
-      refreshDtcFccDiffIndicators();
-    }
-
-    function readBriefingLinkedValue(fieldName) {
-      const id = DTC_ICP_BRIEFING_LINKS[fieldName];
-      if (!id) return "";
-      try {
-        const liveFrame = window.parent?.document?.getElementById("brief-frame");
-        const liveElement = liveFrame?.contentDocument?.getElementById(id);
-        if (liveElement && liveElement.textContent.trim() !== "") {
-          return liveElement.textContent.trim();
-        }
-      } catch (error) {
-        console.warn("Unable to read linked briefing field", id, error);
-      }
-      try {
-        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
-        if (Object.prototype.hasOwnProperty.call(saved, id)) return plainTextFromHtml(saved[id]);
-      } catch (error) {
-        console.warn("Unable to read linked briefing storage", id, error);
-      }
-      return "";
-    }
-
-    function writeBriefingLinkedValue(fieldName, value) {
-      const id = DTC_ICP_BRIEFING_LINKS[fieldName];
-      if (!id) return;
-      const cleanValue = cleanOffsetValue(value);
-      try {
-        const liveFrame = window.parent?.document?.getElementById("brief-frame");
-        const liveElement = liveFrame?.contentDocument?.getElementById(id);
-        if (liveElement) liveElement.textContent = cleanValue;
-      } catch (error) {
-        console.warn("Unable to write linked briefing field", id, error);
-      }
-    }
-
-    function syncDtcIcpLinkedSettings() {
-      Object.keys(DTC_ICP_BRIEFING_LINKS).forEach((fieldName) => {
-        const linkedValue = readBriefingLinkedValue(fieldName);
-        if (linkedValue !== "") dtcIcpSettings[fieldName] = formatDtcIcpDisplayValue(linkedValue);
-      });
-    }
-
-    function getDtcIcpDisplayValue(fieldName) {
-      const linkedValue = readBriefingLinkedValue(fieldName);
-      if (linkedValue !== "") return formatDtcIcpDisplayValue(linkedValue);
-      return formatDtcIcpDisplayValue(dtcIcpSettings[fieldName]);
-    }
-
-    function getDtcIcpIniDisplayValue(fieldName) {
-      return formatDtcIcpDisplayValue(dtcIcpIniSettings[fieldName] ?? DTC_ICP_DEFAULTS[fieldName] ?? "");
-    }
-
-    function refreshDtcIcpDiffIndicators() {
-      document.querySelectorAll("[data-icp-field]").forEach((control) => {
-        const fieldName = control.dataset.icpField;
-        const currentValue = formatDtcIcpStoredValue(control);
-        const iniStoredValue = dtcIcpIniSettings[fieldName] ?? DTC_ICP_DEFAULTS[fieldName] ?? "";
-        const iniDisplayValue = getDtcIcpIniDisplayValue(fieldName);
-        markLinkedDiff(control, storedValuesDiffer(currentValue, iniStoredValue), iniDisplayValue);
-      });
-    }
-
-    function renderDtcIcpCycleButton(button, rawValue) {
-      const fieldName = button?.dataset?.icpField;
-      const options = DTC_ICP_CYCLE_OPTIONS[fieldName] || [];
-      renderCycleButton(button, options, "icpValue", rawValue, formatDtcIcpDisplayValue);
-    }
-
-    function formatDtcIcpStoredValue(input) {
-      if (input?.classList?.contains("dtc-icp-cycle")) {
-        return cleanOffsetValue(input.dataset.icpValue);
-      }
-      return cleanOffsetValue(input.value);
-    }
-
-    function cycleDtcIcpButton(button) {
-      const fieldName = button?.dataset?.icpField;
-      const options = DTC_ICP_CYCLE_OPTIONS[fieldName] || [];
-      cycleButton(button, options, "icpValue", () => updateDtcIcpInput(button));
-    }
-
-    function collectDtcIcpSettings() {
-      syncDtcIcpLinkedSettings();
-      const settings = { ...dtcIcpSettings };
-      document.querySelectorAll("[data-icp-field]").forEach((input) => {
-        settings[input.dataset.icpField] = formatDtcIcpStoredValue(input);
-      });
-      return settings;
-    }
-
-    function normalizeDtcIcpSettings() {
-      Object.entries(DTC_ICP_DEFAULTS).forEach(([key, value]) => {
-        if (dtcIcpSettings[key] == null) dtcIcpSettings[key] = value;
-      });
-      syncDtcIcpLinkedSettings();
-    }
-
-    function renderDtcIcpSettings() {
-      syncDtcIcpLinkedSettings();
-      document.querySelectorAll("[data-icp-field]").forEach((input) => {
-        if (input.classList.contains("dtc-icp-cycle")) {
-          renderDtcIcpCycleButton(input, dtcIcpSettings[input.dataset.icpField]);
-          return;
-        }
-        input.value = getDtcIcpDisplayValue(input.dataset.icpField);
-      });
-      refreshDtcIcpDiffIndicators();
-    }
-
-    function updateDtcIcpInput(input) {
-      if (!input || !input.dataset.icpField) return;
-      const fieldName = input.dataset.icpField;
-      const value = formatDtcIcpStoredValue(input);
-      dtcIcpSettings[fieldName] = value;
-      writeBriefingLinkedValue(fieldName, value);
-      refreshDtcIcpDiffIndicators();
-      const status = document.getElementById("dtc-icp-status");
-      if (status) status.textContent = "";
-    }
-
-    async function saveDtcIcpSettings() {
-      try {
-        const icpSettings = collectDtcIcpSettings();
-        Object.assign(dtcIcpSettings, icpSettings);
-        const response = await fetch("/api/dtc/icp", {
+        const scope = window.dtcFieldStore.scope;
+        const settings = window.dtcFieldStore.section(section);
+        const body = isIcp ? { icp_settings: settings, scope } : { fcc_settings: { [section]: settings }, scope };
+        buttons.forEach((button) => { button.disabled = true; });
+        const response = await fetch(isIcp ? "/api/dtc/icp" : "/api/dtc/fcc", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ icp_settings: icpSettings })
+          body: JSON.stringify(body),
         });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || response.statusText);
-        }
-        await saveBriefingStorageFromDtc();
-        Object.assign(dtcIcpIniSettings, icpSettings);
-        refreshDtcIcpDiffIndicators();
-        const status = document.getElementById("dtc-icp-status");
-        if (status) status.textContent = "ICP saved to callsign.ini.";
+        if (!response.ok) throw new Error(await response.text() || response.statusText);
+        const saved = await response.json();
+        window.dtcFieldStore.acknowledge(scope, isIcp ? { ICP: saved.icp_settings } : saved.fcc_settings);
+        if (status) status.textContent = section + " saved to callsign.ini.";
       } catch (error) {
-        console.error("Failed to save ICP", error);
-        const status = document.getElementById("dtc-icp-status");
-        if (status) status.textContent = "Failed to save ICP.";
+        console.error("Failed to save " + section, error);
+        if (status) status.textContent = error.message;
+      } finally {
+        buttons.forEach((button) => { button.disabled = false; });
       }
     }
-
-    window.addEventListener("message", (event) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.type === "html_brief_sync_dtc_linked_fields") {
-        normalizeDtcIcpSettings();
-        renderDtcIcpSettings();
-        normalizeDtcFccSettings();
-        renderDtcFccSettings();
-      }
-      if (event.data?.type === "html_brief_refresh_dtc_linked_diffs") {
-        refreshDtcLinkedIniBaselines();
-      }
-    });
 
     function normalizeDtcLaserSettings() {
       Object.entries(DTC_LASER_DEFAULTS).forEach(([key, value]) => {
@@ -932,7 +614,6 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
-        await saveBriefingStorageFromDtc();
         const status = document.getElementById("dtc-laser-status");
         if (status) status.textContent = "Laser saved to callsign.ini.";
       } catch (error) {
@@ -942,250 +623,6 @@
       }
     }
 
-    function getDtcFccBriefingLink(section, field) {
-      return DTC_FCC_BRIEFING_LINKS[section + ":" + field] || null;
-    }
-
-    function readDtcFccBriefingDisplayValue(section, field) {
-      const link = getDtcFccBriefingLink(section, field);
-      if (!link?.id) return "";
-      try {
-        const liveFrame = window.parent?.document?.getElementById("brief-frame");
-        const liveElement = liveFrame?.contentDocument?.getElementById(link.id);
-        if (liveElement && liveElement.textContent.trim() !== "") {
-          return liveElement.textContent.trim();
-        }
-      } catch (error) {
-        console.warn("Unable to read linked SMS field", link.id, error);
-      }
-      try {
-        const saved = JSON.parse(localStorage.getItem("contenteditables") || "{}");
-        if (Object.prototype.hasOwnProperty.call(saved, link.id)) return plainTextFromHtml(saved[link.id]);
-      } catch (error) {
-        console.warn("Unable to read linked SMS storage", link.id, error);
-      }
-      return "";
-    }
-
-    function formatDtcFccLinkedStoredValue(section, field, displayValue) {
-      const link = getDtcFccBriefingLink(section, field);
-      const cleanValue = cleanOffsetValue(displayValue);
-      if (!link) return cleanValue;
-      if (link.type === "cycle") {
-        const options = DTC_FCC_CYCLE_OPTIONS[section + ":" + field] || [];
-        const displayValue = cleanValue.replace(/^MODE:\s*/i, "");
-        const selected = options.find((option) => option.value === displayValue || option.label.toUpperCase() === displayValue.toUpperCase());
-        return selected ? selected.value : cleanValue;
-      }
-      const numberValue = Number.parseFloat(cleanValue);
-      if (!Number.isFinite(numberValue)) return cleanValue;
-      const displayOffset = Number.parseFloat(link.displayOffset || "0");
-      const offset = Number.isFinite(displayOffset) ? displayOffset : 0;
-      const scale = Number.parseFloat(link.scale || "");
-      const storedValue = (numberValue - offset) * (Number.isFinite(scale) && scale !== 0 ? scale : 1);
-      const decimals = Number.parseInt(link.decimals || "0", 10);
-      if (Number.isFinite(decimals) && decimals > 0) return storedValue.toFixed(decimals);
-      if (Number.isInteger(storedValue)) return String(storedValue);
-      return String(storedValue);
-    }
-
-    function formatDtcFccLinkedDisplayValue(section, field, storedValue) {
-      const link = getDtcFccBriefingLink(section, field);
-      const cleanValue = cleanOffsetValue(storedValue);
-      if (!link) return cleanValue;
-      if (link.type === "cycle") {
-        const options = DTC_FCC_CYCLE_OPTIONS[section + ":" + field] || [];
-        const selected = options.find((option) => option.value === cleanValue) || options[0];
-        return selected ? (link.prefix || "") + selected.label : cleanValue;
-      }
-      const numberValue = Number.parseFloat(cleanValue);
-      if (!Number.isFinite(numberValue)) return cleanValue;
-      const displayOffset = Number.parseFloat(link.displayOffset || "0");
-      const offsetValue = numberValue + (Number.isFinite(displayOffset) ? displayOffset : 0);
-      const scale = Number.parseFloat(link.scale || "");
-      if (Number.isFinite(scale) && scale !== 0) {
-        return (offsetValue / scale).toFixed(2);
-      }
-      if (Number.isInteger(offsetValue)) return String(offsetValue);
-      return String(offsetValue);
-    }
-
-    function getDtcFccIniControlDisplayValue(control, section, field) {
-      const storedValue = dtcFccIniSettings?.[section]?.[field] ?? DTC_FCC_DEFAULTS?.[section]?.[field] ?? "";
-      if (control?.classList?.contains("dtc-fcc-cycle")) {
-        const options = getDtcFccCycleOptions(control);
-        const selected = options.find((option) => option.value === cleanOffsetValue(storedValue)) || options[0];
-        return selected ? selected.label : cleanOffsetValue(storedValue);
-      }
-      return formatFccDisplayValue(control, storedValue);
-    }
-
-    function refreshDtcFccDiffIndicators() {
-      document.querySelectorAll("[data-fcc-section][data-fcc-field]").forEach((control) => {
-        const section = control.dataset.fccSection;
-        const field = control.dataset.fccField;
-        const currentValue = formatFccStoredValue(control);
-        const iniStoredValue = dtcFccIniSettings?.[section]?.[field] ?? DTC_FCC_DEFAULTS?.[section]?.[field] ?? "";
-        const iniDisplayValue = getDtcFccIniControlDisplayValue(control, section, field);
-        markLinkedDiff(control, storedValuesDiffer(currentValue, iniStoredValue), iniDisplayValue);
-      });
-    }
-
-    function writeDtcFccBriefingValue(section, field, storedValue) {
-      const link = getDtcFccBriefingLink(section, field);
-      if (!link?.id) return;
-      const displayValue = formatDtcFccLinkedDisplayValue(section, field, storedValue);
-      try {
-        const liveFrame = window.parent?.document?.getElementById("brief-frame");
-        const liveDocument = liveFrame?.contentDocument;
-        const liveElement = liveDocument?.getElementById(link.id);
-        if (liveElement) liveElement.textContent = displayValue;
-        liveFrame?.contentWindow?.bindSmsFccCycleFields?.();
-      } catch (error) {
-        console.warn("Unable to write linked SMS field", link.id, error);
-      }
-    }
-
-    function syncDtcFccLinkedSettings() {
-      Object.entries(DTC_FCC_BRIEFING_LINKS).forEach(([key, link]) => {
-        const [section, field] = key.split(":");
-        if (!section || !field || !link?.id) return;
-        const displayValue = readDtcFccBriefingDisplayValue(section, field);
-        if (displayValue === "") return;
-        dtcFccSettings[section] = dtcFccSettings[section] || {};
-        dtcFccSettings[section][field] = formatDtcFccLinkedStoredValue(section, field, displayValue);
-      });
-    }
-
-    function normalizeDtcFccSettings() {
-      Object.entries(DTC_FCC_DEFAULTS).forEach(([section, defaults]) => {
-        if (!dtcFccSettings[section] || typeof dtcFccSettings[section] !== "object") {
-          dtcFccSettings[section] = {};
-        }
-        Object.entries(defaults).forEach(([key, value]) => {
-          if (dtcFccSettings[section][key] == null) dtcFccSettings[section][key] = value;
-        });
-      });
-      syncDtcFccLinkedSettings();
-    }
-
-    function formatFccDisplayValue(input, rawValue) {
-      const value = cleanOffsetValue(rawValue);
-      const scale = Number.parseFloat(input.dataset.fccScale || "");
-      const numberValue = Number.parseFloat(value);
-      if (!Number.isFinite(numberValue)) return value;
-      const displayOffset = Number.parseFloat(input.dataset.fccDisplayOffset || "0");
-      const offset = Number.isFinite(displayOffset) ? displayOffset : 0;
-      if ((!Number.isFinite(scale) || scale === 0) && offset === 0) return value;
-      const offsetValue = numberValue + offset;
-      if (!Number.isFinite(scale) || scale === 0) return String(offsetValue);
-      return (offsetValue / scale).toFixed(2);
-    }
-
-    function formatFccStoredValue(input) {
-      if (input?.classList?.contains("dtc-fcc-cycle")) {
-        return cleanOffsetValue(input.dataset.fccValue);
-      }
-      const rawValue = input.value.trim();
-      const scale = Number.parseFloat(input.dataset.fccScale || "");
-      const numberValue = Number.parseFloat(rawValue);
-      if (!Number.isFinite(numberValue)) return rawValue;
-      const displayOffset = Number.parseFloat(input.dataset.fccDisplayOffset || "0");
-      const offset = Number.isFinite(displayOffset) ? displayOffset : 0;
-      if ((!Number.isFinite(scale) || scale === 0) && offset === 0) return rawValue;
-      const offsetValue = numberValue - offset;
-      if (!Number.isFinite(scale) || scale === 0) return String(offsetValue);
-      const decimals = Number.parseInt(input.dataset.fccDecimals || "0", 10);
-      const storedValue = offsetValue * scale;
-      return Number.isFinite(decimals) && decimals > 0 ? storedValue.toFixed(decimals) : String(Math.round(storedValue));
-    }
-
-    function getDtcFccCycleOptions(button) {
-      if (!button?.dataset?.fccSection || !button?.dataset?.fccField) return [];
-      return DTC_FCC_CYCLE_OPTIONS[`${button.dataset.fccSection}:${button.dataset.fccField}`] || [];
-    }
-
-    function renderDtcFccCycleButton(button, rawValue) {
-      const options = getDtcFccCycleOptions(button);
-      renderCycleButton(button, options, "fccValue", rawValue);
-    }
-
-    function cycleDtcFccButton(button) {
-      const options = getDtcFccCycleOptions(button);
-      cycleButton(button, options, "fccValue", () => updateDtcFccInput(button));
-    }
-
-    function renderDtcFccSettings() {
-      syncDtcFccLinkedSettings();
-      document.querySelectorAll("[data-fcc-section][data-fcc-field]").forEach((input) => {
-        const section = input.dataset.fccSection;
-        const field = input.dataset.fccField;
-        const rawValue = dtcFccSettings?.[section]?.[field] ?? DTC_FCC_DEFAULTS?.[section]?.[field] ?? "";
-        if (input.classList.contains("dtc-fcc-cycle")) {
-          renderDtcFccCycleButton(input, rawValue);
-          return;
-        }
-        input.value = formatFccDisplayValue(input, rawValue);
-      });
-      refreshDtcFccDiffIndicators();
-    }
-
-    function updateDtcFccInput(input) {
-      if (!input || !input.dataset.fccSection || !input.dataset.fccField) return;
-      const section = input.dataset.fccSection;
-      const field = input.dataset.fccField;
-      dtcFccSettings[section] = dtcFccSettings[section] || {};
-      dtcFccSettings[section][field] = formatFccStoredValue(input);
-      writeDtcFccBriefingValue(section, field, dtcFccSettings[section][field]);
-      refreshDtcFccDiffIndicators();
-      const status = document.getElementById("dtc-fcc-status");
-      if (status) status.textContent = "";
-    }
-
-    function collectDtcFccSettings(sectionName) {
-      syncDtcFccLinkedSettings();
-      const settings = {};
-      Object.entries(DTC_FCC_DEFAULTS).forEach(([section, defaults]) => {
-        if (sectionName && section !== sectionName) return;
-        settings[section] = { ...defaults, ...(dtcFccSettings[section] || {}) };
-      });
-      document.querySelectorAll("[data-fcc-section][data-fcc-field]").forEach((input) => {
-        const section = input.dataset.fccSection;
-        if (sectionName && section !== sectionName) return;
-        const field = input.dataset.fccField;
-        settings[section] = settings[section] || {};
-        settings[section][field] = formatFccStoredValue(input);
-      });
-      return settings;
-    }
-
-    async function saveDtcFccSettings(sectionName) {
-      try {
-        const fccSettings = collectDtcFccSettings(sectionName);
-        Object.assign(dtcFccSettings, fccSettings);
-        const response = await fetch("/api/dtc/fcc", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fcc_settings: fccSettings })
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || response.statusText);
-        }
-        await saveBriefingStorageFromDtc();
-        Object.entries(fccSettings).forEach(([section, values]) => {
-          dtcFccIniSettings[section] = dtcFccIniSettings[section] || {};
-          Object.assign(dtcFccIniSettings[section], values);
-        });
-        refreshDtcFccDiffIndicators();
-        const status = document.getElementById("dtc-fcc-status");
-        if (status) status.textContent = (sectionName || "FCC") + " saved to callsign.ini.";
-      } catch (error) {
-        console.error("Failed to save FCC", error);
-        const status = document.getElementById("dtc-fcc-status");
-        if (status) status.textContent = "Failed to save " + (sectionName || "FCC") + ".";
-      }
-    }
 
     function blankOffsetRow(stptNumber) {
       const row = { brg: "", rng: "", elev: "" };
@@ -1545,6 +982,7 @@
             dtcPopupElevationRequests.delete(key);
             const panel = document.getElementById("dtc-left-popup");
             if (panel && !panel.hidden && dtcPopupLastPlan) renderPopupComputer();
+            else refreshPopupBriefing();
           })
           .catch((error) => {
             dtcPopupElevationCache.set(key, null);
@@ -1805,12 +1243,7 @@
       } else {
         selectDtcSteerpointPane("steerpoints");
       }
-      if (normalized === "icp-fcc") {
-        normalizeDtcIcpSettings();
-        renderDtcIcpSettings();
-        normalizeDtcFccSettings();
-        renderDtcFccSettings();
-      }
+      if (normalized === "icp-fcc") dtcBinding.render();
       if ((normalized === "steerpoints" || normalized === "popup") && typeof map !== "undefined") {
         setTimeout(() => map.invalidateSize(), 50);
       }
@@ -2096,7 +1529,6 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
-        await saveBriefingStorageFromDtc();
       } catch (error) {
         console.error("Failed to save NAV OFFSETS", error);
       }
@@ -2172,9 +1604,7 @@
     }
 
     normalizeOffsetState();
-    normalizeDtcIcpSettings();
     normalizeDtcLaserSettings();
-    normalizeDtcFccSettings();
     document.querySelectorAll(".dtc-tab-button").forEach((button) => {
       if (button.dataset.dtcPageTab) {
         button.addEventListener("click", () => selectDtcPageTab(button.dataset.dtcPageTab));
@@ -2210,26 +1640,13 @@
       });
     });
     document.getElementById("dtc-save-nav-offsets")?.addEventListener("click", saveDtcNavOffsets);
-    document.querySelectorAll(".dtc-icp-input[data-icp-field]").forEach((input) => {
-      input.addEventListener("input", () => updateDtcIcpInput(input));
-    });
-    document.querySelectorAll(".dtc-icp-cycle[data-icp-field]").forEach((button) => {
-      button.addEventListener("click", () => cycleDtcIcpButton(button));
-    });
-    document.getElementById("dtc-save-icp")?.addEventListener("click", saveDtcIcpSettings);
+    document.getElementById("dtc-save-icp")?.addEventListener("click", () => saveDtcSection("ICP"));
     document.querySelectorAll(".dtc-laser-input[data-laser-field]").forEach((input) => {
       input.addEventListener("input", () => updateDtcLaserInput(input));
     });
     document.getElementById("dtc-save-laser")?.addEventListener("click", saveDtcLaserSettings);
-    document.querySelectorAll("[data-fcc-section][data-fcc-field]:not(.dtc-fcc-cycle)").forEach((input) => {
-      input.addEventListener("input", () => updateDtcFccInput(input));
-      input.addEventListener("change", () => updateDtcFccInput(input));
-    });
-    document.querySelectorAll(".dtc-fcc-cycle[data-fcc-section][data-fcc-field]").forEach((button) => {
-      button.addEventListener("click", () => cycleDtcFccButton(button));
-    });
     document.querySelectorAll("[data-fcc-save-section]").forEach((button) => {
-      button.addEventListener("click", () => saveDtcFccSettings(button.dataset.fccSaveSection));
+      button.addEventListener("click", () => saveDtcSection(button.dataset.fccSaveSection));
     });
     document.querySelectorAll("[data-popup-field]:not(.dtc-popup-clicker)").forEach((input) => {
       input.addEventListener("input", () => renderPopupComputer(""));
@@ -2267,9 +1684,7 @@
       }
     });
     if (typeof renderSteerpointMarkers === "function") renderSteerpointMarkers();
-    renderDtcIcpSettings();
     renderDtcLaserSettings();
-    renderDtcFccSettings();
     formatDtcCoordinateRows();
     renderDtcStptSelectionLayer();
     renderDtcOffsetMapLayer();

@@ -335,7 +335,7 @@
       justify-content: flex-end;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn) {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn, .layout-spacing-toggle) {
       position: relative;
       z-index: 1;
       min-width: 0;
@@ -360,27 +360,27 @@
       pointer-events: none;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):hover {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn, .layout-spacing-toggle):hover {
       transform: none;
       color: var(--line);
       text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
       box-shadow: none;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):active:not(:disabled) {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn, .layout-spacing-toggle):active:not(:disabled) {
       background: #ffffff;
       color: #000000;
       text-shadow: none;
       box-shadow: none;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):focus-visible {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn, .layout-spacing-toggle):focus-visible {
       outline: 1px solid var(--line);
       outline-offset: 2px;
     }
 
-    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):disabled,
-    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn):disabled:hover {
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn, .layout-spacing-toggle):disabled,
+    section.mfd-box :is(.mfd-anchor button, .mfd-footer-anchor button, .mfd-bottom-btn, .layout-spacing-toggle):disabled:hover {
       opacity: 1;
       cursor: not-allowed;
       color: #000000;
@@ -391,14 +391,14 @@
       filter: none;
     }
 
-    section.mfd-box .auto-export-mode-btn.is-active,
-    section.mfd-box .auto-export-mode-btn.is-active:hover {
+    section.mfd-box :is(.auto-export-mode-btn, .layout-spacing-toggle).is-active,
+    section.mfd-box :is(.auto-export-mode-btn, .layout-spacing-toggle).is-active:hover {
       background: #ffffff;
       color: #000000;
       text-shadow: none;
     }
 
-    section.mfd-box .auto-export-mode-btn.is-active:active:not(:disabled) {
+    section.mfd-box :is(.auto-export-mode-btn, .layout-spacing-toggle).is-active:active:not(:disabled) {
       background: var(--bg);
       color: var(--line);
       text-shadow: 0 0 8px rgba(58, 167, 255, 0.35);
@@ -546,6 +546,26 @@
       max-width: 240px;
     }
 
+    .layout-page-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 0.75rem;
+    }
+
+    .layout-page-controls .page-field {
+      flex: 1 1 8rem;
+      max-width: 240px;
+    }
+
+    .layout-font-field {
+      width: 6.5rem;
+    }
+
+    .layout-page-controls .layout-spacing-toggle {
+      min-height: 2.4rem;
+    }
+
     .grid-start {
       align-items: start;
     }
@@ -562,6 +582,12 @@
       border-radius: 8px;
       list-style: none;
       font-weight: 700;
+    }
+
+    .mfd-layout .sortable {
+      max-height: min(20rem, 40vh);
+      overflow-y: auto;
+      scrollbar-gutter: stable;
     }
 
     .sortable li {
@@ -581,6 +607,22 @@
     .sortable li.dragging {
       opacity: 0.6;
       background: rgba(58, 167, 255, 0.08);
+    }
+
+    .mfd-layout .sortable li.drop-before {
+      box-shadow: inset 0 2px var(--line);
+    }
+
+    .mfd-layout .sortable.drop-end {
+      box-shadow: inset 0 -2px var(--line);
+    }
+
+    .layout-section-page {
+      margin-left: auto;
+      font-family: "IBMPlexMono";
+      font-size: 0.78rem;
+      color: var(--line);
+      white-space: nowrap;
     }
 
     .sortable li.is-excluded {
@@ -1160,6 +1202,10 @@
     }
   </style>
   <link rel="stylesheet" href="/templates/interface.css">
+  <script src="/templates/dtc_fields.js"></script>
+  <script src="/templates/popup_briefing.js"></script>
+  <script>window.dtcFieldStore = DtcFields.createStore(localStorage);</script>
+  <script>window.popupBriefingStore = PopupBriefing.createStore(localStorage);</script>
 </head>
 <body class="is-initializing">
   <div class="page-wrap">
@@ -1227,9 +1273,19 @@
           <div class="panel-head">
             <h3 class="heading-zero">Layout</h3>
           </div>
-          <div class="spacer-sm">
-            <label for="page-select">Page</label>
-            <select id="page-select" class="page-select interface-select"></select>
+          <div class="spacer-sm layout-page-controls">
+            <div class="page-field">
+              <label for="page-select">Page</label>
+              <select id="page-select" class="page-select interface-select"></select>
+            </div>
+            <div class="layout-font-field">
+              <label for="page-font-size">Font (px)</label>
+              <input id="page-font-size" type="number" min="6" max="32" step="any" disabled>
+            </div>
+            <div>
+              <label for="page-spacing-btn">Spacing</label>
+              <button id="page-spacing-btn" class="layout-spacing-toggle" type="button" aria-pressed="false" disabled>Normal</button>
+            </div>
           </div>
           <div class="grid two grid-start">
             <div>
@@ -1237,7 +1293,7 @@
               <ul id="section-list" class="sortable"></ul>
             </div>
             <div>
-              <label>Available sections</label>
+              <label>All sections</label>
               <ul id="available-list" class="sortable"></ul>
             </div>
           </div>
@@ -1494,6 +1550,8 @@
     const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
     const briefingScrollModeBtn = document.getElementById("briefing-scroll-mode-btn");
     const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
+    const pageFontSizeInput = document.getElementById("page-font-size");
+    const pageSpacingBtn = document.getElementById("page-spacing-btn");
     const pdfBtn = document.getElementById("pdf-btn");
     const exportBtn = document.getElementById("export-btn");
     const openPdfBtn = document.getElementById("open-pdf-btn");
@@ -1538,63 +1596,6 @@
     const PLAYER_FLIGHT_PATH_OVERLAY_ID = "player-flight-path";
     const APP_INSTANCE_SEEN_KEY = "app_instance_id_seen";
     const MAIN_VIEW_STORAGE_KEY = "main_view";
-    const BRIEFING_DTC_LINKED_FIELDS = {
-      "Bingo_Fuel": "admin_6",
-      "Alow AGL": "admin_1",
-      "Alow MSL": "admin_2",
-    };
-    const BRIEFING_FCC_AGB_LINKS = {
-      "Profile1_Submode": { id: "sms_mode_1", type: "cycle", prefix: "MODE: " },
-      "Profile1_Fuze": { id: "sms_1", type: "cycle" },
-      "Profile1_SGL/PAIR": { id: "sms_2", type: "cycle" },
-      "Profile1_C1_AD1": { id: "sms_7", scale: 100, decimals: 2 },
-      "Profile1_Release_Spacing": { id: "sms_8" },
-      "Profile1_C2_BA": { id: "sms_14" },
-      "Profile1_Release_Pulse": { id: "sms_15", displayOffset: 1 },
-      "Profile2_Submode": { id: "sms_mode_2", type: "cycle", prefix: "MODE: " },
-      "Profile2_Fuze": { id: "sms_3", type: "cycle" },
-      "Profile2_SGL/PAIR": { id: "sms_4", type: "cycle" },
-      "Profile2_C1_AD1": { id: "sms_9", scale: 100, decimals: 2 },
-      "Profile2_Release_Spacing": { id: "sms_10" },
-      "Profile2_C2_BA": { id: "sms_16" },
-      "Profile2_Release_Pulse": { id: "sms_17", displayOffset: 1 },
-    };
-    const BRIEFING_DTC_LINKED_STORAGE_IDS = [
-      ...Object.values(BRIEFING_DTC_LINKED_FIELDS),
-      ...Object.values(BRIEFING_FCC_AGB_LINKS).map((meta) => meta.id),
-    ].filter(Boolean);
-    const BRIEFING_FCC_CYCLE_OPTIONS = {
-      "Profile1_Submode": [
-        { value: "7", label: "CCIP" },
-        { value: "8", label: "CCRP" },
-        { value: "9", label: "DTOS" },
-        { value: "10", label: "LADD" },
-      ],
-      "Profile2_Submode": [
-        { value: "7", label: "CCIP" },
-        { value: "8", label: "CCRP" },
-        { value: "9", label: "DTOS" },
-        { value: "10", label: "LADD" },
-      ],
-      "Profile1_Fuze": [
-        { value: "1", label: "NOSE" },
-        { value: "2", label: "TAIL" },
-        { value: "0", label: "NSTL" },
-      ],
-      "Profile2_Fuze": [
-        { value: "1", label: "NOSE" },
-        { value: "2", label: "TAIL" },
-        { value: "0", label: "NSTL" },
-      ],
-      "Profile1_SGL/PAIR": [
-        { value: "0", label: "SGL" },
-        { value: "1", label: "PAIR" },
-      ],
-      "Profile2_SGL/PAIR": [
-        { value: "0", label: "SGL" },
-        { value: "1", label: "PAIR" },
-      ],
-    };
     const CAM_SUPPORT_CELL_IDS = [
       "package_1", "package_2", "package_3", "package_4", "package_5", "package_6", "package_7", "package_30",
       "package_8", "package_9", "package_10", "package_11", "package_12", "package_13", "package_14", "package_31",
@@ -1607,6 +1608,9 @@
     const LOG_MAX_LINES = 300;
     const logLines = [];
     let pages = [];
+    let pageKeys = [];
+    let briefingStyleSettings = {};
+    let briefingStyleEdits = {};
     let currentPageIndex = 0;
     let currentBriefPageIndex = 0;
     let dndAttached = false;
@@ -1661,6 +1665,7 @@
       cmds: "CMDs",
       targets: "Targets",
       delivery: "Delivery",
+      popup: "Pop-up",
       aa_brevity_notes: "AA - Brevity - Notes",
       support: "Support",
       weapons: "Weapons",
@@ -1668,13 +1673,13 @@
       wpn_targets: "Weapon targets",
       roe: "ROE",
       weather: "Weather",
+      atis: "ATIS",
       map: "Map",
       comms: "Comms",
       custom_checklist: "Custom checklist",
-      datacard_1: "Data card 1 — Flight / route",
-      datacard_2: "Data card 2 — Mission",
     };
-    const allSections = Object.keys(sectionLabels);
+    const allSections = Object.keys(sectionLabels).sort((a, b) =>
+      sectionLabels[a].localeCompare(sectionLabels[b], "en", { sensitivity: "base" }));
     function log(message) {
       const ts = new Date().toLocaleTimeString();
       if (!logEl) return;
@@ -2303,74 +2308,6 @@
       return res.json();
     }
 
-    function setSavedBriefingValue(id, value, options = {}) {
-      if (!id || value == null) return;
-      const saved = getSavedEdits();
-      if (options.onlyIfMissing && Object.prototype.hasOwnProperty.call(saved, id)) return;
-      saved[id] = String(value).trim();
-      localStorage.setItem("contenteditables", JSON.stringify(saved));
-    }
-
-    function clearSavedBriefingDtcLinkedValues() {
-      const saved = getSavedEdits();
-      let changed = false;
-      BRIEFING_DTC_LINKED_STORAGE_IDS.forEach((id) => {
-        if (Object.prototype.hasOwnProperty.call(saved, id)) {
-          delete saved[id];
-          changed = true;
-        }
-      });
-      if (changed) localStorage.setItem("contenteditables", JSON.stringify(saved));
-    }
-
-    function formatBriefingFccValue(fieldName, rawValue) {
-      const meta = BRIEFING_FCC_AGB_LINKS[fieldName] || {};
-      const cleanValue = String(rawValue ?? "").trim();
-      if (meta.type === "cycle") {
-        const options = BRIEFING_FCC_CYCLE_OPTIONS[fieldName] || [];
-        const selected = options.find((option) => option.value === cleanValue) || options[0];
-        return selected ? (meta.prefix || "") + selected.label : cleanValue;
-      }
-      const numberValue = Number.parseFloat(cleanValue);
-      if (!Number.isFinite(numberValue)) return cleanValue;
-      const displayOffset = Number.parseFloat(meta.displayOffset || "0");
-      const offsetValue = numberValue + (Number.isFinite(displayOffset) ? displayOffset : 0);
-      const scale = Number.parseFloat(meta.scale || "");
-      if (Number.isFinite(scale) && scale !== 0) {
-        const decimals = Number.parseInt(meta.decimals || "0", 10);
-        return (offsetValue / scale).toFixed(Number.isFinite(decimals) ? decimals : 0);
-      }
-      if (Number.isInteger(offsetValue)) return String(offsetValue);
-      return String(offsetValue);
-    }
-
-    async function seedBriefingDtcLinkedValues(options = {}) {
-      const onlyIfMissing = !options.overwrite;
-      try {
-        const data = await fetchJSON("/api/dtc/icp");
-        const icpSettings = data.icp_settings || {};
-        Object.entries(BRIEFING_DTC_LINKED_FIELDS).forEach(([fieldName, id]) => {
-          const value = icpSettings[fieldName];
-          if (value != null && String(value).trim() !== "") {
-            setSavedBriefingValue(id, value, { onlyIfMissing });
-          }
-        });
-      } catch (err) {
-        log(`Briefing ICP link load failed: ${err.message}`);
-      }
-      try {
-        const data = await fetchJSON("/api/dtc/fcc");
-        const fccAgbSettings = data.fcc_settings?.FCC_AGB || {};
-        Object.entries(BRIEFING_FCC_AGB_LINKS).forEach(([fieldName, meta]) => {
-          const value = fccAgbSettings[fieldName];
-          if (value != null && String(value).trim() !== "") {
-            setSavedBriefingValue(meta.id, formatBriefingFccValue(fieldName, value), { onlyIfMissing });
-          }
-        });
-      } catch (err) {
-        log(`Briefing FCC link load failed: ${err.message}`);
-      }
-    }
 
     function updatePdfBadge({ pdfOverflow, pdfStatus, pdfError }) {
       if (!overflowBadge) return;
@@ -2572,6 +2509,9 @@
         const cfg = data.bms || {};
         const sys = data.system || {};
         const pageCfg = data.pages || {};
+        pageKeys = Object.keys(pageCfg).filter((key) => /^page\d+$/.test(key));
+        briefingStyleSettings = data.briefing_style || {};
+        briefingStyleEdits = {};
         availableVersionsInput.value = cfg.bms_available_versions || "";
         populateVersionSelect(cfg.bms_available_versions, cfg.bms_version);
         document.getElementById("default_airframe").value = cfg.default_airframe || "F-16";
@@ -2631,13 +2571,14 @@
       try {
         const data = await fetchJSON("/api/status");
         const { hasError, appStateReset } = applyStatusData(data);
+        (data.layout_warnings || []).forEach((warning) => log(`[WARNING] ${warning}`));
         if (appStateReset) {
           callBriefingLoadedFrame("saveContenteditablesDefaults");
           callBriefingLoadedFrame("loadChangedData");
-          syncDtcLinkedFields();
         }
         await maybeAutoExportOnFileChange(data);
         pages = Array.isArray(data.pages) ? data.pages : [];
+        pageKeys = Array.isArray(data.page_keys) ? data.page_keys : pages.map((_, idx) => pageKeys[idx] || `page${idx + 1}`);
         renderPages();
         await loadTheater();
         await loadChartStatus(true);
@@ -2676,7 +2617,6 @@
         if (appStateReset) {
           callBriefingLoadedFrame("saveContenteditablesDefaults");
           callBriefingLoadedFrame("loadChangedData");
-          syncDtcLinkedFields();
         }
         await maybeAutoExportOnFileChange(data);
       } catch (err) {
@@ -2872,6 +2812,7 @@
     function currentOverrides() {
       return {
         pages: buildPagesObj(),
+        briefing_style: { ...briefingStyleEdits },
         bms: {
           bms_version: bmsSelect.value,
           bms_available_versions: availableVersionsInput.value,
@@ -3234,6 +3175,8 @@
       const merged = dataFromFrame && typeof dataFromFrame === "object"
         ? { ...saved, ...dataFromFrame }
         : saved;
+      merged.__dtc_fields = window.dtcFieldStore.snapshot();
+      merged.__popup_plan = window.popupBriefingStore.snapshot();
       try {
         const keys = merged && typeof merged === "object" ? Object.keys(merged) : [];
         const mapImage = merged && typeof merged.map_image === "string" ? merged.map_image : "";
@@ -3248,7 +3191,7 @@
     function buildPagesObj() {
       const pagesObj = { charts: selectedChartsValue() };
       pages.forEach((p, idx) => {
-        pagesObj[`page${idx + 1}`] = (p || []).join(", ");
+        pagesObj[pageKeys[idx] || `page${idx + 1}`] = (p || []).join(", ");
       });
       return pagesObj;
     }
@@ -3383,6 +3326,8 @@
 
     function updateBusyUi() {
       const pipelineBusy = pdfBusy || exportBusy;
+      if (pageFontSizeInput) pageFontSizeInput.disabled = pipelineBusy || !pages.length;
+      if (pageSpacingBtn) pageSpacingBtn.disabled = pipelineBusy || !pages.length;
       if (pdfBtn) {
         if (pdfBusy) {
           pdfBtn.disabled = pdfCancelRequested;
@@ -3814,22 +3759,21 @@
       }
     }
 
-    function syncDtcLinkedFields() {
-      if (!dtcFrame?.contentWindow) return;
-      try {
-        dtcFrame.contentWindow.postMessage({ type: "html_brief_sync_dtc_linked_fields" }, window.location.origin);
-      } catch (err) {
-        log(`DTC linked field sync failed: ${err.message}`);
-      }
-    }
-
+    let dtcFieldRefresh = null;
     function refreshDtcLinkedDiffIndicators() {
-      if (!dtcFrame?.contentWindow) return;
-      try {
-        dtcFrame.contentWindow.postMessage({ type: "html_brief_refresh_dtc_linked_diffs" }, window.location.origin);
-      } catch (err) {
-        log(`DTC linked diff refresh failed: ${err.message}`);
+      if (!dtcFieldRefresh) {
+        const revision = window.dtcFieldStore.revision;
+        dtcFieldRefresh = fetchJSON("/api/dtc/fields")
+          .then((payload) => {
+            if (revision === window.dtcFieldStore.revision) {
+              window.dtcFieldStore.configure(payload);
+              window.popupBriefingStore.configure(payload.popup_scope);
+            }
+          })
+          .catch((error) => log("DTC field refresh failed: " + error.message))
+          .finally(() => { dtcFieldRefresh = null; });
       }
+      return dtcFieldRefresh;
     }
 
     function updateMainViewControls() {
@@ -3862,16 +3806,15 @@
       }
       if (currentMainView === "dtc") {
         ensureDtcFrameLoaded();
-        syncDtcLinkedFields();
       }
     }
 
     async function reloadDtcFromIni() {
       try {
-        callBriefingLoadedFrame("loadChangedData");
+        await refreshDtcLinkedDiffIndicators();
+        window.dtcFieldStore.configure(await fetchJSON("/api/dtc/fields"), true);
         ensureDtcFrameLoaded();
         await refreshDtc(true);
-        syncDtcLinkedFields();
         await pollStatusBadges();
         log("DTC reloaded from callsign.ini");
       } catch (err) {
@@ -3924,9 +3867,8 @@
       briefFrame.addEventListener("load", async () => {
         const clearLinkedStorage = pendingBriefingResetFromToolbar;
         pendingBriefingResetFromToolbar = false;
-        if (clearLinkedStorage) clearSavedBriefingDtcLinkedValues();
+        if (clearLinkedStorage) window.dtcFieldStore.reset();
         callBriefingLoadedFrame("loadChangedData");
-        if (clearLinkedStorage) syncDtcLinkedFields();
         bindCamPackageSelectorInPreview();
         applyBriefingPageModeToFrame();
         const selectedIndex = getSelectedCamPackageIndex();
@@ -3934,9 +3876,6 @@
           saveCamSupportPackageIndex(selectedIndex);
         }
       });
-    }
-    if (dtcFrame) {
-      dtcFrame.addEventListener("load", syncDtcLinkedFields);
     }
 
     if (briefingViewBtn) {
@@ -3950,9 +3889,9 @@
     saveEditsBtn?.addEventListener("click", () => {
       callBriefingLoadedFrame("saveChangedData");
       saveCamUiStateToEdits();
-      syncDtcLinkedFields();
     });
     loadEditsBtn?.addEventListener("click", async () => {
+      window.dtcFieldStore.load();
       callBriefing("loadChangedData");
       await loadCamUiStateFromEdits();
     });
@@ -4302,6 +4241,55 @@
       }
     }
 
+    function briefingStyleDefaults() {
+      const size = Number(briefingStyleSettings.font_size);
+      return {
+        font_size: Number.isFinite(size) && size >= 6 && size <= 32 ? size : 16,
+        spacing: String(briefingStyleSettings.spacing || "").trim().toLowerCase() === "compact" ? "compact" : "normal",
+      };
+    }
+
+    function selectedPageStyle() {
+      const defaults = briefingStyleDefaults();
+      const key = pageKeys[currentPageIndex] || `page${currentPageIndex + 1}`;
+      const values = { ...briefingStyleSettings, ...briefingStyleEdits };
+      const size = Number(values[`${key}_font_size`]);
+      const spacing = String(values[`${key}_spacing`] || "").trim().toLowerCase();
+      return {
+        font_size: Number.isFinite(size) && size >= 6 && size <= 32 ? size : defaults.font_size,
+        spacing: ["normal", "compact"].includes(spacing) ? spacing : defaults.spacing,
+      };
+    }
+
+    function renderPageStyleControls() {
+      const style = selectedPageStyle();
+      pageFontSizeInput.value = style.font_size;
+      pageSpacingBtn.textContent = style.spacing === "compact" ? "Compact" : "Normal";
+      pageSpacingBtn.classList.toggle("is-active", style.spacing === "compact");
+      pageSpacingBtn.setAttribute("aria-pressed", String(style.spacing === "compact"));
+      pageFontSizeInput.disabled = pageSpacingBtn.disabled = !pages.length || pdfBusy || exportBusy;
+    }
+
+    function setPageStyle(name, value) {
+      if (!pages.length) return;
+      const key = pageKeys[currentPageIndex] || `page${currentPageIndex + 1}`;
+      // Null deletes a saved override; defaults never become explicit INI values.
+      briefingStyleEdits[`${key}_${name}`] = value === briefingStyleDefaults()[name] ? null : String(value);
+      renderPageStyleControls();
+    }
+
+    pageFontSizeInput.addEventListener("change", async () => {
+      if (!pageFontSizeInput.reportValidity()) return;
+      const size = pageFontSizeInput.value === "" ? briefingStyleDefaults().font_size : Number(pageFontSizeInput.value);
+      setPageStyle("font_size", size);
+      await doPreview(currentOverrides());
+    });
+
+    pageSpacingBtn.addEventListener("click", async () => {
+      setPageStyle("spacing", selectedPageStyle().spacing === "compact" ? "normal" : "compact");
+      await doPreview(currentOverrides());
+    });
+
     function renderPages() {
       const pageSelect = document.getElementById("page-select");
       const list = document.getElementById("section-list");
@@ -4313,6 +4301,7 @@
       availableList.innerHTML = "";
       if (shortcutBar) shortcutBar.innerHTML = "";
       if (!pages || pages.length === 0) {
+        renderPageStyleControls();
         updateMainViewControls();
         return;
       }
@@ -4333,15 +4322,17 @@
       if (currentBriefPageIndex >= pages.length) currentBriefPageIndex = 0;
       if (currentPageIndex >= pages.length) currentPageIndex = 0;
       pageSelect.value = currentPageIndex;
+      renderPageStyleControls();
 
-      const used = new Set(pages.flat().filter(Boolean));
-      const availableSections = allSections.filter((s) => !used.has(s));
-
-      availableSections.forEach((section) => {
+      allSections.forEach((section) => {
         const li = document.createElement("li");
         li.draggable = true;
         li.dataset.section = section;
         li.innerHTML = `<span class="pill-handle available">+</span><span>${sectionLabels[section] || section}</span>`;
+        const placement = document.createElement("span");
+        placement.className = "layout-section-page";
+        placement.textContent = pages.flatMap((page, idx) => page.includes(section) ? [`Page ${idx + 1}`] : []).join(", ") || "—";
+        li.appendChild(placement);
         availableList.appendChild(li);
       });
 
@@ -4358,9 +4349,10 @@
       updateMainViewControls();
     }
 
-    function getAfterElement(list, y) {
+    function getAfterElement(list, y, excludedSection = null) {
       const elements = [...list.querySelectorAll("li:not(.dragging)")];
       return elements.find((el) => {
+        if (excludedSection && el.dataset.section === excludedSection) return false;
         const box = el.getBoundingClientRect();
         return y < box.top + box.height / 2;
       });
@@ -4370,6 +4362,12 @@
       dndAttached = true;
       const availableList = document.getElementById("available-list");
       const sectionList = document.getElementById("section-list");
+      function clearDropMarkers() {
+        [availableList, sectionList].forEach((list) => {
+          list.classList.remove("drop-end");
+          list.querySelectorAll(".drop-before").forEach((li) => li.classList.remove("drop-before"));
+        });
+      }
       [availableList, sectionList].forEach((list) => {
         list.addEventListener("dragstart", (e) => {
           const li = e.target.closest("li");
@@ -4384,35 +4382,42 @@
           if (draggingEl) draggingEl.classList.remove("dragging");
           draggingEl = null;
           draggingFrom = null;
+          clearDropMarkers();
         });
         list.addEventListener("dragover", (e) => {
-          e.preventDefault();
           if (!draggingEl) return;
-          const after = getAfterElement(list, e.clientY);
-          if (after == null) {
-            list.appendChild(draggingEl);
-          } else {
-            list.insertBefore(draggingEl, after);
-          }
-        });
-        list.addEventListener("drop", (e) => {
+          clearDropMarkers();
+          if (list === availableList && draggingFrom !== sectionList.id) return;
           e.preventDefault();
-          const section = e.dataTransfer.getData("text/plain");
-          if (!section) return;
-          if (list.id === "section-list") {
-            const exists = Array.from(list.children).some((child) => child !== draggingEl && child.dataset.section === section);
-            if (exists) {
-              document.getElementById("available-list").appendChild(draggingEl);
-              draggingEl = null;
-              return;
-            }
+          e.dataTransfer.dropEffect = "move";
+          const after = list === sectionList ? getAfterElement(list, e.clientY, draggingEl.dataset.section) : null;
+          if (after) after.classList.add("drop-before");
+          else list.classList.add("drop-end");
+        });
+        list.addEventListener("dragleave", (e) => {
+          if (!list.contains(e.relatedTarget)) clearDropMarkers();
+        });
+        list.addEventListener("drop", async (e) => {
+          if (!draggingEl) return;
+          e.preventDefault();
+          if (!pageFontSizeInput.reportValidity()) return;
+          const section = draggingEl.dataset.section;
+          if (list === sectionList) {
+            const after = getAfterElement(list, e.clientY, section)?.dataset.section;
+            pages = pages.map((page) => page.filter((value) => value !== section));
+            const target = pages[currentPageIndex];
+            target.splice(after ? target.indexOf(after) : target.length, 0, section);
+          } else if (draggingFrom === sectionList.id) {
+            pages[currentPageIndex] = pages[currentPageIndex].filter((value) => value !== section);
+          } else {
+            return;
           }
-          const movedFromPage = draggingFrom === "section-list" && list.id !== "section-list";
+          draggingEl.classList.remove("dragging");
           draggingEl = null;
           draggingFrom = null;
-          if (list.id === "section-list" || movedFromPage) {
-            persistPages(true).then(() => renderPages());
-          }
+          clearDropMarkers();
+          renderPages();
+          await persistPages(true);
         });
       });
     }
@@ -4450,6 +4455,7 @@
     }
 
     async function persistPages(autoGenerate = false) {
+      if (!pageFontSizeInput.reportValidity()) return;
       const list = document.getElementById("section-list");
       if (!list) return;
       const newOrder = Array.from(list.children).map((li) => li.dataset.section);
@@ -4462,7 +4468,14 @@
         return;
       }
       try {
-        await fetchJSON("/api/config", { method: "POST", body: JSON.stringify({ pages: pagesObj }) });
+        const submittedStyle = { ...briefingStyleEdits };
+        const saved = await fetchJSON("/api/config", {
+          method: "POST", body: JSON.stringify({ pages: pagesObj, briefing_style: submittedStyle })
+        });
+        briefingStyleSettings = saved.briefing_style || {};
+        Object.entries(submittedStyle).forEach(([key, value]) => {
+          if (briefingStyleEdits[key] === value) delete briefingStyleEdits[key];
+        });
         log("Layout saved");
         await loadStatus();
       } catch (err) {

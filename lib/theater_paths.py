@@ -4,6 +4,11 @@ import logging
 import re
 from pathlib import Path
 
+from openchart.vendor.opencam.theater import (
+    TheaterDataError,
+    load_magnetic_variation_grid,
+    resolve_theater_data_paths,
+)
 
 logger = logging.getLogger("html_brief_log")
 
@@ -127,6 +132,30 @@ def read_tdf_value(
     return None, tdf_path
 
 
+def magnetic_variation_for_steerpoints(base_dir, theater_name, steerpoints):
+    """Use the chart grid's signed variation at each DTC campaign position."""
+    root = resolve_theater_data_root(base_dir, theater_name)
+    if root is None:
+        return {}
+    try:
+        paths = resolve_theater_data_paths(root)
+        if paths is None or paths.magnetic_variation_path is None:
+            return {}
+        grid = load_magnetic_variation_grid(paths.magnetic_variation_path)
+    except (OSError, UnicodeError, TheaterDataError) as exc:
+        logger.warning("Magnetic variation: %s", exc)
+        return {}
+    variations = {}
+    for point in steerpoints:
+        try:
+            variations[str(point.number)] = grid.variation_at_campaign_position(
+                float(point.coord_x), float(point.coord_y),
+            )
+        except (TypeError, ValueError, IndexError):
+            continue
+    return variations
+
+
 def resolve_target_folder_from_theater(
     base_dir: str | Path | None,
     theater_name: str | None,
@@ -220,6 +249,7 @@ def read_theater_map_info(
 
 
 __all__ = [
+    "magnetic_variation_for_steerpoints",
     "read_theater_center",
     "read_theater_map_info",
     "read_theater_list",

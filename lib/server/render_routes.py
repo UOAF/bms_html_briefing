@@ -20,6 +20,7 @@ class PreviewRequest(BaseModel):
     pages: Optional[Dict[str, str]] = None
     bms: Optional[Dict[str, str]] = None
     system: Optional[Dict[str, str]] = None
+    briefing_style: Optional[Dict[str, Optional[str]]] = None
     theater: Optional[Dict[str, Any]] = None
     kneeboard_order: Optional[Any] = None
     selected_package_index: Optional[int] = None
@@ -90,6 +91,7 @@ def register_render_routes(
             pages=overrides.get("pages"),
             bms=overrides.get("bms"),
             system=overrides.get("system"),
+            briefing_style=overrides.get("briefing_style"),
         )
         try:
             bms_cfg_generate = BmsConfig(
@@ -140,6 +142,7 @@ def register_render_routes(
             pages=payload.pages,
             bms=payload.bms,
             system=payload.system,
+            briefing_style=payload.briefing_style,
         )
         try:
             bms_cfg_preview = BmsConfig(

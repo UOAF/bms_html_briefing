@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import struct
 
 from .record_fields import FieldMap
-from .support_files import SupportData, VehicleClassEntry, format_campaign_time_z
-from .uni_parser import UnitRecord, VuId, Waypoint
+from .support_files import (
+    SupportData, VehicleClassEntry, WeaponClassEntry, ResolvedAircraftData,
+    format_campaign_time_z,
+)
+from .uni_parser import UnitRecord, VuId, Waypoint, FlightLoadoutRecord
 
 
 UNIT_FLAG_HUMAN_CONTROLLED = 0x80
@@ -114,15 +118,136 @@ class Unit:
             "unit_class_index": unit_class.number,
             "unit_class_name": unit_class.name,
             "vehicle_ct_index": vehicle.ct_idx,
+            "vehicle_number": vehicle.number,
             "vehicle_name": vehicle.name,
             "callsign_idx": vehicle.callsign_idx,
             "callsign_slots": vehicle.callsign_slots,
         }
 
 
+@dataclass(frozen=True)
+class FlightHardpoint:
+    """One hardpoint in a serialized FreeFalcon ``LoadoutStruct``."""
+
+    loadout_index: int
+    hardpoint_index: int
+    weapon_id: int
+    weapon_count: int
+    weapon: WeaponClassEntry | None = None
+
+    @property
+    def weapon_ct_index(self) -> int | None:
+        return None if self.weapon is None else self.weapon.ct_idx
+
+    @property
+    def weapon_name(self) -> str | None:
+        return None if self.weapon is None else self.weapon.name
+
+    @property
+    def weapon_flags(self) -> int | None:
+        return None if self.weapon is None else self.weapon.flags
+
+    @property
+    def weapon_weight_lb(self) -> int | None:
+        return None if self.weapon is None else self.weapon.weight_lb
+
+    @property
+    def weapon_drag_index(self) -> int | None:
+        return None if self.weapon is None else self.weapon.drag_index
+
+    @property
+    def fuel_capacity_lb(self) -> int | None:
+        return None if self.weapon is None else self.weapon.fuel_capacity_lb
+
+    def to_view(self) -> dict[str, int | str | None]:
+        return {
+            "hardpoint_index": self.hardpoint_index,
+            "weapon_id": self.weapon_id,
+            "weapon_ct_index": self.weapon_ct_index,
+            "weapon_name": self.weapon_name,
+            "weapon_flags": self.weapon_flags,
+            "weapon_count": self.weapon_count,
+            "weapon_weight_lb": self.weapon_weight_lb,
+            "weapon_drag_index": self.weapon_drag_index,
+            "fuel_capacity_lb": self.fuel_capacity_lb,
+        }
+
+
+
+@dataclass(frozen=True)
+class FlightLoadout:
+    """One decoded per-aircraft or shared flight loadout."""
+
+    index: int
+    hardpoints: tuple[FlightHardpoint, ...]
+
+    @property
+    def nonempty_hardpoints(self) -> tuple[FlightHardpoint, ...]:
+        return tuple(
+            hardpoint
+            for hardpoint in self.hardpoints
+            if hardpoint.weapon_id != 0 or hardpoint.weapon_count != 0
+        )
+
+    def to_record(self) -> FlightLoadoutRecord:
+        """Return the exact binary loadout value represented by this wrapper."""
+
+        return FlightLoadoutRecord(
+            weapon_ids=tuple(
+                hardpoint.weapon_id for hardpoint in self.hardpoints
+            ),
+            weapon_counts=tuple(
+                hardpoint.weapon_count for hardpoint in self.hardpoints
+            ),
+        )
+
+    def to_view(self) -> dict[str, object]:
+        return {
+            "index": self.index,
+            "hardpoints": [hardpoint.to_view() for hardpoint in self.hardpoints],
+        }
+
+
+
 @dataclass
 class FlightUnit(Unit):
     """Convenience API for flight unit records."""
+
+    @property
+    def aircraft_data(self) -> ResolvedAircraftData | None:
+        vehicle = _vehicle_for_unit_record(self.record, self.support)
+        return None if vehicle is None else self.support.resolve_aircraft_for_vehicle(vehicle.number)
+
+    @property
+    def initial_fuel_lb(self) -> tuple[int, int, int, int]:
+        return struct.unpack("<4I", self.get("fuel_initial_raw"))
+
+    @property
+    def loaded_cft(self) -> tuple[int, int, int, int]:
+        return struct.unpack("<4B", self.get("loaded_cft_raw"))
+
+    @property
+    def loadout_count(self) -> int:
+        return int(self.get("loadouts"))
+
+    @property
+    def loadout_records(self) -> tuple[FlightLoadoutRecord, ...]:
+        """Exact shared/per-aircraft records, without optional support lookups."""
+        values = self.get("loadout_entries")
+        if not isinstance(values, tuple) or len(values) != self.loadout_count:
+            raise UnitWrapperError("flight loadout entries are malformed")
+        return values
+
+    @property
+    def loadouts(self) -> tuple[FlightLoadout, ...]:
+        weapons = self.support.wcd_by_number
+        return tuple(
+            FlightLoadout(index, tuple(
+                FlightHardpoint(index, station, weapon_id, count, weapons.get(weapon_id))
+                for station, (weapon_id, count) in enumerate(zip(record.weapon_ids, record.weapon_counts))
+            ))
+            for index, record in enumerate(self.loadout_records)
+        )
 
     @property
     def mission_code(self) -> int:

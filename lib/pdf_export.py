@@ -14,6 +14,7 @@ from threading import Event, Lock, Thread
 from typing import Any, Callable
 
 from bs4 import BeautifulSoup, NavigableString
+from lib.dtc_fields import FIELDS, format_value, normalize_value
 
 
 logger = logging.getLogger("html_brief_log")
@@ -258,9 +259,16 @@ def finalize_print_html(
         stats["total_text_len"],
     )
     soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
+    snapshot = content.get("__dtc_fields")
+    if snapshot is not None:
+        if not isinstance(snapshot, dict) or not isinstance(snapshot.get("values"), dict):
+            raise ValueError("Invalid DTC field snapshot")
+        scope = soup.body.get("data-dtc-scope") if soup.body else None
+        if scope is not None and snapshot.get("scope") != scope:
+            raise ValueError("The active callsign changed. Refresh the briefing before exporting.")
 
     for key, value in content.items():
-        if key == "map_image" or key in TARGET_REF_CELLS:
+        if key in {"map_image", "__dtc_fields", "__popup_plan"} or key in TARGET_REF_CELLS:
             continue
         if key.endswith("_display"):
             target_id = key.removesuffix("_display")
@@ -293,6 +301,28 @@ def finalize_print_html(
             continue
         el.clear()
         _append_editable_content(soup, el, value)
+
+    if snapshot is not None:
+        for el in soup.select("[data-dtc-field]"):
+            key = el["data-dtc-field"]
+            if key in FIELDS and key in snapshot["values"]:
+                value = normalize_value(key, snapshot["values"][key])
+                el.string = el.get("data-dtc-prefix", "") + format_value(key, value)
+
+    popup_snapshot = content.get("__popup_plan")
+    popup_cells = soup.select("[data-popup-result]")
+    if popup_snapshot is not None and popup_cells:
+        if not isinstance(popup_snapshot, dict) or not isinstance(popup_snapshot.get("values"), dict):
+            raise ValueError("Invalid pop-up plan snapshot")
+        values = popup_snapshot["values"]
+        scope = soup.body.get("data-popup-scope") if soup.body else None
+        if values and popup_snapshot.get("scope") != scope:
+            raise ValueError("The pop-up plan belongs to another callsign or route. Refresh the briefing.")
+        for el in popup_cells:
+            value = values.get(el["data-popup-result"], el.get("data-popup-empty", ""))
+            if not isinstance(value, str) or len(value) > 512:
+                raise ValueError("Invalid pop-up result")
+            el.string = value
 
     for script in soup.find_all("script"):
         script.decompose()

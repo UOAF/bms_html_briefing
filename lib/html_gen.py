@@ -1,8 +1,12 @@
 from jinja2 import Environment, FileSystemLoader
 import os, sys, logging
+import math
 
 from lib.brief_render import build_brief_render_context
+from lib.atis import build_departure_atis
 from lib.bms_paths import callsign_ini_path
+from lib.dtc_fields import field_payload, format_value
+from lib.fuel_brief import build_fuel_plan
 from lib.map_sources import map_selection as select_map, map_source_options as get_map_source_options
 from lib.map_tiles import local_map_available, prepare_local_map_tiles, resolve_local_map_file
 from lib.progress import ProgressCallback
@@ -12,39 +16,94 @@ from lib.parsers.parse_callsign_ini import Callsign_ini
 logger = logging.getLogger('html_brief_log')
 logger_ui = logging.getLogger('ui_logger')
 
-BRIEFING_FCC_AGB_LINKS = {
-    "Profile1_Submode": {"id": "sms_mode_1", "type": "cycle", "prefix": "MODE: "},
-    "Profile1_Fuze": {"id": "sms_1", "type": "cycle"},
-    "Profile1_SGL/PAIR": {"id": "sms_2", "type": "cycle"},
-    "Profile1_C1_AD1": {"id": "sms_7", "scale": 100, "decimals": 2},
-    "Profile1_Release_Spacing": {"id": "sms_8"},
-    "Profile1_C2_BA": {"id": "sms_14"},
-    "Profile1_Release_Pulse": {"id": "sms_15", "displayOffset": 1},
-    "Profile2_Submode": {"id": "sms_mode_2", "type": "cycle", "prefix": "MODE: "},
-    "Profile2_Fuze": {"id": "sms_3", "type": "cycle"},
-    "Profile2_SGL/PAIR": {"id": "sms_4", "type": "cycle"},
-    "Profile2_C1_AD1": {"id": "sms_9", "scale": 100, "decimals": 2},
-    "Profile2_Release_Spacing": {"id": "sms_10"},
-    "Profile2_C2_BA": {"id": "sms_16"},
-    "Profile2_Release_Pulse": {"id": "sms_17", "displayOffset": 1},
-}
 
-BRIEFING_FCC_CYCLE_OPTIONS = {
-    "Profile1_Submode": {"7": "CCIP", "8": "CCRP", "9": "DTOS", "10": "LADD"},
-    "Profile2_Submode": {"7": "CCIP", "8": "CCRP", "9": "DTOS", "10": "LADD"},
-    "Profile1_Fuze": {"1": "NOSE", "2": "TAIL", "0": "NSTL"},
-    "Profile2_Fuze": {"1": "NOSE", "2": "TAIL", "0": "NSTL"},
-    "Profile1_SGL/PAIR": {"0": "SGL", "1": "PAIR"},
-    "Profile2_SGL/PAIR": {"0": "SGL", "1": "PAIR"},
-}
+def _flightplan_headings(steerpoints, variations):
+    headings = {}
+    for point in steerpoints:
+        heading = point.heading
+        try:
+            true_heading = float(heading)
+        except (TypeError, ValueError):
+            headings[str(point.number)] = heading
+            continue
+        variation = variations.get(str(point.number))
+        if not math.isfinite(true_heading):
+            heading = "—"
+        elif variation is None:
+            heading = f"{heading}°T"
+        else:
+            heading = str(math.floor((true_heading - variation) % 360 + 0.5) % 360)
+        headings[str(point.number)] = heading
+    return headings
 
 
-def page_contents_ini_to_list(conf):
-    return [
-        [s.strip(' \n') for s in value.split(',') if s != '']
-        for key, value in conf['pages'].items()
-        if key.casefold().startswith('page') and key[4:].isdigit()
-    ]
+
+def page_contents_ini_to_list(conf, *, warnings=None):
+    """Keep each section's first placement in config order, retaining empty pages."""
+    pages, seen = [], {}
+    for key, value in conf['pages'].items():
+        if not (key.casefold().startswith('page') and key[4:].isdigit()):
+            continue
+        sections = []
+        for section in (entry.strip() for entry in value.split(',')):
+            # Retired templates may still be present in a saved layout.
+            if not section or section in ('datacard_1', 'datacard_2'):
+                continue
+            if section in seen:
+                if warnings is not None:
+                    warning = f'Duplicate section: {section}; kept: {seen[section]}; ignored: {key}'
+                    if warning not in warnings:
+                        warnings.append(warning)
+                continue
+            seen[section] = key
+            sections.append(section)
+        pages.append(sections)
+    return pages
+
+
+def _brief_page_styles(conf):
+    settings = conf['briefing_style'] if 'briefing_style' in conf else {}
+
+    def font_size(key, fallback):
+        value = settings.get(key, '').strip()
+        if not value:
+            return fallback
+        try:
+            size = float(value)
+            if 6 <= size <= 32:
+                return size
+        except ValueError:
+            pass
+        logger.warning('Invalid briefing_style.%s: %r; expected 6–32 pixels, using %s.', key, value, fallback)
+        return fallback
+
+    def spacing(key, fallback):
+        value = settings.get(key, '').strip().lower()
+        if not value:
+            return fallback
+        if value in ('normal', 'compact'):
+            return value
+        logger.warning('Invalid briefing_style.%s: %r; expected normal or compact, using %s.', key, value, fallback)
+        return fallback
+
+    default_size = font_size('font_size', 16)
+    default_spacing = spacing('spacing', 'normal')
+    styles = []
+    for key in conf['pages']:
+        if not (key.casefold().startswith('page') and key[4:].isdigit()):
+            continue
+        size = font_size(f'{key}_font_size', default_size)
+        density = spacing(f'{key}_spacing', default_spacing)
+        declarations = []
+        if size != 16:
+            declarations.extend([
+                f'--brief-font-size: {size:g}px',
+                f'--brief-heading-font-size: {size * 0.95:g}px',
+            ])
+        if density == 'compact':
+            declarations.extend(['--brief-cell-padding: 1px 2px', '--brief-row-height: 1.3em'])
+        styles.append('; '.join(declarations))
+    return styles
 
 
 def _page_contents_for_render(conf, brief_summary = None):
@@ -60,38 +119,6 @@ def _page_contents_for_render(conf, brief_summary = None):
     return swapped_pages
 
 
-def _format_briefing_fcc_value(field_name, raw_value):
-    meta = BRIEFING_FCC_AGB_LINKS.get(field_name, {})
-    clean_value = "" if raw_value is None else str(raw_value).strip()
-    if meta.get("type") == "cycle":
-        options = BRIEFING_FCC_CYCLE_OPTIONS.get(field_name, {})
-        label = options.get(clean_value)
-        if label is None and options:
-            label = next(iter(options.values()))
-        return f"{meta.get('prefix', '')}{label}" if label is not None else clean_value
-    try:
-        number_value = float(clean_value)
-    except (TypeError, ValueError):
-        return clean_value
-    display_offset = float(meta.get("displayOffset", 0) or 0)
-    offset_value = number_value + display_offset
-    scale = float(meta.get("scale", 0) or 0)
-    if scale:
-        decimals = int(meta.get("decimals", 0) or 0)
-        return f"{offset_value / scale:.{decimals}f}"
-    if offset_value.is_integer():
-        return str(int(offset_value))
-    return str(offset_value)
-
-
-def _briefing_fcc_display_values(fcc_settings):
-    agb_settings = {}
-    if isinstance(fcc_settings, dict) and isinstance(fcc_settings.get("FCC_AGB"), dict):
-        agb_settings = fcc_settings["FCC_AGB"]
-    values = {}
-    for field_name, meta in BRIEFING_FCC_AGB_LINKS.items():
-        values[meta["id"]] = _format_briefing_fcc_value(field_name, agb_settings.get(field_name))
-    return values
 
 
 def generate_html_file(
@@ -192,6 +219,16 @@ def generate_html_file(
             support_rows=brf.support,
         )
 
+        dtc_fields = field_payload(ci, callsignini_location, bms_conf.theater, base_dir=bms_conf.base_dir)
+        dtc_values = {key: format_value(key, value) for key, value in dtc_fields["values"].items()}
+        fuel_plan = build_fuel_plan(
+            summary=brief_summary, briefing=brf, dtc=ci,
+            bms_base_dir=bms_conf.base_dir, theater=bms_conf.theater,
+        )
+        atis = build_departure_atis(
+            summary=brief_summary, briefing=brf, dtc=ci, bms_conf=bms_conf,
+        ) if any('atis' in page for page in page_contents) else {}
+
         logo_present = os.path.isfile(os.path.join(script_dir, "assets", "logo.png"))
 
         with open(os.path.join(conf['system']['output_dir'], name+".html"), "w", encoding = "utf-8") as index_output:
@@ -200,10 +237,13 @@ def generate_html_file(
                                                  overview = brf.overview,
                                                  package = brf.package,
                                                  steerpoints = brf.steerpoints,
+                                                 flightplan_headings = _flightplan_headings(brf.steerpoints, dtc_fields['magnetic_variation']),
+                                                 fuel_plan = fuel_plan,
                                                  own_flight = brf.own_flight,
                                                  support = brf.support,
                                                  roe = brf.roe,
                                                  weather = brf.weather,
+                                                 atis = atis,
                                                  comm = brf.comm,
                                                  stpt_coords = ci.steerpoints,
                                                  tstpt_coords = ci.threat_steerpoints,
@@ -211,9 +251,11 @@ def generate_html_file(
                                                  tgtsteerpoints = ci.tgtsteerpoints,
                                                  wpntgts = ci.wpntgts,
                                                  brief_pages = page_contents,
+                                                 brief_page_styles = _brief_page_styles(conf),
                                                  cmds = ci.cmds,
                                                  icp_settings = ci.icp_settings,
-                                                 briefing_fcc_display = _briefing_fcc_display_values(ci.fcc_settings),
+                                                 dtc_fields = dtc_fields,
+                                                 dtc_values = dtc_values,
                                                  num = page_num,
                                                  logo_present = logo_present,
                                                  brief_is_joined = True,
