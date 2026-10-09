@@ -61,11 +61,13 @@ def load_twx_date_for_save(
     *,
     bms_base_dir: str | Path | None,
     theater_target_folder: str | Path | None = None,
+    theater_name: str | None = None,
     save_stem: str | None = None,
 ) -> tuple[str | None, Path | None]:
     campaign_dir_list = campaign_dirs(
         bms_base_dir=bms_base_dir,
         theater_target_folder=theater_target_folder,
+        theater_name=theater_name,
     )
     stem = (save_stem or "").strip()
     if not stem:
@@ -99,11 +101,13 @@ def load_parsed_twx_for_save(
     *,
     bms_base_dir: str | Path | None,
     theater_target_folder: str | Path | None = None,
+    theater_name: str | None = None,
     save_stem: str | None = None,
 ) -> ParsedTwxData:
     current_date, twx_path = load_twx_date_for_save(
         bms_base_dir=bms_base_dir,
         theater_target_folder=theater_target_folder,
+        theater_name=theater_name,
         save_stem=save_stem,
     )
     warnings: list[str] = []

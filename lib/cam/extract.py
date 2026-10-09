@@ -52,6 +52,7 @@ def extract_cam_brief_data(
         source_path,
         bms_base_dir=bms_base_dir,
         theater_target_folder=theater_target_folder,
+        theater_name=theater_name,
         save_stem=save_stem,
     )
     cmp_data = _parse_cmp_data(cmp_entry, container_version, warnings)
@@ -84,6 +85,7 @@ def _load_sidecars(
     *,
     bms_base_dir: str | Path | None,
     theater_target_folder: str | Path | None,
+    theater_name: str | None,
     save_stem: str | None,
 ) -> tuple[ParsedTwxData, ParsedL16Data]:
     twx_data = load_parsed_twx_for_cam_path(source_path)
@@ -92,11 +94,13 @@ def _load_sidecars(
         twx_data = load_parsed_twx_for_save(
             bms_base_dir=bms_base_dir,
             theater_target_folder=theater_target_folder,
+            theater_name=theater_name,
             save_stem=stem,
         )
     l16_data = load_parsed_l16_for_save(
         bms_base_dir=bms_base_dir,
         theater_target_folder=theater_target_folder,
+        theater_name=theater_name,
         save_stem=stem,
     )
     return twx_data, l16_data

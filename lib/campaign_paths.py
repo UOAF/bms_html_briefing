@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from lib.theater_paths import resolve_campaign_folder_from_theater
+
 
 logger = logging.getLogger("html_brief_log")
 
@@ -11,10 +13,14 @@ def campaign_dirs(
     *,
     bms_base_dir: str | Path | None,
     theater_target_folder: str | Path | None = None,
+    theater_name: str | None = None,
 ) -> list[Path]:
     dirs: list[Path] = []
     if not bms_base_dir:
         return dirs
+    campaign_dir = resolve_campaign_folder_from_theater(bms_base_dir, theater_name)
+    if campaign_dir is not None:
+        return [campaign_dir.resolve()]
     base = Path(bms_base_dir).expanduser()
     data_dir = base / "Data"
     default_campaign_dir = data_dir / "Campaign"

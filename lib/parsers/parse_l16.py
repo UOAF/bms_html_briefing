@@ -54,6 +54,7 @@ def load_l16_for_save(
     *,
     bms_base_dir: str | Path | None,
     theater_target_folder: str | Path | None = None,
+    theater_name: str | None = None,
     save_stem: str | None = None,
 ) -> tuple[dict[int, dict[str, int]], Path | None]:
     """Load Link16 data for exact save stem (`<save_stem>.l16.txtpb`) if present."""
@@ -61,6 +62,7 @@ def load_l16_for_save(
     campaign_dir_list = campaign_dirs(
         bms_base_dir=bms_base_dir,
         theater_target_folder=theater_target_folder,
+        theater_name=theater_name,
     )
     if not campaign_dir_list:
         logger.debug("Link16 lookup skipped: no campaign dirs resolved.")
@@ -95,11 +97,13 @@ def load_parsed_l16_for_save(
     *,
     bms_base_dir: str | Path | None,
     theater_target_folder: str | Path | None = None,
+    theater_name: str | None = None,
     save_stem: str | None = None,
 ) -> ParsedL16Data:
     by_flight, source_path = load_l16_for_save(
         bms_base_dir=bms_base_dir,
         theater_target_folder=theater_target_folder,
+        theater_name=theater_name,
         save_stem=save_stem,
     )
     return ParsedL16Data(

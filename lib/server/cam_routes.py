@@ -45,6 +45,7 @@ def register_cam_routes(
         campaign_dir_list = campaign_dirs(
             bms_base_dir=bms_base_dir,
             theater_target_folder=theater_target_folder,
+            theater_name=theater_name,
         )
         return bms_base_dir, theater_target_folder, theater_name, campaign_dir_list
 

@@ -156,6 +156,22 @@ def magnetic_variation_for_steerpoints(base_dir, theater_name, steerpoints):
     return variations
 
 
+def resolve_campaign_folder_from_theater(
+    base_dir: str | Path | None,
+    theater_name: str | None,
+) -> Path | None:
+    campaigndir, _ = read_tdf_value(base_dir, theater_name, "campaigndir")
+    if not campaigndir or not base_dir:
+        return None
+    resolved = _resolve_case_insensitive(
+        Path(base_dir).expanduser() / "Data",
+        _split_rel_path(campaigndir),
+    )
+    if resolved is not None and resolved.is_dir():
+        return resolved
+    return None
+
+
 def resolve_target_folder_from_theater(
     base_dir: str | Path | None,
     theater_name: str | None,
@@ -254,6 +270,7 @@ __all__ = [
     "read_theater_map_info",
     "read_theater_list",
     "read_tdf_value",
+    "resolve_campaign_folder_from_theater",
     "resolve_target_folder_from_theater",
     "resolve_theater_data_root",
     "resolve_theater_tdf_path",
