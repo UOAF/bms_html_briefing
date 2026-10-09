@@ -5,6 +5,7 @@
 <link rel="shortcut icon" type="image/png" href="assets/icon.png">
 <link rel="stylesheet" href="templates/style_preview.css" media="screen">
 <link rel="stylesheet" href="templates/style_print.css" media="print">
+<link rel="stylesheet" href="templates/page_header.css">
 <link rel="stylesheet" href="dist/leaflet/leaflet.css" />
 <script src="dist/leaflet/leaflet.js"></script>
 <style>
@@ -69,32 +70,24 @@ width: 100%;
 <body{% if not brief_is_joined and brief_page_styles is defined %} style="{{ brief_page_styles[num - 1] }}"{% endif %}>
 {% if brief_is_joined %}
 {% for page in brief_pages %}
-<div {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}"{% if brief_page_styles is defined %} style="{{ brief_page_styles[loop.index0] }}"{% endif %}>
+<div data-page-key="{{ brief_page_keys[loop.index0] if brief_page_keys is defined else 'page' ~ loop.index }}" {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}"{% if brief_page_styles is defined %} style="{{ brief_page_styles[loop.index0] }}"{% endif %}>
+  <div class="header brief-page-header" data-page-header><span data-page-label>Page {{loop.index}}</span></div>
   {% for part in page %}
+   <div data-section="{{ {'main_package_cam': 'main_package', 'supporting_package_cam': 'supporting_package'}.get(part, part) }}">
    {% include (part+".html") %}
+   </div>
   {% endfor %}
-<table width="100%">
-    <thead>
-      <tr>
-	<th class="header" width="10%"> Page {{loop.index}}</th>
-        </tr>
-    </thead>
-</table>
 </div>
 <br>
 {% endfor %}
 
 {% else %}
+<div class="header brief-page-header" data-page-header><span data-page-label>Page {{num}}</span></div>
 {% for p in brief_pages[num - 1] %}
+   <div data-section="{{ {'main_package_cam': 'main_package', 'supporting_package_cam': 'supporting_package'}.get(p, p) }}">
    {% include (p+".html") %}
+   </div>
 {% endfor %}
-<table width="100%">
-    <thead>
-      <tr>
-	<th class="header" width="10%"> Page {{num}}</th>
-        </tr>
-    </thead>
-</table>
 {% endif %}
 <style>
 </style>

@@ -194,8 +194,11 @@ def is_cross_origin_browser_request(request: Request) -> bool:
 
 
 def load_config(config_path: Path) -> configparser.ConfigParser:
+    from lib.html_gen import normalize_layout_pages
+
     cfg = build_default_config()
     cfg.read(config_path)
+    cfg['pages'] = normalize_layout_pages(cfg['pages'])
     return cfg
 
 

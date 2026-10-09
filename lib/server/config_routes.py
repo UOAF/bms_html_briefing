@@ -58,6 +58,11 @@ class ConfigUpdate(BaseModel):
     briefing_style: Optional[Dict[str, Optional[str]]] = None
 
 
+class LayoutUpdate(BaseModel):
+    pages: Dict[str, str]
+    briefing_style: Dict[str, Optional[str]] = {}
+
+
 class TheaterUpdate(BaseModel):
     target_folder: Optional[str] = None
     map_file: Optional[str] = None
@@ -240,6 +245,37 @@ def register_config_routes(
             logger.error("Failed to save custom checklist template: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to save custom checklist template: {exc}")
         return {"status": "ok", "updated": updated, "path": str(template_path)}
+
+    @app.post("/api/layout")
+    def update_layout(payload: LayoutUpdate) -> Dict[str, Dict[str, str]]:
+        page_keys = [key for key in payload.pages if key.startswith('page') and key[4:].isdigit()]
+        if not page_keys:
+            raise HTTPException(status_code=400, detail="Empty layout")
+
+        def apply_layout(cfg):
+            # Replace only the page list; chart settings and other metadata survive.
+            values = {key: value for key, value in cfg['pages'].items()
+                      if not (key.startswith('page') and key[4:].isdigit())}
+            if 'charts' in payload.pages:
+                values['charts'] = payload.pages['charts']
+            values.update({key: payload.pages[key] for key in page_keys})
+            cfg['pages'] = values
+            styles = dict(cfg['briefing_style']) if 'briefing_style' in cfg else {}
+            styles.update(payload.briefing_style)
+            styles = {key: value for key, value in styles.items() if value is not None
+                      and not (key.split('_')[0].startswith('page')
+                               and key.split('_')[0][4:].isdigit()
+                               and key.split('_')[0] not in page_keys)}
+            if styles:
+                cfg['briefing_style'] = styles
+            elif 'briefing_style' in cfg:
+                cfg.remove_section('briefing_style')
+
+        cfg_to_persist = load_config(app.state.config_path)
+        apply_layout(cfg_to_persist)
+        save_config(cfg_to_persist, app.state.config_path)
+        apply_layout(app.state.cfg)
+        return _serialize_config(app.state.cfg)
 
     @app.post("/api/config")
     def update_config(payload: ConfigUpdate) -> Dict[str, Dict[str, str]]:

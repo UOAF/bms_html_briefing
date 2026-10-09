@@ -138,7 +138,10 @@ function collectChangedData() {
 }
 
 function saveChangedData() {
-    const contentData = collectChangedData();
+    let retained = {};
+    try { retained = JSON.parse(localStorage.getItem('contenteditables') || '{}'); }
+    catch { /* Replace malformed storage with the current snapshot. */ }
+    const contentData = { ...retained, ...collectChangedData() };
     window.dtcFieldStore.save();
     localStorage.setItem('contenteditables', JSON.stringify(contentData));
     return contentData;
@@ -260,6 +263,7 @@ function reloadFromFiles() {
 function resetContenteditables() {
     if (confirm("Are you sure? This will overwrite all changes.")){
         window.dtcFieldStore.reset();
+        localStorage.removeItem('contenteditables');
         localStorage.setItem("onrefresh", "reset");
 	var selected_files = document.getElementsByClassName('imageFileInput');
 	for (i = 0; i < selected_files.length; i++) {
