@@ -15,6 +15,7 @@ from typing import Any, Callable, Iterable, Mapping
 
 import pymupdf
 
+from lib.airfields import airfield_inputs, airfield_query
 from lib.bms_paths import callsign_ini_path
 from lib.parsers.parse_briefing_txt import Briefing
 from lib.parsers.parse_callsign_ini import Callsign_ini
@@ -115,38 +116,12 @@ def _read_lines(path: Path) -> list[str]:
         return handle.readlines()
 
 
-def _float_or_none(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def _role_inputs(bms_cfg: Any) -> dict[ChartRole, tuple[str | None, tuple[float, float] | None]]:
     brief_path = Path(bms_cfg.base_dir) / "User" / "Briefings" / "briefing.txt"
     briefing = Briefing(_read_lines(brief_path))
     callsign = Callsign_ini(_read_lines(callsign_ini_path(bms_cfg)))
 
-    names: dict[ChartRole, str | None] = {}
-    airbases = list(getattr(briefing, "airbases", []) or [])
-    for index, role in enumerate(ChartRole):
-        name = getattr(airbases[index], "agency", "") if index < len(airbases) else ""
-        names[role] = str(name).strip() or None
-
-    steerpoints = list(getattr(callsign, "steerpoints", []) or [])
-    takeoffs = [point for point in steerpoints if str(getattr(point, "action", "")) == "1"]
-    landings = [point for point in steerpoints if str(getattr(point, "action", "")) in {"7", "27"}]
-    role_points = {
-        ChartRole.DEPARTURE: takeoffs[0] if takeoffs else None,
-        ChartRole.ARRIVAL: landings[0] if landings else None,
-        ChartRole.ALTERNATE: landings[1] if len(landings) > 1 else None,
-    }
-    result: dict[ChartRole, tuple[str | None, tuple[float, float] | None]] = {}
-    for role, point in role_points.items():
-        x = _float_or_none(getattr(point, "coord_x", None)) if point is not None else None
-        y = _float_or_none(getattr(point, "coord_y", None)) if point is not None else None
-        result[role] = (names[role], (x, y) if x is not None and y is not None else None)
-    return result
+    return dict(zip(ChartRole, airfield_inputs(briefing, callsign)))
 
 
 def _load_index(path: Path) -> dict[str, Any]:
@@ -294,12 +269,9 @@ class ChartService:
                 continue
             name, position = role_inputs.get(role, (None, None))
             try:
-                if position is not None:
-                    query = self.api.AirfieldQuery(position_x=position[0], position_y=position[1])
-                elif name:
-                    query = self.api.AirfieldQuery(name=name)
-                else:
+                if position is None and not name:
                     raise ValueError(f"no route position or briefing name for {role.value}")
+                query = airfield_query(name, position, api=self.api)
                 resolved_roles[role] = source.resolve_airfield(query)
             except Exception as exc:
                 message = f"Charts: {role.value} airfield is unavailable: {exc}"

@@ -2,6 +2,7 @@ from jinja2 import Environment, FileSystemLoader
 import os, sys, logging
 import math
 
+from lib.airfields import resolve_briefing_airbase_names
 from lib.brief_render import build_brief_render_context
 from lib.atis import build_departure_atis
 from lib.bms_paths import callsign_ini_path
@@ -218,6 +219,9 @@ def generate_html_file(
             ci = Callsign_ini(callsignini_contents)
         except Exception as e:
             logger.error(f"Couldn't load callsign.ini: {e}")
+            ci = Callsign_ini()
+
+        resolve_briefing_airbase_names(brf, ci, bms_conf)
 
         env = Environment(loader=FileSystemLoader(templates_dir))
         index_tmpl = env.get_template(template_name)
