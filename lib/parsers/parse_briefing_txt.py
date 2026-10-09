@@ -188,6 +188,11 @@ class Briefing:
                 else:
                     logger.warning(f"No function to find {type(self).__name__}.{attr}")
 
+            # We cannot know the laser codes yet as they're not written to briefing.txt.
+            # These fields will be populated if the user loads a .cam file.
+            for attr in ["lead_laser", "wing_laser", "element_laser", "four_laser"]:
+                setattr(self, attr, None)
+
         def init_callsign(self, line_contents):
             if line_contents == None:
                 return ""

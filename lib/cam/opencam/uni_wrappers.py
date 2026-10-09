@@ -128,6 +128,13 @@ class FlightUnit(Unit):
     def mission_code(self) -> int:
         return int(self.get("mission"))
 
+    @property
+    def laser_codes(self) -> tuple[int, ...]:
+        raw = bytes(self.get("laser_code_raw"))
+        length = len(raw) // 2
+        codes = [raw[i*2 : i*2 + 2] for i in range(length) ]
+        return tuple(int.from_bytes(code, 'little') for code in codes)
+
     @mission_code.setter
     def mission_code(self, value: int) -> None:
         if not 0 <= value <= 255:
@@ -264,6 +271,7 @@ class FlightUnit(Unit):
             "plane_stats": list(self.get("plane_stats")),
             "player_slots": list(self.get("player_slots")),
             "last_player_slot": self.get("last_player_slot"),
+            "laser_codes": self.laser_codes,
             "aircraft_count": _aircraft_count(
                 tuple(int(value) for value in self.get("plane_stats"))
             ),

@@ -182,6 +182,7 @@ class SummaryFlight(TypedDict):
     timing: SummaryFlightTiming
     steerpoints: list[UniWaypointView]
     l16: SummaryL16Record | dict[str, int]
+    laser_codes: tuple[int, ...]
 
 
 class SummaryPackage(TypedDict):

@@ -161,6 +161,7 @@ def _flight_row(
         "l16": dict(l16_by_flight.get(flight_number, {}))
         if isinstance(flight_number, int)
         else {},
+        "laser_codes": flight.laser_codes,
     }
 
 
