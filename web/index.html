@@ -274,7 +274,6 @@
     }
 
     .layout.dtc-active .mfd-flow,
-    .layout.dtc-active .mfd-layout,
     .layout.dtc-active .mfd-kneeboard-order {
       display: none;
     }
@@ -542,34 +541,6 @@
       margin-bottom: 0.75rem;
     }
 
-    .page-select {
-      max-width: 240px;
-    }
-
-    .layout-page-controls {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: end;
-      gap: 0.75rem;
-    }
-
-    .layout-page-controls .page-field {
-      flex: 1 1 8rem;
-      max-width: 240px;
-    }
-
-    .layout-font-field {
-      width: 6.5rem;
-    }
-
-    .layout-page-controls .layout-spacing-toggle {
-      min-height: 2.4rem;
-    }
-
-    .grid-start {
-      align-items: start;
-    }
-
     .status-value {
       font-family: "IBMPlexMono";
     }
@@ -582,12 +553,6 @@
       border-radius: 8px;
       list-style: none;
       font-weight: 700;
-    }
-
-    .mfd-layout .sortable {
-      max-height: min(20rem, 40vh);
-      overflow-y: auto;
-      scrollbar-gutter: stable;
     }
 
     .sortable li {
@@ -607,22 +572,6 @@
     .sortable li.dragging {
       opacity: 0.6;
       background: rgba(58, 167, 255, 0.08);
-    }
-
-    .mfd-layout .sortable li.drop-before {
-      box-shadow: inset 0 2px var(--line);
-    }
-
-    .mfd-layout .sortable.drop-end {
-      box-shadow: inset 0 -2px var(--line);
-    }
-
-    .layout-section-page {
-      margin-left: auto;
-      font-family: "IBMPlexMono";
-      font-size: 0.78rem;
-      color: var(--line);
-      white-space: nowrap;
     }
 
     .sortable li.is-excluded {
@@ -821,8 +770,9 @@
     }
 
     .page-nav-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
       align-items: center;
       gap: 0.75rem;
       width: 100%;
@@ -1266,39 +1216,6 @@
           </div>
         </section>
 
-        <section class="mfd-box mfd-layout">
-          <div class="mfd-anchor mfd-anchor-right no-print">
-            <button id="save-layout-btn" type="button">Save layout</button>
-          </div>
-          <div class="panel-head">
-            <h3 class="heading-zero">Layout</h3>
-          </div>
-          <div class="spacer-sm layout-page-controls">
-            <div class="page-field">
-              <label for="page-select">Page</label>
-              <select id="page-select" class="page-select interface-select"></select>
-            </div>
-            <div class="layout-font-field">
-              <label for="page-font-size">Font (px)</label>
-              <input id="page-font-size" type="number" min="6" max="32" step="any" disabled>
-            </div>
-            <div>
-              <label for="page-spacing-btn">Spacing</label>
-              <button id="page-spacing-btn" class="layout-spacing-toggle" type="button" aria-pressed="false" disabled>Normal</button>
-            </div>
-          </div>
-          <div class="grid two grid-start">
-            <div>
-              <label>Page sections</label>
-              <ul id="section-list" class="sortable"></ul>
-            </div>
-            <div>
-              <label>All sections</label>
-              <ul id="available-list" class="sortable"></ul>
-            </div>
-          </div>
-        </section>
-
         <section class="mfd-box mfd-kneeboard-order no-print">
           <div class="mfd-anchor mfd-anchor-right no-print">
             <button id="refresh-kneeboard-order-btn" type="button">Refresh</button>
@@ -1527,6 +1444,7 @@
     </div>
   </dialog>
 
+  <script src="/templates/layout_editor.js"></script>
   <script>
     const logEl = document.getElementById("log");
     const statusEl = document.getElementById("status-indicator");
@@ -1550,8 +1468,6 @@
     const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
     const briefingScrollModeBtn = document.getElementById("briefing-scroll-mode-btn");
     const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
-    const pageFontSizeInput = document.getElementById("page-font-size");
-    const pageSpacingBtn = document.getElementById("page-spacing-btn");
     const pdfBtn = document.getElementById("pdf-btn");
     const exportBtn = document.getElementById("export-btn");
     const openPdfBtn = document.getElementById("open-pdf-btn");
@@ -1611,14 +1527,13 @@
     let pageKeys = [];
     let briefingStyleSettings = {};
     let briefingStyleEdits = {};
-    let currentPageIndex = 0;
     let currentBriefPageIndex = 0;
-    let dndAttached = false;
+    let layoutEditor = null;
+    let layoutBusy = false;
+    const layoutDrafts = new Map();
     let mapSources = [{ id: "local", label: "BMS local" }];
     let selectedMapSourceId = "local";
     const LOCAL_MAP_GENERATION_CONFIRM = "The local map tiles are not yet generated, do you want to generate them now? It should take 1-2 minutes. Only done once per map.";
-    let draggingEl = null;
-    let draggingFrom = null;
     let kneeboardDraggingEl = null;
     let kneeboardOrderPages = [];
     let kneeboardOrderAirframe = "F-16";
@@ -1657,7 +1572,8 @@
     let currentMainView = localStorage.getItem(MAIN_VIEW_STORAGE_KEY) === "dtc" ? "dtc" : "briefing";
     const sectionLabels = {
       airbase: "Airbase",
-      package: "Package",
+      main_package: "Package",
+      supporting_package: "Supporting package",
       flightplan: "Flight plan",
       roster: "Roster",
       admin: "Admin",
@@ -1678,8 +1594,6 @@
       comms: "Comms",
       custom_checklist: "Custom checklist",
     };
-    const allSections = Object.keys(sectionLabels).sort((a, b) =>
-      sectionLabels[a].localeCompare(sectionLabels[b], "en", { sensitivity: "base" }));
     function log(message) {
       const ts = new Date().toLocaleTimeString();
       if (!logEl) return;
@@ -2579,6 +2493,7 @@
         await maybeAutoExportOnFileChange(data);
         pages = Array.isArray(data.pages) ? data.pages : [];
         pageKeys = Array.isArray(data.page_keys) ? data.page_keys : pages.map((_, idx) => pageKeys[idx] || `page${idx + 1}`);
+        if (!pages.length) { pages = [[]]; pageKeys = ["page1"]; }
         renderPages();
         await loadTheater();
         await loadChartStatus(true);
@@ -2952,7 +2867,7 @@
     async function doPreview(overrides = null, options = {}) {
       if (pdfBusy || exportBusy) {
         log("Preview skipped: PDF pipeline is busy");
-        return;
+        return false;
       }
       const operationId = options.operationId || createOperationId("preview");
       const ownsProgress = !options.operationId;
@@ -2971,10 +2886,12 @@
           fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(payload) })
         );
         log(`Preview generated at ${res.output_file}`);
-        await refreshBrief(!!options.waitForFrame);
+        const loaded = await refreshBrief(!!options.waitForFrame);
         await pollStatusBadges();
+        return loaded !== false;
       } catch (err) {
         log(`Preview failed: ${err.message}`);
+        return false;
       } finally {
         if (ownsProgress) closeOperationProgress(operationId);
       }
@@ -3325,9 +3242,8 @@
     }
 
     function updateBusyUi() {
-      const pipelineBusy = pdfBusy || exportBusy;
-      if (pageFontSizeInput) pageFontSizeInput.disabled = pipelineBusy || !pages.length;
-      if (pageSpacingBtn) pageSpacingBtn.disabled = pipelineBusy || !pages.length;
+      const pipelineBusy = pdfBusy || exportBusy || layoutBusy;
+      layoutEditor?.setBusy(pipelineBusy);
       if (pdfBtn) {
         if (pdfBusy) {
           pdfBtn.disabled = pdfCancelRequested;
@@ -3336,7 +3252,7 @@
             : `Stop PDF Gen (${formatPdfElapsed()})`;
           pdfBtn.title = pdfCancelRequested ? "Stopping PDF generation" : "Stop PDF generation";
         } else {
-          pdfBtn.disabled = exportBusy;
+          pdfBtn.disabled = exportBusy || layoutBusy;
           pdfBtn.textContent = "Gen PDF";
           pdfBtn.title = exportBusy ? "Kneeboard export in progress" : "";
         }
@@ -3507,7 +3423,7 @@
     }
 
     async function runExportFlow(source = "manual") {
-      if (pdfBusy || exportBusy) return { ok: false, skipped: true };
+      if (pdfBusy || exportBusy || layoutBusy) return { ok: false, skipped: true };
       setPdfBusy(true);
       setExportBusy(true);
       const pdfController = beginPdfClientOperation();
@@ -3649,7 +3565,7 @@
         return;
       }
       if (autoExportSuppressedChangeKey === changeKey) return;
-      if (pdfBusy || exportBusy) {
+      if (pdfBusy || exportBusy || layoutBusy) {
         pendingAutoExport = true;
         return;
       }
@@ -3787,7 +3703,7 @@
       if (layoutEl) layoutEl.classList.toggle("dtc-active", isDtc);
       document.body.classList.toggle("dtc-active", isDtc);
       const pageNavRow = document.querySelector(".page-nav-row");
-      if (pageNavRow) pageNavRow.style.display = isDtc ? "none" : "grid";
+      if (pageNavRow) pageNavRow.style.display = isDtc ? "none" : "flex";
       const shortcutBar = document.getElementById("page-shortcuts");
       if (shortcutBar) shortcutBar.style.display = isDtc ? "none" : "";
       if (briefingScrollModeBtn) briefingScrollModeBtn.hidden = isDtc;
@@ -3869,6 +3785,8 @@
         pendingBriefingResetFromToolbar = false;
         if (clearLinkedStorage) window.dtcFieldStore.reset();
         callBriefingLoadedFrame("loadChangedData");
+        restoreLayoutDrafts();
+        attachLayoutEditor();
         bindCamPackageSelectorInPreview();
         applyBriefingPageModeToFrame();
         const selectedIndex = getSelectedCamPackageIndex();
@@ -3898,6 +3816,7 @@
     resetEditsBtn?.addEventListener("click", () => {
       const resetResult = callBriefing("resetContenteditables");
       pendingBriefingResetFromToolbar = resetResult === "false";
+      if (pendingBriefingResetFromToolbar) layoutDrafts.clear();
       const query = getPreviewCamPackageQuery();
       if (query) query.value = "";
       saveCamSupportPackageIndex(null);
@@ -4249,9 +4168,9 @@
       };
     }
 
-    function selectedPageStyle() {
+    function pageStyle(index) {
       const defaults = briefingStyleDefaults();
-      const key = pageKeys[currentPageIndex] || `page${currentPageIndex + 1}`;
+      const key = pageKeys[index];
       const values = { ...briefingStyleSettings, ...briefingStyleEdits };
       const size = Number(values[`${key}_font_size`]);
       const spacing = String(values[`${key}_spacing`] || "").trim().toLowerCase();
@@ -4261,173 +4180,126 @@
       };
     }
 
-    function renderPageStyleControls() {
-      const style = selectedPageStyle();
-      pageFontSizeInput.value = style.font_size;
-      pageSpacingBtn.textContent = style.spacing === "compact" ? "Compact" : "Normal";
-      pageSpacingBtn.classList.toggle("is-active", style.spacing === "compact");
-      pageSpacingBtn.setAttribute("aria-pressed", String(style.spacing === "compact"));
-      pageFontSizeInput.disabled = pageSpacingBtn.disabled = !pages.length || pdfBusy || exportBusy;
+    function layoutState() {
+      return {
+        pages: pages.map((page) => [...page]),
+        pageKeys: [...pageKeys],
+        styleEdits: { ...briefingStyleSettings, ...briefingStyleEdits },
+      };
     }
 
-    function setPageStyle(name, value) {
-      if (!pages.length) return;
-      const key = pageKeys[currentPageIndex] || `page${currentPageIndex + 1}`;
-      // Null deletes a saved override; defaults never become explicit INI values.
-      briefingStyleEdits[`${key}_${name}`] = value === briefingStyleDefaults()[name] ? null : String(value);
-      renderPageStyleControls();
+    function useLayoutState(state) {
+      pages = state.pages.map((page) => [...page]);
+      pageKeys = [...state.pageKeys];
+      briefingStyleEdits = {
+        ...Object.fromEntries(Object.keys(briefingStyleSettings).map((key) => [key, null])),
+        ...state.styleEdits,
+      };
     }
 
-    pageFontSizeInput.addEventListener("change", async () => {
-      if (!pageFontSizeInput.reportValidity()) return;
-      const size = pageFontSizeInput.value === "" ? briefingStyleDefaults().font_size : Number(pageFontSizeInput.value);
-      setPageStyle("font_size", size);
-      await doPreview(currentOverrides());
-    });
+    function captureLayoutContent() {
+      const win = briefFrame?.contentWindow;
+      if (typeof win?.saveChangedData === "function") win.saveChangedData();
+      saveCamUiStateToEdits();
+      // Checklist drafts deliberately do not use persistent field storage.
+      win?.document.querySelectorAll('[contenteditable="true"][data-local-storage="ignore"][id]').forEach((el) => {
+        layoutDrafts.set(el.id, win.serializeEditableContent(el));
+      });
+    }
 
-    pageSpacingBtn.addEventListener("click", async () => {
-      setPageStyle("spacing", selectedPageStyle().spacing === "compact" ? "normal" : "compact");
-      await doPreview(currentOverrides());
-    });
+    function restoreLayoutDrafts() {
+      const doc = briefFrame?.contentDocument;
+      layoutDrafts.forEach((html, id) => {
+        const el = doc?.getElementById(id);
+        if (el?.dataset.localStorage === "ignore") el.innerHTML = html;
+      });
+    }
+
+    function attachLayoutEditor() {
+      if (!pages.length || !briefFrame?.contentDocument?.querySelector("[data-page-key]")) return;
+      layoutEditor = LayoutEditor.attach(briefFrame.contentWindow, {
+        labels: sectionLabels, pageStyle, change: changeLayout, save: persistPages,
+      });
+      layoutEditor.render(layoutState());
+      updateBusyUi();
+    }
 
     function renderPages() {
-      const pageSelect = document.getElementById("page-select");
-      const list = document.getElementById("section-list");
-      const availableList = document.getElementById("available-list");
-      const shortcutBar = document.getElementById("page-shortcuts");
-      if (!pageSelect || !list || !availableList) return;
-      pageSelect.innerHTML = "";
-      list.innerHTML = "";
-      availableList.innerHTML = "";
-      if (shortcutBar) shortcutBar.innerHTML = "";
-      if (!pages || pages.length === 0) {
-        renderPageStyleControls();
-        updateMainViewControls();
-        return;
-      }
-
-      pages.forEach((p, idx) => {
-        const opt = document.createElement("option");
-        opt.value = idx;
-        opt.textContent = `Page ${idx + 1}`;
-        pageSelect.appendChild(opt);
-        if (shortcutBar) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.textContent = `Page ${idx + 1}`;
-          btn.addEventListener("click", () => showBriefingPage(idx));
-          shortcutBar.appendChild(btn);
-        }
+      const bar = document.getElementById("page-shortcuts");
+      bar.replaceChildren();
+      pages.forEach((_, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `Page ${index + 1}`;
+        button.addEventListener("click", () => showBriefingPage(index));
+        bar.appendChild(button);
       });
-      if (currentBriefPageIndex >= pages.length) currentBriefPageIndex = 0;
-      if (currentPageIndex >= pages.length) currentPageIndex = 0;
-      pageSelect.value = currentPageIndex;
-      renderPageStyleControls();
-
-      allSections.forEach((section) => {
-        const li = document.createElement("li");
-        li.draggable = true;
-        li.dataset.section = section;
-        li.innerHTML = `<span class="pill-handle available">+</span><span>${sectionLabels[section] || section}</span>`;
-        const placement = document.createElement("span");
-        placement.className = "layout-section-page";
-        placement.textContent = pages.flatMap((page, idx) => page.includes(section) ? [`Page ${idx + 1}`] : []).join(", ") || "—";
-        li.appendChild(placement);
-        availableList.appendChild(li);
-      });
-
-      const currentSections = pages[currentPageIndex] || [];
-      currentSections.forEach((section) => {
-        const li = document.createElement("li");
-        li.draggable = true;
-        li.dataset.section = section;
-        li.innerHTML = `<span class="pill-handle page">⇅</span><span>${sectionLabels[section] || section}</span>`;
-        list.appendChild(li);
-      });
-      attachDnD();
+      currentBriefPageIndex = Math.max(0, Math.min(currentBriefPageIndex, pages.length - 1));
       updatePageShortcutState();
       updateMainViewControls();
+      updateBusyUi();
     }
 
-    function getAfterElement(list, y, excludedSection = null) {
-      const elements = [...list.querySelectorAll("li:not(.dragging)")];
-      return elements.find((el) => {
-        if (excludedSection && el.dataset.section === excludedSection) return false;
-        const box = el.getBoundingClientRect();
-        return y < box.top + box.height / 2;
-      });
+    function nextPageKey() {
+      const keys = [...pageKeys,
+        ...Object.keys({ ...briefingStyleSettings, ...briefingStyleEdits }).map((key) => key.split("_")[0])];
+      return `page${Math.max(0, ...keys.filter((key) => /^page\d+$/.test(key)).map((key) => Number(key.slice(4)))) + 1}`;
     }
-    function attachDnD() {
-      if (dndAttached) return;
-      dndAttached = true;
-      const availableList = document.getElementById("available-list");
-      const sectionList = document.getElementById("section-list");
-      function clearDropMarkers() {
-        [availableList, sectionList].forEach((list) => {
-          list.classList.remove("drop-end");
-          list.querySelectorAll(".drop-before").forEach((li) => li.classList.remove("drop-before"));
-        });
+
+    async function changeLayout(action) {
+      if (layoutBusy || pdfBusy || exportBusy) return;
+      if (action.section && !sectionLabels[action.section]) return;
+      const before = layoutState();
+      const oldIndex = currentBriefPageIndex;
+      const activeKey = pageKeys[oldIndex];
+      if (action.type === "addPage") action = { ...action, key: nextPageKey() };
+      if (action.type === "style" && action.value === briefingStyleDefaults()[action.name]) {
+        action = { ...action, value: null };
       }
-      [availableList, sectionList].forEach((list) => {
-        list.addEventListener("dragstart", (e) => {
-          const li = e.target.closest("li");
-          if (!li) return;
-          draggingEl = li;
-          draggingFrom = list.id;
-          li.classList.add("dragging");
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", li.dataset.section);
-        });
-        list.addEventListener("dragend", () => {
-          if (draggingEl) draggingEl.classList.remove("dragging");
-          draggingEl = null;
-          draggingFrom = null;
-          clearDropMarkers();
-        });
-        list.addEventListener("dragover", (e) => {
-          if (!draggingEl) return;
-          clearDropMarkers();
-          if (list === availableList && draggingFrom !== sectionList.id) return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          const after = list === sectionList ? getAfterElement(list, e.clientY, draggingEl.dataset.section) : null;
-          if (after) after.classList.add("drop-before");
-          else list.classList.add("drop-end");
-        });
-        list.addEventListener("dragleave", (e) => {
-          if (!list.contains(e.relatedTarget)) clearDropMarkers();
-        });
-        list.addEventListener("drop", async (e) => {
-          if (!draggingEl) return;
-          e.preventDefault();
-          if (!pageFontSizeInput.reportValidity()) return;
-          const section = draggingEl.dataset.section;
-          if (list === sectionList) {
-            const after = getAfterElement(list, e.clientY, section)?.dataset.section;
-            pages = pages.map((page) => page.filter((value) => value !== section));
-            const target = pages[currentPageIndex];
-            target.splice(after ? target.indexOf(after) : target.length, 0, section);
-          } else if (draggingFrom === sectionList.id) {
-            pages[currentPageIndex] = pages[currentPageIndex].filter((value) => value !== section);
-          } else {
-            return;
-          }
-          draggingEl.classList.remove("dragging");
-          draggingEl = null;
-          draggingFrom = null;
-          clearDropMarkers();
-          renderPages();
-          await persistPages(true);
-        });
-      });
-    }
-
-    const pageSelectEl = document.getElementById("page-select");
-    if (pageSelectEl) {
-      pageSelectEl.addEventListener("change", (e) => {
-        currentPageIndex = parseInt(e.target.value, 10) || 0;
+      const next = LayoutEditor.edit(before, action);
+      if (next === before) return;
+      layoutBusy = true;
+      updateBusyUi();
+      let applied = false;
+      try {
+        captureLayoutContent();
+        useLayoutState(next);
+        const selectedKey = action.type === "addPage" ? action.key
+          : action.type === "place" ? action.pageKey : activeKey;
+        currentBriefPageIndex = pageKeys.includes(selectedKey) ? pageKeys.indexOf(selectedKey)
+          : Math.max(0, Math.min(oldIndex, pages.length - 1));
         renderPages();
-      });
+        if (layoutEditor?.canRender(next)) {
+          layoutEditor.render(next);
+        } else if (!await doPreview(currentOverrides(), { waitForFrame: true })) {
+          throw new Error("Preview failed");
+        }
+        applied = true;
+        applyBriefingPageModeToFrame();
+        const target = action.section && briefFrame.contentDocument.querySelector(`[data-section="${action.section}"]`);
+        const page = briefFrame.contentDocument.getElementById(`page_${currentBriefPageIndex + 1}`);
+        (target || page)?.scrollIntoView({ block: "nearest" });
+        const focusLabel = action.type === "shift" ? (action.offset < 0 ? "Move up" : "Move down") : "Section menu";
+        requestAnimationFrame(() => {
+          const focusTarget = target?.querySelector(`button[aria-label="${focusLabel}"]:not(:disabled)`)
+            || target?.querySelector('button[aria-label="Section menu"]')
+            || page?.querySelector('[data-page-header] button');
+          focusTarget?.focus({ preventScroll: true });
+        });
+        invalidateBriefingMap();
+      } catch (err) {
+        if (!applied) {
+          useLayoutState(before);
+          currentBriefPageIndex = oldIndex;
+          layoutEditor?.render(before);
+          renderPages();
+          applyBriefingPageModeToFrame();
+        }
+        log(`Layout failed: ${err.message}`);
+      } finally {
+        layoutBusy = false;
+        updateBusyUi();
+      }
     }
 
     const saveTheaterBtn = document.getElementById("save_theater_btn");
@@ -4454,40 +4326,27 @@
       });
     }
 
-    async function persistPages(autoGenerate = false) {
-      if (!pageFontSizeInput.reportValidity()) return;
-      const list = document.getElementById("section-list");
-      if (!list) return;
-      const newOrder = Array.from(list.children).map((li) => li.dataset.section);
-      pages[currentPageIndex] = newOrder;
-      const pagesObj = buildPagesObj();
-      if (autoGenerate) {
-        const overrides = currentOverrides();
-        overrides.pages = pagesObj;
-        await doPreview(overrides);
-        return;
-      }
+    async function persistPages() {
+      if (layoutBusy || pdfBusy || exportBusy || !pages.length) return;
+      layoutBusy = true;
+      updateBusyUi();
       try {
+        captureLayoutContent();
         const submittedStyle = { ...briefingStyleEdits };
-        const saved = await fetchJSON("/api/config", {
-          method: "POST", body: JSON.stringify({ pages: pagesObj, briefing_style: submittedStyle })
+        const saved = await fetchJSON("/api/layout", {
+          method: "POST", body: JSON.stringify({ pages: buildPagesObj(), briefing_style: submittedStyle })
         });
         briefingStyleSettings = saved.briefing_style || {};
         Object.entries(submittedStyle).forEach(([key, value]) => {
           if (briefingStyleEdits[key] === value) delete briefingStyleEdits[key];
         });
         log("Layout saved");
-        await loadStatus();
       } catch (err) {
         log(`Save layout failed: ${err.message}`);
+      } finally {
+        layoutBusy = false;
+        updateBusyUi();
       }
-    }
-
-    const saveLayoutBtn = document.getElementById("save-layout-btn");
-    if (saveLayoutBtn) {
-      saveLayoutBtn.addEventListener("click", async () => {
-        await persistPages(false);
-      });
     }
 
     if (saveKneeboardOrderBtn) {

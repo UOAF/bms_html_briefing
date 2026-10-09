@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <title>HTML BRIEFING PDF</title>
 <link rel="stylesheet" href="templates/style_print.css">
+<link rel="stylesheet" href="templates/page_header.css">
 <style>
   .page {
       width: 100%;
@@ -42,6 +43,7 @@
 <body data-dtc-scope="{{ dtc_fields.scope|e }}" data-popup-scope="{{ dtc_fields.popup_scope|default(dtc_fields.scope)|e }}">
 {% for page in brief_pages %}
 <div {% if loop.index != brief_pages|length %} class="page" {% endif %} id="page_{{loop.index}}"{% if brief_page_styles is defined %} style="{{ brief_page_styles[loop.index0] }}"{% endif %}>
+  <div class="header brief-page-header" data-page-header><span data-page-label>Page {{loop.index}}</span></div>
   {% for part in page %}
     {% if part == "map" %}
       {% include "print_map.html" %}
@@ -49,14 +51,6 @@
       {% include (part+".html") %}
     {% endif %}
   {% endfor %}
-<table width="100%">
-    <thead>
-      <tr>
-        <th class="header" width="10%"> Page {{loop.index}}</th>
-      </tr>
-    </thead>
-</table>
 </div>
-<br>
 {% endfor %}
 </body>

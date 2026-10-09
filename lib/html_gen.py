@@ -38,10 +38,24 @@ def _flightplan_headings(steerpoints, variations):
 
 
 
+def normalize_layout_pages(values):
+    """Treat legacy package entries as an alias for the two independent sections."""
+    pages = dict(values)
+    for key, value in list(pages.items()):
+        if key.startswith('page') and key[4:].isdigit():
+            parts = [part.strip() for part in value.split(',')]
+            if 'package' in parts:
+                pages[key] = ', '.join(
+                    part for entry in parts
+                    for part in (['main_package', 'supporting_package'] if entry == 'package' else [entry])
+                )
+    return pages
+
+
 def page_contents_ini_to_list(conf, *, warnings=None):
     """Keep each section's first placement in config order, retaining empty pages."""
     pages, seen = [], {}
-    for key, value in conf['pages'].items():
+    for key, value in normalize_layout_pages(conf['pages']).items():
         if not (key.casefold().startswith('page') and key[4:].isdigit()):
             continue
         sections = []
@@ -113,7 +127,7 @@ def _page_contents_for_render(conf, brief_summary = None):
     swapped_pages = []
     for page in page_contents:
         swapped_pages.append([
-            "package_cam" if section == "package" else section
+            {"main_package": "main_package_cam", "supporting_package": "supporting_package_cam"}.get(section, section)
             for section in page
         ])
     return swapped_pages
@@ -251,6 +265,7 @@ def generate_html_file(
                                                  tgtsteerpoints = ci.tgtsteerpoints,
                                                  wpntgts = ci.wpntgts,
                                                  brief_pages = page_contents,
+                                                 brief_page_keys = [key for key in conf['pages'] if key.startswith('page') and key[4:].isdigit()],
                                                  brief_page_styles = _brief_page_styles(conf),
                                                  cmds = ci.cmds,
                                                  icp_settings = ci.icp_settings,

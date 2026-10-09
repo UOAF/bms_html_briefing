@@ -36,49 +36,6 @@
 </style>
 <table width=100%>
       <tr>
-<th class="header clickable" onclick="toggleVisHeader(this)" id="package_header"><span class="arrow">▼</span>Package</th>
-  </tr>
-</table>
-<table width=100% id="package" class="hidable">
-    <colgroup>
-        <col style="width:17%;">
-        <col style="width:7%;">
-        <col style="width:11%;">
-        <col style="width:17%;">
-        <col style="width:12%;">
-        <col style="width:12%;">
-        <col style="width:12%;">
-        <col style="width:12%;">
-    </colgroup>
-    <thead>
-        <tr>
-            <th>Callsign</th>
-            <th>Flt #</th>
-            <th>Role</th>
-            <th>Aircraft</th>
-            <th class="nowrap">Takeoff</th>
-            <th class="nowrap">Push</th>
-            <th class="nowrap">TOT</th>
-            <th>L16</th>
-        </tr>
-    </thead>
-    <tbody>
-      {% for flight in package %}
-      <tr {% if flight.roster.own %} class="primary" {% endif %}>
-	<td>{{flight.callsign}}</td>
-	<td>{{flight.flight}}</td>
-	<td>{{flight.role}}</td>
-	<td>{{flight.aircraft}}</td>
-	<td class="nowrap">{{flight.takeoff}}</td>
-	<td class="nowrap">{{flight.push}}</td>
-	<td class="nowrap">{{flight.tot}}</td>
-	<td>{{main_package_l16.get(flight.callsign|replace(' ', '')|lower, main_package_l16.get(flight.flight|string, flight.l16))}}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-</table>
-<table width=100%>
-      <tr>
 <th class="header clickable" onclick="toggleVisHeader(this)" id="suppPackage_header"><span class="arrow">▼</span>Supporting package
   <span class="cam-package-picker" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">
     <label for="cam-support-package-select">CAM</label>
