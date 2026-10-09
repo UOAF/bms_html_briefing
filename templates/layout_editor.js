@@ -54,6 +54,9 @@
         const sections = new Map(Array.from(doc.querySelectorAll("[data-section]"), (el) => [el.dataset.section, el]));
         const pageNodes = new Map(Array.from(doc.querySelectorAll("[data-page-key]"), (el) => [el.dataset.pageKey, el]));
         let state, busy = false, popup = null, popupOwner = null;
+        let submenu = null, submenuOwner = null, submenuId = 0;
+        let menuWidth = 0, menuHeight = 0;
+        const submenuOpeners = new WeakMap();
         const css = doc.createElement("link");
         css.rel = "stylesheet";
         css.href = "/templates/layout_editor.css";
@@ -67,10 +70,21 @@
         }
 
         function closeMenu(restoreFocus = false) {
+            closeSubmenu();
             popup?.remove();
             popup = null;
             if (restoreFocus && popupOwner?.isConnected) popupOwner.focus({ preventScroll: true });
             popupOwner = null;
+        }
+
+        function closeSubmenu(restoreFocus = false) {
+            const owner = submenuOwner;
+            submenu?.remove();
+            submenu = null;
+            submenuOwner = null;
+            owner?.setAttribute("aria-expanded", "false");
+            owner?.removeAttribute("aria-controls");
+            if (restoreFocus && owner?.isConnected) owner.focus({ preventScroll: true });
         }
 
         function dispatch(action) {
@@ -92,30 +106,112 @@
             return el;
         }
 
-        function labeledControl(parent, label, input) {
-            const wrapper = node("label", undefined, "layout-editor-field");
-            wrapper.append(node("span", label), input);
-            parent.append(wrapper);
+        function menuItem(parent, label, callback, disabled = false) {
+            const el = button(label, label, callback, disabled);
+            el.className = "layout-editor-item";
+            el.setAttribute("role", "menuitem");
+            el.tabIndex = -1;
+            const leaveOtherSubmenu = () => {
+                if (parent === popup && submenuOwner !== el) closeSubmenu();
+            };
+            el.addEventListener("pointerenter", leaveOtherSubmenu);
+            el.addEventListener("focus", leaveOtherSubmenu);
+            parent.append(el);
+            return el;
+        }
+
+        function menuControls(panel) {
+            return panel ? Array.from(panel.querySelectorAll("button:not(:disabled)")) : [];
+        }
+
+        function menuKeydown(event) {
+            const inSubmenu = submenu?.contains(event.target);
+            if (event.key === "Escape" || (event.key === "ArrowLeft" && inSubmenu)) {
+                event.preventDefault();
+                if (submenu) closeSubmenu(true);
+                else closeMenu(true);
+            } else if (event.key === "ArrowRight" && submenuOpeners.has(event.target)) {
+                event.preventDefault();
+                submenuOpeners.get(event.target)(true);
+            } else if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+                event.preventDefault();
+                const controls = menuControls(inSubmenu ? submenu : popup);
+                const index = controls.indexOf(doc.activeElement);
+                const next = event.key === "Home" ? 0 : event.key === "End" ? controls.length - 1
+                    : (index + (event.key === "ArrowUp" ? -1 : 1) + controls.length) % controls.length;
+                controls[next]?.focus();
+            } else if (event.key === "Tab") {
+                closeMenu(true);
+            }
+        }
+
+        function submenuItem(parent, label, fill, disabled = false) {
+            const el = menuItem(parent, label, () => open(true), disabled);
+            const arrow = node("span", "›", "layout-editor-submenu-arrow");
+            arrow.setAttribute("aria-hidden", "true");
+            el.append(arrow);
+            el.setAttribute("aria-haspopup", "menu");
+            el.setAttribute("aria-expanded", "false");
+            function open(focus = false) {
+                if (el.disabled) return;
+                if (submenuOwner !== el) {
+                    closeSubmenu();
+                    submenuOwner = el;
+                    submenu = node("div", undefined, "layout-editor-ui layout-editor-menu layout-editor-submenu");
+                    submenu.id = `layout-submenu-${++submenuId}`;
+                    submenu.setAttribute("role", "menu");
+                    submenu.setAttribute("aria-label", label);
+                    el.setAttribute("aria-expanded", "true");
+                    el.setAttribute("aria-controls", submenu.id);
+                    fill(submenu);
+                    submenu.addEventListener("keydown", menuKeydown);
+                    doc.body.append(submenu);
+                    const parentRect = popup.getBoundingClientRect();
+                    const rect = submenu.getBoundingClientRect();
+                    const right = parentRect.right - 2;
+                    const x = right + rect.width <= win.innerWidth - 4 ? right : parentRect.left - rect.width + 2;
+                    submenu.style.left = `${Math.max(4, Math.min(x, win.innerWidth - rect.width - 4))}px`;
+                    submenu.style.top = `${Math.max(4, Math.min(el.getBoundingClientRect().top - 4, win.innerHeight - rect.height - 4))}px`;
+                }
+                if (focus) menuControls(submenu)[0]?.focus();
+            }
+            submenuOpeners.set(el, open);
+            el.addEventListener("pointerenter", (event) => { if (event.pointerType !== "touch") open(); });
+            return el;
+        }
+
+        function styleChoices(parent, label, pageKey, name, current, choices) {
+            submenuItem(parent, label, (list) => {
+                for (const [value, title] of choices) {
+                    const item = menuItem(list, title, () => dispatch({ type: "style", pageKey, name, value }));
+                    item.value = value;
+                    item.setAttribute("role", "menuitemradio");
+                    item.setAttribute("aria-checked", String(String(current) === String(value)));
+                    if (String(current) === String(value)) {
+                        const check = node("span", "✓");
+                        check.setAttribute("aria-hidden", "true");
+                        item.append(check);
+                    }
+                }
+            });
         }
 
         function sectionPicker(parent, label, pageKey, anchor, after) {
-            const select = node("select");
-            select.append(new win.Option("—", ""));
-            const available = node("optgroup");
-            available.label = "Available";
-            const placed = node("optgroup");
-            placed.label = "Placed";
-            Object.keys(options.labels).sort((a, b) => options.labels[a].localeCompare(options.labels[b])).forEach((id) => {
-                if (id === anchor) return;
-                const index = state.pages.findIndex((page) => page.includes(id));
-                const label = options.labels[id] + (index < 0 ? "" : ` — Page ${index + 1}`);
-                (index < 0 ? available : placed).append(new win.Option(label, id));
+            submenuItem(parent, label, (list) => {
+                const entries = Object.keys(options.labels).filter((id) => id !== anchor)
+                    .sort((a, b) => options.labels[a].localeCompare(options.labels[b]))
+                    .map((id) => ({ id, index: state.pages.findIndex((page) => page.includes(id)) }));
+                for (const [heading, placed] of [["Available", false], ["Placed", true]]) {
+                    const group = entries.filter((entry) => (entry.index >= 0) === placed);
+                    if (!group.length) continue;
+                    list.append(node("div", heading, "layout-editor-group-label"));
+                    group.forEach(({ id, index }) => {
+                        const label = options.labels[id] + (placed ? ` — Page ${index + 1}` : "");
+                        const item = menuItem(list, label, () => dispatch({ type: "place", section: id, pageKey, anchor, after }));
+                        item.value = id;
+                    });
+                }
             });
-            select.append(available, placed);
-            select.addEventListener("change", () => {
-                if (select.value) dispatch({ type: "place", section: select.value, pageKey, anchor, after });
-            });
-            labeledControl(parent, label, select);
         }
 
         function showMenu(pageKey, section, x, y, owner) {
@@ -123,76 +219,54 @@
             closeMenu();
             const index = state.pageKeys.indexOf(pageKey);
             if (index < 0) return;
+            menuWidth = win.innerWidth;
+            menuHeight = win.innerHeight;
             popupOwner = owner;
             popup = node("div", undefined, "layout-editor-ui layout-editor-menu");
-            popup.setAttribute("role", "dialog");
+            popup.setAttribute("role", "menu");
             popup.setAttribute("aria-label", "Layout");
             popup.append(node("strong", section ? options.labels[section] || section : `Page ${index + 1}`));
             if (section) {
-                const position = state.pages[index].indexOf(section);
-                const row = node("div", undefined, "layout-editor-actions");
-                row.append(
-                    button("↑", "Move up", () => dispatch({ type: "shift", section, pageKey, offset: -1 }), position <= 0),
-                    button("↓", "Move down", () => dispatch({ type: "shift", section, pageKey, offset: 1 }), position === state.pages[index].length - 1),
-                    button("Remove", "Remove section", () => dispatch({ type: "remove", section })),
-                );
-                popup.append(row);
-                const select = node("select");
-                select.append(new win.Option("—", ""));
-                state.pageKeys.forEach((key, i) => {
-                    if (key !== pageKey) select.append(new win.Option(`Page ${i + 1}`, key));
-                });
-                select.disabled = state.pages.length === 1;
-                select.addEventListener("change", () => {
-                    if (select.value) dispatch({ type: "place", section, pageKey: select.value });
-                });
-                labeledControl(popup, "Move to page", select);
+                submenuItem(popup, "Move to page", (list) => {
+                    state.pageKeys.forEach((key, i) => {
+                        if (key === pageKey) return;
+                        const item = menuItem(list, `Page ${i + 1}`, () => dispatch({ type: "place", section, pageKey: key }));
+                        item.value = key;
+                    });
+                }, state.pages.length === 1);
                 sectionPicker(popup, "Insert before", pageKey, section, false);
                 sectionPicker(popup, "Insert after", pageKey, section, true);
-                popup.append(node("hr"));
+                popup.append(node("strong", `Page ${index + 1}`));
             } else {
                 sectionPicker(popup, "Add section", pageKey);
             }
             const style = options.pageStyle(index);
-            const font = node("input");
-            font.type = "number";
-            font.min = "6";
-            font.max = "32";
-            font.step = "any";
-            font.value = style.font_size;
-            font.addEventListener("change", () => {
-                if (font.value && font.reportValidity()) dispatch({ type: "style", pageKey, name: "font_size", value: Number(font.value) });
-            });
-            labeledControl(popup, "Font (px)", font);
-            const spacing = node("select");
-            spacing.append(new win.Option("Normal", "normal"), new win.Option("Compact", "compact"));
-            spacing.value = style.spacing;
-            spacing.addEventListener("change", () => dispatch({ type: "style", pageKey, name: "spacing", value: spacing.value }));
-            labeledControl(popup, "Spacing", spacing);
-            const actions = node("div", undefined, "layout-editor-actions");
-            actions.append(
-                button("+ Before", "Add page before", () => dispatch({ type: "addPage", index })),
-                button("+ After", "Add page after", () => dispatch({ type: "addPage", index: index + 1 })),
-                button("Delete page", "Delete page", () => dispatch({ type: "deletePage", pageKey }), state.pages.length === 1),
-            );
-            popup.append(actions);
-            popup.addEventListener("contextmenu", (event) => event.preventDefault());
-            popup.addEventListener("keydown", (event) => {
-                if (event.key === "Escape") {
-                    event.preventDefault();
-                    closeMenu(true);
-                } else if (event.key === "Tab") {
-                    const controls = Array.from(popup.querySelectorAll("button:not(:disabled), input:not(:disabled), select:not(:disabled)"));
-                    const first = controls[0], last = controls.at(-1);
-                    if (event.shiftKey && doc.activeElement === first) { event.preventDefault(); last.focus(); }
-                    else if (!event.shiftKey && doc.activeElement === last) { event.preventDefault(); first.focus(); }
-                }
-            });
-            doc.body.append(popup);
+            styleChoices(popup, "Font size", pageKey, "font_size", style.font_size,
+                [13, 14, 15, 16, 17, 18].map((value) => [value, `${value} px`]));
+            styleChoices(popup, "Spacing", pageKey, "spacing", style.spacing,
+                [["normal", "Normal"], ["compact", "Compact"]]);
+            popup.append(node("hr"));
+            menuItem(popup, "Add page before", () => dispatch({ type: "addPage", index }));
+            menuItem(popup, "Add page after", () => dispatch({ type: "addPage", index: index + 1 }));
+            menuItem(popup, "Delete page", () => dispatch({ type: "deletePage", pageKey }), state.pages.length === 1);
+            popup.append(node("hr"));
+            menuItem(popup, "Save briefing layout", () => { closeMenu(); options.save(); }).title = "Save briefing layout to config.ini";
+            popup.addEventListener("keydown", menuKeydown);
+            popup.addEventListener("scroll", () => closeSubmenu());
+            // Measure the submenu's CSS width to show its opening direction.
+            const submenuProbe = node("div", undefined, "layout-editor-ui layout-editor-menu layout-editor-submenu");
+            submenuProbe.style.visibility = "hidden";
+            doc.body.append(popup, submenuProbe);
+            const submenuWidth = submenuProbe.getBoundingClientRect().width;
+            submenuProbe.remove();
             const rect = popup.getBoundingClientRect();
             popup.style.left = `${Math.max(4, Math.min(x, win.innerWidth - rect.width - 4))}px`;
             popup.style.top = `${Math.max(4, Math.min(y, win.innerHeight - rect.height - 4))}px`;
-            popup.querySelector("button:not(:disabled), select:not(:disabled), input")?.focus();
+            const opensRight = popup.getBoundingClientRect().right - 2 + submenuWidth <= win.innerWidth - 4;
+            popup.querySelectorAll(".layout-editor-submenu-arrow").forEach((arrow) => {
+                arrow.textContent = opensRight ? "›" : "‹";
+            });
+            menuControls(popup)[0]?.focus({ preventScroll: true });
         }
 
         function menuButton(pageKey, section) {
@@ -200,7 +274,7 @@
                 const rect = el.getBoundingClientRect();
                 showMenu(pageKey, section, rect.left, rect.bottom, el);
             });
-            el.setAttribute("aria-haspopup", "dialog");
+            el.setAttribute("aria-haspopup", "menu");
             return el;
         }
 
@@ -275,18 +349,13 @@
             return next.pages.every((page) => page.every((id) => sections.has(id)));
         }
 
-        doc.addEventListener("contextmenu", (event) => {
-            if (event.target.closest(".layout-editor-menu")) return;
-            const page = event.target.closest("[data-page-key]");
-            if (!page || event.target.closest('[contenteditable="true"], input, select, textarea, .leaflet-container')) return;
-            event.preventDefault();
-            const section = event.target.closest("[data-section]");
-            const owner = section?.querySelector('.layout-editor-section-controls button[aria-haspopup]') || page.querySelector('[data-page-header] button');
-            const rect = owner.getBoundingClientRect();
-            showMenu(page.dataset.pageKey, section?.dataset.section, event.clientX || rect.left, event.clientY || rect.bottom, owner);
+        doc.addEventListener("pointerdown", (event) => {
+            if (popup && !popup.contains(event.target) && !submenu?.contains(event.target)) closeMenu();
         });
-        doc.addEventListener("pointerdown", (event) => { if (popup && !popup.contains(event.target)) closeMenu(); });
         win.addEventListener("blur", () => closeMenu());
+        win.addEventListener("resize", () => {
+            if (win.innerWidth !== menuWidth || win.innerHeight !== menuHeight) closeMenu(true);
+        });
         return {
             render, canRender,
             setBusy(value) {

@@ -1199,9 +1199,6 @@
           <div class="preview-nav mfd-anchor">
             <div class="page-nav-row">
               <div class="page-shortcuts" id="page-shortcuts"></div>
-              <button id="add-page-btn" type="button" title="Add page" aria-label="Add page">+</button>
-              <button id="undo-layout-btn" type="button" disabled>Undo</button>
-              <button id="save-layout-btn" type="button">Save layout</button>
               <button id="briefing-scroll-mode-btn" class="auto-export-mode-btn" type="button">CONTINUOUS</button>
             </div>
           </div>
@@ -1533,7 +1530,6 @@
     let currentBriefPageIndex = 0;
     let layoutEditor = null;
     let layoutBusy = false;
-    const layoutHistory = [];
     const layoutDrafts = new Map();
     let mapSources = [{ id: "local", label: "BMS local" }];
     let selectedMapSourceId = "local";
@@ -2498,7 +2494,6 @@
         pages = Array.isArray(data.pages) ? data.pages : [];
         pageKeys = Array.isArray(data.page_keys) ? data.page_keys : pages.map((_, idx) => pageKeys[idx] || `page${idx + 1}`);
         if (!pages.length) { pages = [[]]; pageKeys = ["page1"]; }
-        layoutHistory.length = 0;
         renderPages();
         await loadTheater();
         await loadChartStatus(true);
@@ -3249,9 +3244,6 @@
     function updateBusyUi() {
       const pipelineBusy = pdfBusy || exportBusy || layoutBusy;
       layoutEditor?.setBusy(pipelineBusy);
-      document.getElementById("add-page-btn").disabled = pipelineBusy;
-      document.getElementById("undo-layout-btn").disabled = pipelineBusy || !layoutHistory.length;
-      document.getElementById("save-layout-btn").disabled = pipelineBusy || !pages.length;
       if (pdfBtn) {
         if (pdfBusy) {
           pdfBtn.disabled = pdfCancelRequested;
@@ -4226,7 +4218,7 @@
     function attachLayoutEditor() {
       if (!pages.length || !briefFrame?.contentDocument?.querySelector("[data-page-key]")) return;
       layoutEditor = LayoutEditor.attach(briefFrame.contentWindow, {
-        labels: sectionLabels, pageStyle, change: changeLayout,
+        labels: sectionLabels, pageStyle, change: changeLayout, save: persistPages,
       });
       layoutEditor.render(layoutState());
       updateBusyUi();
@@ -4249,7 +4241,7 @@
     }
 
     function nextPageKey() {
-      const keys = [...pageKeys, ...layoutHistory.flatMap((entry) => entry.state.pageKeys),
+      const keys = [...pageKeys,
         ...Object.keys({ ...briefingStyleSettings, ...briefingStyleEdits }).map((key) => key.split("_")[0])];
       return `page${Math.max(0, ...keys.filter((key) => /^page\d+$/.test(key)).map((key) => Number(key.slice(4)))) + 1}`;
     }
@@ -4260,18 +4252,12 @@
       const before = layoutState();
       const oldIndex = currentBriefPageIndex;
       const activeKey = pageKeys[oldIndex];
-      let next;
-      if (action.type === "undo") {
-        if (!layoutHistory.length) return;
-        next = layoutHistory.at(-1).state;
-      } else {
-        if (action.type === "addPage") action = { ...action, key: nextPageKey() };
-        if (action.type === "style" && action.value === briefingStyleDefaults()[action.name]) {
-          action = { ...action, value: null };
-        }
-        next = LayoutEditor.edit(before, action);
-        if (next === before) return;
+      if (action.type === "addPage") action = { ...action, key: nextPageKey() };
+      if (action.type === "style" && action.value === briefingStyleDefaults()[action.name]) {
+        action = { ...action, value: null };
       }
+      const next = LayoutEditor.edit(before, action);
+      if (next === before) return;
       layoutBusy = true;
       updateBusyUi();
       let applied = false;
@@ -4279,8 +4265,7 @@
         captureLayoutContent();
         useLayoutState(next);
         const selectedKey = action.type === "addPage" ? action.key
-          : action.type === "place" ? action.pageKey
-          : action.type === "undo" ? layoutHistory.at(-1).activeKey : activeKey;
+          : action.type === "place" ? action.pageKey : activeKey;
         currentBriefPageIndex = pageKeys.includes(selectedKey) ? pageKeys.indexOf(selectedKey)
           : Math.max(0, Math.min(oldIndex, pages.length - 1));
         renderPages();
@@ -4288,11 +4273,6 @@
           layoutEditor.render(next);
         } else if (!await doPreview(currentOverrides(), { waitForFrame: true })) {
           throw new Error("Preview failed");
-        }
-        if (action.type === "undo") layoutHistory.pop();
-        else {
-          layoutHistory.push({ state: before, activeKey });
-          if (layoutHistory.length > 50) layoutHistory.shift();
         }
         applied = true;
         applyBriefingPageModeToFrame();
@@ -4321,11 +4301,6 @@
         updateBusyUi();
       }
     }
-
-    document.getElementById("add-page-btn").addEventListener("click", () => {
-      changeLayout({ type: "addPage", index: pages.length });
-    });
-    document.getElementById("undo-layout-btn").addEventListener("click", () => changeLayout({ type: "undo" }));
 
     const saveTheaterBtn = document.getElementById("save_theater_btn");
     if (copyToKtoBtn) {
@@ -4372,13 +4347,6 @@
         layoutBusy = false;
         updateBusyUi();
       }
-    }
-
-    const saveLayoutBtn = document.getElementById("save-layout-btn");
-    if (saveLayoutBtn) {
-      saveLayoutBtn.addEventListener("click", async () => {
-        await persistPages();
-      });
     }
 
     if (saveKneeboardOrderBtn) {
