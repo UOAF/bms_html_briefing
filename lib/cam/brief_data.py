@@ -21,6 +21,7 @@ from lib.cam.types import (
 )
 
 from .opencam.uni_wrappers import FlightUnit, PackageUnit, Unit
+from .loadout_data import build_aircraft_members
 from lib.fuel import FuelModelError, cruise_rate_lb_nm
 
 logger = logging.getLogger("html_brief_log")
@@ -170,6 +171,7 @@ def _flight_row(
         "timing": timing,
         "steerpoints": list(view.get("steerpoints") or []),
         "fuel_profile": _fuel_profile(flight, fuel_cache),
+        "aircraft_members": build_aircraft_members(flight),
         "l16": dict(l16_by_flight.get(flight_number, {}))
         if isinstance(flight_number, int)
         else {},

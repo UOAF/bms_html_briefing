@@ -3,43 +3,61 @@
         <th class="header clickable" onclick="toggleVisHeader(this)" id="admin_header"><span class="arrow">▼</span>Admin</th>
     </tr>
 </table>
-<table width=100% id="admin" class="hidable">
+<div id="admin" class="hidable">
+{% set loadout = admin_data|default({}) %}
+{% macro stores(category) -%}
+{{ (loadout.get(category, [])|join(', ') or '—')|e }}
+{%- endmacro %}
+<table width=100% id="admin_loadout">
     <colgroup>
-        <col style="width:10%;">
-        <col style="width:10%;">
-        <col style="width:12%;">
-        <col style="width:14%;">
+        <col style="width:7%;">
+        <col style="width:23%;">
         <col style="width:11%;">
         <col style="width:11%;">
-        <col style="width:8%;">
-        <col style="width:24%;">
+        <col style="width:13%;">
+        <col style="width:11%;">
+        <col style="width:13%;">
+        <col style="width:11%;">
     </colgroup>
-    <thead>
-      <tr>
-	  <th class="header">ALOW</th>
-	  <th class="header">MSL FL</th>
-	  <th class="header">VHF <button class="refreshButton" onclick='restoreDefaultAtId("vhf")' >⟳</button></th>
-	  <th class="header">UHF (Tac.)</th>
-	  <th class="header">BINGO</th>
-	  <th class="header">JOKER</th>
-	  <th class="header">XMIT</th>
-	  <th class="header">JAM BANDS</th>
-      </tr>
-    </thead>
     <tbody>
-      <td contenteditable="true" class="editable" id="admin_1" data-dtc-field="ICP:Alow AGL">{{ dtc_values.get("ICP:Alow AGL", "")|e }}</td>
-      <td contenteditable="true" class="editable" id="admin_2" data-dtc-field="ICP:Alow MSL">{{ dtc_values.get("ICP:Alow MSL", "")|e }}</td>
-      <div id="vhf">
-      {% for i in range(package_size) %}
-      {% if package[i].roster.own %}
-      <td contenteditable="true" class="editable vhf" id="admin_3">{{i+15}}</td>
-      {% endif %}
-      {% endfor %}
-      </div>
-      <td contenteditable="true" class="editable" id="admin_4"></td>
-      <td contenteditable="true" class="editable" id="admin_5"></td>
-      <td contenteditable="true" class="editable" id="admin_6" data-dtc-field="ICP:Bingo_Fuel">{{ dtc_values.get("ICP:Bingo_Fuel", "")|e }}</td>
-      <td contenteditable="true" class="editable" id="admin_7"></td>
-      <td contenteditable="true" class="editable" id="admin_8"></td>
+      <tr>
+        <th class="header" scope="row">A-A</th>
+        <td id="admin_aa">{{ stores('aa') }}</td>
+        <th class="header" scope="row">Gross Wt</th>
+        <td id="admin_gross_weight" class="nowrap">{{ loadout.get('gross_weight') or '—' }}</td>
+        <th class="header" scope="row">BINGO</th>
+        <td contenteditable="true" class="editable" id="admin_5"></td>
+        <th class="header" scope="row">ALOW</th>
+        <td contenteditable="true" class="editable" id="admin_1" data-dtc-field="ICP:Alow AGL">{{ dtc_values.get("ICP:Alow AGL", "")|e }}</td>
+      </tr>
+      <tr>
+        <th class="header" scope="row">A-G</th>
+        <td id="admin_ag">{{ stores('ag') }}</td>
+        <th class="header" scope="row">T/O Fuel</th>
+        <td id="admin_takeoff_fuel" class="nowrap">{{ loadout.get('takeoff_fuel') or '—' }}</td>
+        <th class="header" scope="row">JOKER</th>
+        <td contenteditable="true" class="editable" id="admin_6" data-dtc-field="ICP:Bingo_Fuel">{{ dtc_values.get("ICP:Bingo_Fuel", "")|e }}</td>
+        <th class="header" scope="row">MSL FL</th>
+        <td contenteditable="true" class="editable" id="admin_2" data-dtc-field="ICP:Alow MSL">{{ dtc_values.get("ICP:Alow MSL", "")|e }}</td>
+      </tr>
+      <tr>
+        <th class="header" scope="row">Misc.</th>
+        <td id="admin_misc">{{ stores('misc') }}</td>
+        <td colspan="2" aria-hidden="true"></td>
+        <th class="header" scope="row">VHF <button class="refreshButton" style="font-size:inherit;width:1.4em;padding:0;line-height:1;vertical-align:middle" onclick='restoreDefaultAtId("vhf")'>⟳</button></th>
+        <td contenteditable="true" class="editable vhf" id="admin_3">{% for i in range(package_size) if package[i].roster.own %}{{i+15}}{% endfor %}</td>
+        <th class="header" scope="row">XMIT</th>
+        <td contenteditable="true" class="editable" id="admin_7"></td>
+      </tr>
+      <tr>
+        <th class="header" scope="row">Tanks</th>
+        <td id="admin_tanks">{{ stores('tanks') }}</td>
+        <td colspan="2" aria-hidden="true"></td>
+        <th class="header nowrap" scope="row">UHF (Tac.)</th>
+        <td contenteditable="true" class="editable" id="admin_4"></td>
+        <th class="header" scope="row">JAM BANDS</th>
+        <td contenteditable="true" class="editable" id="admin_8"></td>
+      </tr>
     </tbody>
 </table>
+</div>

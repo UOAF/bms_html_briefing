@@ -28,6 +28,14 @@ class BmsSupportPaths:
     ucd_path: Path
     vcd_path: Path
 
+    @property
+    def wcd_path(self) -> Path:
+        return _casefold_path(self.objects_dir, "Falcon4_WCD.xml")
+
+    @property
+    def swd_path(self) -> Path:
+        return _casefold_path(self.objects_dir, "Falcon4_SWD.xml")
+
 
 @dataclass(frozen=True)
 class ClassTableEntry:
@@ -70,6 +78,7 @@ class WeaponClassEntry:
     rack_group: int
     weight: int
     drag: int
+    source_path: Path | None = None
 
     @property
     def weight_lb(self) -> int:
@@ -88,6 +97,25 @@ class WeaponClassEntry:
     def fuel_capacity_lb(self) -> int:
         """Tank Strength is capacity; non-tank Strength has another meaning."""
         return self.strength if self.is_fuel_tank else 0
+
+
+@dataclass(frozen=True)
+class SimWeaponEntry:
+    """OpenCAM SWD projection; its enums are distinct from CT enums."""
+
+    number: int
+    short_name: str
+    weapon_class: int
+    domain: int
+    type_: int
+    source_path: Path
+
+
+@dataclass(frozen=True)
+class ResolvedWeaponData:
+    weapon: WeaponClassEntry
+    class_table: ClassTableEntry
+    simulation_data: SimWeaponEntry
 
 
 @dataclass(frozen=True)
@@ -165,7 +193,17 @@ class SupportData:
 
     @cached_property
     def wcd_by_number(self) -> dict[int, WeaponClassEntry]:
-        return load_weapon_classes(_casefold_path(self.paths.objects_dir, "Falcon4_WCD.xml"))
+        return load_weapon_classes(self.paths.wcd_path)
+
+    @cached_property
+    def swd_by_number(self) -> dict[int, SimWeaponEntry]:
+        # Missing optional data must not prevent ordinary briefing extraction.
+        if not self.paths.swd_path.is_file():
+            return {}
+        try:
+            return load_sim_weapon_data(self.paths.swd_path)
+        except (OSError, ET.ParseError, ValueError) as exc:
+            raise BmsSupportError(str(exc)) from exc
 
     @cached_property
     def wcd_by_ct_idx(self) -> dict[int, WeaponClassEntry]:
@@ -174,9 +212,30 @@ class SupportData:
     @cached_property
     def rack_catalog(self) -> AircraftRackCatalog:
         path = _casefold_path(self.paths.objects_dir, "BmsRack.dat")
-        if not path.is_file() and self.paths.theater_dir.parent.name.casefold() == "data":
-            path = _casefold_path(self.paths.theater_dir.parent, "TerrData", "Objects", "BmsRack.dat")
         return load_aircraft_rack_catalog(path)
+
+    @cached_property
+    def aircraft_rack_catalog(self) -> AircraftRackCatalog | None:
+        # SWD and rack definitions must come from the matching theater.
+        path = _casefold_path(self.paths.objects_dir, "BmsRack.dat")
+        return self.rack_catalog if path.is_file() else None
+
+    def resolve_weapon_for_number(self, weapon_number: int) -> ResolvedWeaponData:
+        """Resolve WCD.CtIdx -> CT.MoverDefinitionData -> SWD.Num exactly."""
+        if type(weapon_number) is not int or weapon_number < 0:
+            raise BmsSupportError(f"invalid weapon number {weapon_number!r}")
+        context = f"{self.paths.wcd_path}: WCD Num {weapon_number}"
+        weapon = self.wcd_by_number.get(weapon_number)
+        if weapon is None:
+            raise BmsSupportError(f"{context}: missing WCD row")
+        class_table = self.ct_by_number.get(weapon.ct_idx)
+        if class_table is None:
+            raise BmsSupportError(f"{context}: missing CT {weapon.ct_idx}")
+        number = class_table.mover_definition_data
+        simulation_data = self.swd_by_number.get(number)
+        if simulation_data is None:
+            raise BmsSupportError(f"{context}: missing SWD {number} at {self.paths.swd_path}")
+        return ResolvedWeaponData(weapon, class_table, simulation_data)
 
     def resolve_aircraft_for_vehicle(
         self,
@@ -559,5 +618,31 @@ def load_weapon_classes(path: str | Path) -> dict[int, WeaponClassEntry]:
             name=(node.findtext("Name") or "").strip(),
             flags=integer("Flags"), strength=integer("Strength"),
             rack_group=integer("Rackgroup"), weight=integer("Weight"), drag=integer("Drag"),
+            source_path=source_path,
+        )
+    return entries
+
+
+def load_sim_weapon_data(path: str | Path) -> dict[int, SimWeaponEntry]:
+    """Strict SWD reader ported from OpenCAM 528b4be."""
+    source_path = Path(path)
+    root = _xml_root(source_path)
+    if root.tag != "SWDRecords":
+        raise BmsSupportError(f"{source_path}: expected SWDRecords root")
+    entries: dict[int, SimWeaponEntry] = {}
+    for row_index, node in enumerate(root.findall("SWD")):
+        context = f"{source_path}: SWD row {row_index}"
+        number = _required_xml_int(node.attrib.get("Num"), context, "Num")
+        if number < 0 or number in entries:
+            raise BmsSupportError(f"{context}: negative or duplicate Num {number}")
+        for tag in ("WpnName", "WpnClass", "Domain", "WpnType"):
+            if len(node.findall(tag)) != 1:
+                raise BmsSupportError(f"{context}: expected exactly one {tag}")
+        entries[number] = SimWeaponEntry(
+            number=number, short_name=(node.findtext("WpnName") or "").strip(),
+            weapon_class=_required_xml_int(node.findtext("WpnClass"), context, "WpnClass"),
+            domain=_required_xml_int(node.findtext("Domain"), context, "Domain"),
+            type_=_required_xml_int(node.findtext("WpnType"), context, "WpnType"),
+            source_path=source_path,
         )
     return entries

@@ -8,7 +8,8 @@ import struct
 
 from .record_fields import FieldMap
 from .support_files import (
-    SupportData, VehicleClassEntry, WeaponClassEntry, ResolvedAircraftData,
+    BmsSupportError, SupportData, VehicleClassEntry, WeaponClassEntry, ResolvedAircraftData,
+    ResolvedWeaponData,
     format_campaign_time_z,
 )
 from .uni_parser import UnitRecord, VuId, Waypoint, FlightLoadoutRecord
@@ -134,6 +135,19 @@ class FlightHardpoint:
     weapon_id: int
     weapon_count: int
     weapon: WeaponClassEntry | None = None
+    weapon_data: ResolvedWeaponData | None = None
+
+    @property
+    def weapon_short_name(self) -> str | None:
+        return None if self.weapon_data is None else self.weapon_data.simulation_data.short_name
+
+    @property
+    def weapon_class(self) -> int | None:
+        return None if self.weapon_data is None else self.weapon_data.simulation_data.weapon_class
+
+    @property
+    def weapon_domain(self) -> int | None:
+        return None if self.weapon_data is None else self.weapon_data.simulation_data.domain
 
     @property
     def weapon_ct_index(self) -> int | None:
@@ -165,6 +179,9 @@ class FlightHardpoint:
             "weapon_id": self.weapon_id,
             "weapon_ct_index": self.weapon_ct_index,
             "weapon_name": self.weapon_name,
+            "weapon_short_name": self.weapon_short_name,
+            "weapon_class": self.weapon_class,
+            "weapon_domain": self.weapon_domain,
             "weapon_flags": self.weapon_flags,
             "weapon_count": self.weapon_count,
             "weapon_weight_lb": self.weapon_weight_lb,
@@ -214,13 +231,18 @@ class FlightUnit(Unit):
     """Convenience API for flight unit records."""
 
     @property
+    def aircraft_count(self) -> int:
+        return _aircraft_count(tuple(int(value) for value in self.get("plane_stats")))
+
+    @property
     def aircraft_data(self) -> ResolvedAircraftData | None:
         vehicle = _vehicle_for_unit_record(self.record, self.support)
         return None if vehicle is None else self.support.resolve_aircraft_for_vehicle(vehicle.number)
 
     @property
     def initial_fuel_lb(self) -> tuple[int, int, int, int]:
-        return struct.unpack("<4I", self.get("fuel_initial_raw"))
+        """Signed saved offsets; add fitted tank/CFT capacities for planned fuel."""
+        return struct.unpack("<4i", self.get("fuel_initial_raw"))
 
     @property
     def loaded_cft(self) -> tuple[int, int, int, int]:
@@ -241,9 +263,17 @@ class FlightUnit(Unit):
     @property
     def loadouts(self) -> tuple[FlightLoadout, ...]:
         weapons = self.support.wcd_by_number
+        resolved = {}
+        for record in self.loadout_records:
+            for weapon_id in record.weapon_ids:
+                if weapon_id and weapon_id not in resolved:
+                    try:
+                        resolved[weapon_id] = self.support.resolve_weapon_for_number(weapon_id)
+                    except BmsSupportError:
+                        resolved[weapon_id] = None
         return tuple(
             FlightLoadout(index, tuple(
-                FlightHardpoint(index, station, weapon_id, count, weapons.get(weapon_id))
+                FlightHardpoint(index, station, weapon_id, count, weapons.get(weapon_id), resolved.get(weapon_id))
                 for station, (weapon_id, count) in enumerate(zip(record.weapon_ids, record.weapon_counts))
             ))
             for index, record in enumerate(self.loadout_records)

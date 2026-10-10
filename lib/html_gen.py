@@ -8,6 +8,7 @@ from lib.atis import build_departure_atis
 from lib.bms_paths import callsign_ini_path
 from lib.dtc_fields import field_payload, format_value
 from lib.fuel_brief import build_fuel_plan
+from lib.admin_brief import build_admin_data
 from lib.map_sources import map_selection as select_map, map_source_options as get_map_source_options
 from lib.map_tiles import local_map_available, prepare_local_map_tiles, resolve_local_map_file
 from lib.progress import ProgressCallback
@@ -243,6 +244,10 @@ def generate_html_file(
             summary=brief_summary, briefing=brf, dtc=ci,
             bms_base_dir=bms_conf.base_dir, theater=bms_conf.theater,
         )
+        admin_data = build_admin_data(
+            summary=brief_summary, briefing=brf, player_name=getattr(bms_conf, "pilot_name", ""),
+            bms_base_dir=bms_conf.base_dir, theater=bms_conf.theater,
+        )
         atis = build_departure_atis(
             summary=brief_summary, briefing=brf, dtc=ci, bms_conf=bms_conf,
         ) if any('atis' in page for page in page_contents) else {}
@@ -257,6 +262,7 @@ def generate_html_file(
                                                  steerpoints = brf.steerpoints,
                                                  flightplan_headings = _flightplan_headings(brf.steerpoints, dtc_fields['magnetic_variation']),
                                                  fuel_plan = fuel_plan,
+                                                 admin_data = admin_data,
                                                  own_flight = brf.own_flight,
                                                  support = brf.support,
                                                  roe = brf.roe,

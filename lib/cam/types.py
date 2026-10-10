@@ -180,6 +180,21 @@ class FuelProfile(TypedDict):
     unavailable_reason: str | None
 
 
+class SummaryStore(TypedDict):
+    weapon_id: int
+    name: str
+    count: int
+    category: str | None
+
+
+class SummaryAircraftMember(TypedDict):
+    index: int
+    stores: list[SummaryStore]
+    loaded_cft: bool | None
+    takeoff_fuel_lb: float | None
+    gross_weight_lb: float | None
+
+
 class SummaryFlight(TypedDict):
     unit_id: VuidDict
     unit_kind: str
@@ -190,6 +205,7 @@ class SummaryFlight(TypedDict):
     tasking: SummaryTasking
     timing: SummaryFlightTiming
     fuel_profile: FuelProfile
+    aircraft_members: list[SummaryAircraftMember]
     steerpoints: list[UniWaypointView]
     l16: SummaryL16Record | dict[str, int]
 

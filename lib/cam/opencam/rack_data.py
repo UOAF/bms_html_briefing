@@ -1,9 +1,17 @@
-"""Authored BmsRack.dat hardware definitions; no automatic rack selection."""
+"""Authored BmsRack.dat hardware definitions and ordered compatibility selection."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 import shlex
+
+
+# SWD WpnClass codes, in the BmsRack.dat AddWClass vocabulary.
+# These are not CT Class/Type values.
+RACK_WEAPON_CLASSES = {
+    "aim": 0, "rocket": 1, "bomb": 2, "gun": 3, "ecm": 4,
+    "tank": 5, "agm": 6, "harm": 7, "sam": 8, "gbu": 9, "camera": 10,
+}
 
 
 @dataclass(frozen=True)
@@ -80,6 +88,43 @@ class AircraftRackCatalog:
         if len(matches) != 1:
             raise ValueError(f"{self.source_path}: expected one group {name!r}, found {len(matches)}")
         return matches[0]
+
+    def select(
+        self, group_name: str, weapon_number: int, sim_weapon_number: int,
+        weapon_class: int, quantity: int,
+    ) -> tuple[int, int, PylonDefinition, RackDefinition]:
+        """First compatible rack with sufficient capacity, in authored order.
+
+        AddWID, AddSWD, AddWClass and AddAny are alternative allow rules.
+        A broken earlier candidate is an error, never permission to skip it.
+        """
+        if type(quantity) is not int or quantity <= 0:
+            raise ValueError("quantity must be a positive integer")
+        group = self.group(group_name)
+        for pylon_index, pylon in enumerate(group.pylons):
+            for rack_index, rack_name in enumerate(pylon.rack_names):
+                rack = self.rack(rack_name)
+                context = f"{self.source_path}: group {group_name!r} rack {rack_name!r}"
+                if rack.station_count is None or rack.station_count < 0:
+                    raise ValueError(f"{context}: missing or invalid RackStations")
+                if quantity > rack.station_count:
+                    continue
+                classes = tuple(name.lower() for name in rack.weapon_classes)
+                unknown = set(classes) - RACK_WEAPON_CLASSES.keys()
+                if unknown:
+                    raise ValueError(f"{context}: unknown AddWClass {sorted(unknown)}")
+                if (
+                    any(d.command == "addany" for d in rack.directives)
+                    or weapon_number in rack.weapon_ids
+                    or sim_weapon_number in rack.sim_weapon_ids
+                    or weapon_class in (RACK_WEAPON_CLASSES[name] for name in classes)
+                ):
+                    return pylon_index, rack_index, pylon, rack
+        raise ValueError(
+            f"{self.source_path}: group {group_name!r}: no compatible rack for "
+            f"WCD Num {weapon_number}, SWD Num {sim_weapon_number}, "
+            f"WpnClass {weapon_class}, quantity {quantity}"
+        )
 
     def to_view(self) -> dict[str, object]:
         return {
@@ -161,6 +206,12 @@ def parse_rack_catalog(text: str, source_path: str | Path) -> AircraftRackCatalo
             if command in {"rackct", "rackstations", "pylonct", "addrack"}:
                 if len(arguments) != 1:
                     raise ValueError(f"{command} requires one argument")
+            if command == "addany" and arguments:
+                raise ValueError("addany requires no arguments")
+            if command in {"addwid", "addswd", "addwclass"} and any(
+                d.command == command for d in target
+            ):
+                raise ValueError(f"duplicate {command}")
             if command in {"addwid", "addswd", "addwclass", "addloadorder"}:
                 arguments = tuple(part for arg in arguments for part in arg.split(",") if part)
             target.append(RackDirective(command, arguments, line_number))

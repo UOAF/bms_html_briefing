@@ -4,8 +4,21 @@ from lib.theater_paths import read_theater_map_info, resolve_target_folder_from_
 logger = logging.getLogger('html_brief_log')
 logger_ui = logging.getLogger('ui_logger')
 
+
+def _pilot_registry_text(value):
+    """BMS stores fixed-size, NUL-terminated pilot strings as registry binary."""
+    if isinstance(value, bytes):
+        value = value.split(b'\0', 1)[0]
+        try:
+            return value.decode('utf-8')
+        except UnicodeDecodeError:
+            return value.decode('cp1252')
+    return str(value or '').split('\0', 1)[0]
+
+
 class BmsConfig:
     callsign = ""
+    pilot_name = ""
     base_dir = ""
     theater = ""
     theater_config = None
@@ -25,11 +38,17 @@ class BmsConfig:
                 with open(os.path.join(wine_prefix, "system.reg"), "r") as reg_file:
                     reg_file_contents = reg_file.readlines()
                 entry_start = next(i for i,l in enumerate(reg_file_contents) if l.startswith("[Software\\\\Wow6432Node\\\\Benchmark Sims\\\\Falcon BMS " + version + "]"))
-                base_dir_win = next(l for l in reg_file_contents[entry_start:] if l.strip('\"').startswith("baseDir")).split('=')[1].strip('\"\n')
-                callsign_reg = next(l for l in reg_file_contents[entry_start:] if l.strip('\"').startswith("PilotCallsign")).split('=')[1].strip('\"\n')
-                self.callsign = ''.join([chr(int(c, 16)) for c in callsign_reg.split(':')[-1].split(',')]).strip('\x00')
+                entry_end = next((i for i in range(entry_start + 1, len(reg_file_contents))
+                                  if reg_file_contents[i].startswith('[')), len(reg_file_contents))
+                reg_section = reg_file_contents[entry_start:entry_end]
+                base_dir_win = next(l for l in reg_section if l.strip('\"').startswith("baseDir")).split('=')[1].strip('\"\n')
+                callsign_reg = next(l for l in reg_section if l.strip('\"').startswith("PilotCallsign")).split('=')[1].strip('\"\n')
+                self.callsign = _pilot_registry_text(bytes.fromhex(callsign_reg.split(':')[-1].replace(',', ' ')))
                 self.base_dir = os.path.join(wine_prefix, "drive_" + base_dir_win.split(":\\")[0].lower(), *base_dir_win.split("\\")[1:])
-                self.theater = next(l for l in reg_file_contents[entry_start:] if l.strip('\"').startswith("curTheater")).split('=')[1].strip('\"\n')
+                self.theater = next(l for l in reg_section if l.strip('\"').startswith("curTheater")).split('=')[1].strip('\"\n')
+                pilot_name_reg = next((l for l in reg_section if l.startswith('"PilotName"=hex:')), '')
+                if pilot_name_reg:
+                    self.pilot_name = _pilot_registry_text(bytes.fromhex(pilot_name_reg.split('hex:', 1)[1].replace(',', ' ')))
             except Exception as e:
                 logger.error(e)
 
@@ -42,10 +61,15 @@ class BmsConfig:
                     callsign_reg = winreg.QueryValueEx(keyHandle, "PilotCallsign")[0]
                     self.base_dir = winreg.QueryValueEx(keyHandle, "baseDir")[0]
                     self.theater = winreg.QueryValueEx(keyHandle, "curTheater")[0]
-                self.callsign = callsign_reg.decode('utf-8').strip('\x00 \n')
+                    try:
+                        self.pilot_name = _pilot_registry_text(winreg.QueryValueEx(keyHandle, "PilotName")[0])
+                    except OSError:
+                        self.pilot_name = ""
+                self.callsign = _pilot_registry_text(callsign_reg)
             except Exception as e:
                 logger.error(e)
         
+        registered_callsign, registered_base_dir = self.callsign, self.base_dir
         if cfg.has_option('override', 'callsign'):
             self.callsign = cfg['override']['callsign']
 
@@ -54,6 +78,13 @@ class BmsConfig:
 
         if cfg.has_option('override', 'theater'):
             self.theater = cfg['override']['theater']
+
+        # A registry name identifies only its active callsign/installation.
+        if (self.callsign.casefold() != registered_callsign.casefold()
+                or os.path.normcase(os.path.realpath(self.base_dir)) != os.path.normcase(os.path.realpath(registered_base_dir))):
+            self.pilot_name = ""
+        if cfg.has_option('override', 'pilot_name'):
+            self.pilot_name = cfg['override']['pilot_name']
 
         self.kto_target_folder = os.path.join(self.base_dir, 'Data', 'TerrData', 'Objects', 'KoreaObj')
         self.theater_center_latitude = None
