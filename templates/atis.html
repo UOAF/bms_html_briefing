@@ -1,18 +1,18 @@
 {% set report = atis|default({}) %}
 <table width="100%">
-    <tr><th class="header clickable" onclick="toggleVisHeader(this)" id="atis_header"><span class="arrow">▼</span>ATIS{% if report.get('departure') %} — {{ report.departure|upper|e }}{% endif %}{% if report.get('snapshot_time') and not report.get('status') %} <small>· {{ report.snapshot_time|upper|e }}</small>{% endif %}</th></tr>
+    <tr><th class="header clickable" onclick="toggleVisHeader(this)" id="atis_header"><span class="arrow">▼</span>ATIS{% if report.get('departure') %} — {{ report.departure|upper|e }}{% endif %}{% if report.get('snapshot_time') and not report.get('status') %} <small>- {{ report.snapshot_time|upper|e }}</small>{% endif %}</th></tr>
 </table>
 <table width="100%" id="atis" class="hidable">
     <tr><td class="briefing-flow-field" style="height:auto; font-size:0.875em; line-height:1.3;">
         {% if report.get('status') or not report %}
         {{ report.get('status', 'Load CAM + FMAP')|upper|e }}
         {% else %}
-        <span class="nowrap">WIND: {{ report.wind|upper|e }}</span> ·
-        <span class="nowrap">TEMP: {{ report.temperature|upper|e }}</span> ·
+        <span class="nowrap">WIND: {{ report.wind|upper|e }}</span> -
+        <span class="nowrap">TEMP: {{ report.temperature|upper|e }}</span> -
         <span class="nowrap">QNH: {{ report.qnh|upper|e }}</span>
         <br>
-        <span class="nowrap">WX: {{ report.weather_type|upper|e }}</span> ·
-        <span class="nowrap">LOW CLD BASE: {{ report.cloud_base|upper|e }}</span> ·
+        <span class="nowrap">WX: {{ report.weather_type|upper|e }}</span> -
+        <span class="nowrap">LOW CLD BASE: {{ report.cloud_base|upper|e }}</span> -
         <span class="nowrap">FOG BOUNDARY: {{ report.fog_boundary|upper|e }}</span>
         {% endif %}
     </td></tr>
