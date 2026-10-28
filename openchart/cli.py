@@ -6,7 +6,9 @@ import argparse
 import math
 from pathlib import Path
 
+from .bms_layout import chart_path, resolve_chart_folder
 from .geometry import build_parking_charts
+from .ownership import find_start_campaign, load_objective_teams
 from .resvg_render import (
     DEFAULT_RASTER_DPI,
     PdfRenderOptions,
@@ -22,7 +24,7 @@ from .render import (
     render_airport_chart_svg,
     render_airport_parking_chart_svg,
 )
-from .source import DEFAULT_CAMPAIGN_IDS, load_airports
+from .source import DEFAULT_CAMPAIGN_IDS, AirportRepository, load_airports
 from .topo_render import render_topographic_chart_svg, topographic_output_filename
 
 
@@ -80,6 +82,21 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--bms-layout",
+        action="store_true",
+        help=(
+            "write <team>/<airfield>/<airfield>_AGC|APC_RWYxx|LOC images and "
+            "_AGC|APC|LOC PDFs (APC PDF holds all runway ends); team = first "
+            "owner in Campaign/Te_New_Nt.tac (or --campaign); use with "
+            "--format png, pdf, or all (= png + pdf); adds local charts"
+        ),
+    )
+    parser.add_argument(
+        "--all-airports",
+        action="store_true",
+        help="generate every airfield in the theater",
+    )
+    parser.add_argument(
         "--dpi",
         type=_positive_dpi,
         default=DEFAULT_RASTER_DPI,
@@ -103,12 +120,21 @@ def _positive_dpi(value: str) -> float:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
-    campaign_ids = tuple(arguments.campaign_ids or DEFAULT_CAMPAIGN_IDS)
+    repository = AirportRepository(arguments.data_root, arguments.campaign)
+    if arguments.all_airports:
+        campaign_ids = tuple(entry.campaign_id for entry in repository.entries)
+    else:
+        campaign_ids = tuple(arguments.campaign_ids or DEFAULT_CAMPAIGN_IDS)
     airports = load_airports(
         arguments.data_root,
         arguments.campaign,
         campaign_ids,
+        repository,
     )
+    if arguments.bms_layout:
+        if arguments.output_format not in {"png", "pdf", "all"}:
+            build_parser().error("--bms-layout requires --format png, pdf, or all")
+        return _write_bms_layout(arguments, airports, repository)
     write_svg = arguments.output_format in {"svg", "both", "all"}
     write_png = arguments.output_format in {"png", "all"}
     write_pdf = arguments.output_format in {"pdf", "both", "all"}
@@ -216,6 +242,71 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 )
                 print(output)
+    return 0
+
+
+def _write_bms_layout(
+    arguments: argparse.Namespace, airports, repository: AirportRepository
+) -> int:
+    formats = (
+        {"png", "pdf"} if arguments.output_format == "all" else {arguments.output_format}
+    )
+    options = PdfRenderOptions(dpi=arguments.dpi)
+    teams: dict[int, str] = {}
+    start_file = arguments.campaign or find_start_campaign(arguments.data_root)
+    if start_file is None:
+        print("No Te_New_Nt.tac found; airfields go to the Unassigned folder")
+    else:
+        teams = load_objective_teams(start_file, repository.support)
+    taken: dict[tuple[str, str], int] = {}
+    for airport in airports:
+        target = resolve_chart_folder(airport, teams, taken)
+        context = build_airport_render_context(airport)
+        ground = render_svg_page_png(
+            render_airport_chart_svg(airport, context=context), options
+        )
+        images = [("AGC", ground)]
+        pdfs = [("AGC", [ground])]
+        parking = [
+            (
+                f"APC_RWY{chart.designator.upper()}",
+                render_svg_page_png(
+                    render_airport_parking_chart_svg(airport, chart, context=context),
+                    options,
+                ),
+            )
+            for chart in build_parking_charts(
+                airport.layout,
+                runways=context.runways,
+                atc=airport.atc,
+                magnetic_variation_degrees=airport.magnetic_variation_degrees,
+                objective_heading_degrees=airport.placement.heading,
+            )
+        ]
+        images += parking
+        if parking:
+            pdfs.append(("APC", [png for _, png in parking]))
+        try:
+            local = render_svg_page_png(
+                render_topographic_chart_svg(airport, context=context), options
+            )
+            images.append(("LOC", local))
+            pdfs.append(("LOC", [local]))
+        except Exception as exc:
+            print(f"{airport.name}: local chart skipped ({exc})")
+        for suffix, png in images:
+            if "png" in formats:
+                print(_write_bytes(chart_path(arguments.output, target, suffix, "png"), png))
+        if "pdf" in formats:
+            for suffix, pages in pdfs:
+                print(
+                    _write_pdf(
+                        chart_path(arguments.output, target, suffix, "pdf"),
+                        (),
+                        options,
+                        png_pages=pages,
+                    )
+                )
     return 0
 
 

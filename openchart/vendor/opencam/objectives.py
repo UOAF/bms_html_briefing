@@ -44,6 +44,7 @@ class Objective:
     name: str
     feature_statuses: tuple[int, ...]
     support: SupportData
+    first_owner: int = 0
 
     @property
     def features(self) -> tuple[int, ...]:
@@ -144,7 +145,8 @@ def _read_objective(
     reader.skip(3)  # supply, fuel, losses
     feature_count = reader.u8()
     feature_statuses = tuple(reader.u8() for _ in range(feature_count))
-    reader.skip(1 + 2 + 8 + 1)  # priority, name ID, parent VU_ID, owner
+    reader.skip(1 + 2 + 8)  # priority, name ID, parent VU_ID
+    first_owner = reader.u8()
     link_count = reader.u8()
     reader.skip(link_count * LINK_SIZE)
     if _supports(version, 20):
@@ -161,6 +163,7 @@ def _read_objective(
         name=name,
         feature_statuses=feature_statuses,
         support=support,
+        first_owner=first_owner,
     )
 
 

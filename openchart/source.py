@@ -319,6 +319,7 @@ def load_airports(
     data_root: str | Path,
     campaign_path: str | Path | None = None,
     campaign_ids: tuple[int, ...] = DEFAULT_CAMPAIGN_IDS,
+    repository: AirportRepository | None = None,
 ) -> tuple[AirportData, ...]:
     """Load selected airfields, optionally validating a campaign snapshot."""
 
@@ -327,7 +328,7 @@ def load_airports(
     if len(set(campaign_ids)) != len(campaign_ids):
         raise AirportDataError("campaign IDs must be unique")
 
-    repository = AirportRepository(data_root, campaign_path)
+    repository = repository or AirportRepository(data_root, campaign_path)
     return tuple(repository.airport(campaign_id) for campaign_id in campaign_ids)
 
 

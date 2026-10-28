@@ -1,5 +1,6 @@
 test/
 venv/
+.venv/
 pyinstaller_venv/
 pyinstaller_dist/
 *__pycache__
@@ -28,6 +29,8 @@ dist/*
 build/
 debug.log
 build/*
+dist_cli/
+build_cli/
 .vscode/
 
 config.local.ini
