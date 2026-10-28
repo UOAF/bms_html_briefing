@@ -161,7 +161,7 @@ The templates to generate kneeboards are in the "templates" folder. Most are jin
 
 ## Chart generator (command line)
 
-The chart generator used by the app can also be run on its own to produce charts for a whole theater, for example to publish a replacement for the charts shipped with BMS. It does not need the web interface. It is available as a standalone executable (`openchart_cli.exe`) or from source (see "From source" above for the setup):
+The chart generator used by the app can also be run on its own to produce charts for a whole theater, for example to publish a replacement for the charts shipped with BMS. It does not need the web interface. On Windows it is available as a separate download on the release page (`openchart_cli.exe`, not part of the app archive) and takes the same options as the source version. On Linux, or if you prefer, run it from source (see "From source" above for the setup):
 
 ```
 openchart_cli.exe [options]
