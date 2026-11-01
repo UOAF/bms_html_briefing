@@ -1,9 +1,10 @@
 """Read the CAM entries OpenChart needs.
 
 Adapted from OpenCAM's deterministic CAM container and LZSS readers at
-commit e4dbcb54a9f4751f3045e1fd96f8627c5bf78115.  OpenChart only needs to
-decode the embedded OBJ payload and read the uncompressed VER payload, so the
-container rebuilding and other campaign-entry codecs are intentionally absent.
+commit e4dbcb54a9f4751f3045e1fd96f8627c5bf78115. The optional CMP decoder
+and padding checks follow OpenCAM commit d9cb9746a2b59b239061cb838071ae22d666cfde.
+OBJ is decoded by default; ownership lookup also requests CMP decoding.
+Container rebuilding and other campaign-entry codecs are intentionally absent.
 """
 
 from __future__ import annotations
@@ -41,20 +42,24 @@ class CamContainer:
         self.entries = entries
 
     @classmethod
-    def from_bytes(cls, blob: bytes) -> CamContainer:
+    def from_bytes(cls, blob: bytes, *, decode_cmp: bool = False) -> CamContainer:
         entries: list[CampaignEntry] = []
         for name, offset, length in _parse_directory(blob):
             raw = blob[offset : offset + length]
             if Path(name).suffix.casefold() == ".obj":
                 decoded, metadata = _decode_obj_payload(name, raw)
+            elif decode_cmp and Path(name).suffix.casefold() == ".cmp":
+                decoded, metadata = _decode_cmp_payload(name, raw)
             else:
                 decoded, metadata = raw, {}
             entries.append(CampaignEntry(name, decoded, metadata))
         return cls(tuple(entries))
 
     @classmethod
-    def from_path(cls, path: str | Path) -> CamContainer:
-        return cls.from_bytes(Path(path).read_bytes())
+    def from_path(
+        cls, path: str | Path, *, decode_cmp: bool = False
+    ) -> CamContainer:
+        return cls.from_bytes(Path(path).read_bytes(), decode_cmp=decode_cmp)
 
 
 def detect_container_version(container: CamContainer) -> int | None:
@@ -101,6 +106,38 @@ def _parse_directory(blob: bytes) -> tuple[tuple[str, int, int], ...]:
             raise CamFormatError(f"entry {name!r} points outside file bounds")
         entries.append((name, offset, length))
     return tuple(entries)
+
+
+def _decode_cmp_payload(
+    name: str,
+    raw: bytes,
+) -> tuple[bytes, dict[str, int]]:
+    if len(raw) < 8:
+        raise CamFormatError(f"{name}: too short for .cmp header")
+
+    compressed_size = _read_u32_le(raw, 0)
+    uncompressed_size = _read_u32_le(raw, 4)
+    _validate_expected_length(name, raw, compressed_size + 4)
+
+    payload = raw[8 : 8 + (compressed_size - 4)]
+    decoded, consumed = _lzss_expand(payload, uncompressed_size)
+    _validate_lzss_consumption(name, payload, consumed)
+    return decoded, {
+        "compressed_size": compressed_size,
+        "uncompressed_size": uncompressed_size,
+    }
+
+
+def _validate_expected_length(name: str, raw: bytes, expected_length: int) -> None:
+    if expected_length > len(raw):
+        raise CamFormatError(f"{name}: expected entry length {expected_length}, got {len(raw)}")
+    if expected_length < len(raw) and any(raw[expected_length:]):
+        raise CamFormatError(f"{name}: nonzero trailing bytes after compressed payload")
+
+
+def _validate_lzss_consumption(name: str, payload: bytes, consumed: int) -> None:
+    if consumed != len(payload) and any(payload[consumed:]):
+        raise CamFormatError(f"{name}: nonzero trailing bytes after LZSS payload")
 
 
 def _decode_obj_payload(
