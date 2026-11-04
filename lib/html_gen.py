@@ -162,7 +162,7 @@ def _load_laser_codes(brf: Briefing, brief_summary: dict | None):
                 continue
             flight_num_json = flight_json.get("flight_number", None)
             laser_codes = flight_json.get('laser_codes', None)
-            if not isinstance(laser_codes, list):
+            if not isinstance(laser_codes, tuple):
                 continue
             for flight_brf in brf.package:
                 try:
