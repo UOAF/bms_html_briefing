@@ -138,10 +138,10 @@ def _page_contents_for_render(conf, brief_summary = None):
 
 def _load_laser_codes(brf: Briefing, brief_summary: dict | None):
     """Load the laser codes, which were stored in the .cam file, into the rosters of our package."""
-    if brief_summary is None:
+    if not isinstance(brief_summary, dict):
         return
-    packages = brief_summary["packages"]
-    if packages is None:
+    packages = brief_summary.get("packages", None)
+    if not isinstance(packages, list):
         return
     try:
         our_num  = int(getattr(brf.overview, "package_id"))
@@ -149,12 +149,21 @@ def _load_laser_codes(brf: Briefing, brief_summary: dict | None):
         logger.warning(f"Cannot load laser codes because package ID isn't set in briefing")
         return
     for package in packages:
-        package_number = package["package_number"]
+        if not isinstance(package, dict):
+            continue
+        package_number = package.get("package_number", None)
         if our_num != package_number:
             continue
-        for flight_json in package["flights"]:
-            flight_num_json = flight_json["flight_number"]
-            laser_codes = flight_json['laser_codes']
+        flights = package.get("flights", None)
+        if not isinstance(flights, list):
+            continue
+        for flight_json in flights:
+            if not isinstance(flight_json, dict):
+                continue
+            flight_num_json = flight_json.get("flight_number", None)
+            laser_codes = flight_json.get('laser_codes', None)
+            if not isinstance(laser_codes, tuple):
+                continue
             for flight_brf in brf.package:
                 try:
                     flight_num_brf = int(getattr(flight_brf, "flight"))
@@ -164,7 +173,7 @@ def _load_laser_codes(brf: Briefing, brief_summary: dict | None):
                     continue
                 roster = flight_brf.roster
                 for idx, name in enumerate(["lead", "wing", "element", "four"]):
-                    if getattr(roster, name) != "":
+                    if getattr(roster, name) != "" and len(laser_codes) > idx:
                         write_attr = name + "_laser"
                         setattr(roster, write_attr, laser_codes[idx])
                 break

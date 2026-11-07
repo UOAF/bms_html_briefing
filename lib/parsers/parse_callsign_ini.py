@@ -736,7 +736,7 @@ class Callsign_ini:
             if sp == None:
                 continue
             action = getattr(sp, "action")
-            if action in action_blocklist:
+            if str(action) in action_blocklist:
                 continue
             if number <= first_landing:
                 # Before the first landing: We keep any target in both lists, and mark both list entries
@@ -748,7 +748,10 @@ class Callsign_ini:
                 to_delete.append(sp)
 
         for sp in to_delete:
-            self.steerpoints.remove(sp)
+            try:
+                self.steerpoints.remove(sp)
+            except:
+                pass
 
         for line, is_in_fp in to_add:
             try:
