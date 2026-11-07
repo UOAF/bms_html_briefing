@@ -153,7 +153,9 @@ class RoutePerformance:
                 raise FuelModelError("Afterburner performance")
             t0, f0 = t1, f1
             t1, f1 = engine("thrust", "ab", thrust_scale), engine("fuel_flow", "ab", self.flow_scale)
-            if t1 <= t0 or f1 < f0 or required_thrust > t1:
+            if t1 <= t0 or f1 < f0:
+                raise FuelModelError("Afterburner performance")
+            if required_thrust > t1:
                 raise FuelModelError("Required thrust exceeds full AB")
         fraction = max(0., (required_thrust - t0) / (t1 - t0))
         return f0 + fraction * (f1 - f0), tas * math.cos(gamma)
@@ -169,6 +171,16 @@ class RoutePoint:
     hold_hours: float = 0.
 
 
+class RouteFuelError(FuelModelError):
+    """A failed leg or hold, with only fully integrated downstream arrivals."""
+
+    def __init__(self, reason: str, values: dict[int, int], from_number: int, to_number: int):
+        super().__init__(reason)
+        self.values = dict(values)
+        self.from_number = from_number
+        self.to_number = to_number
+
+
 def remaining_route_fuel(model: RoutePerformance, points: list[RoutePoint],
                          dry_weight_lb: float, drag_index: float) -> dict[int, int]:
     """Integrate required fuel backward from landing, rounding only displayed cells.
@@ -176,8 +188,13 @@ def remaining_route_fuel(model: RoutePerformance, points: list[RoutePoint],
     Midpoint steps are at most 2 nm / 30 seconds. Fuel is part of aircraft weight,
     so a long route is not evaluated at an arbitrary fixed takeoff fuel load.
     Values are at arrival, before a hold at that point. No refuelling credit.
+    A local performance failure preserves completed arrivals in RouteFuelError;
+    no value depending on the failed leg or hold is returned.
     """
     dry = _number(dry_weight_lb, "dry weight", positive=True)
+    drag_index = _number(drag_index, "T/O drag factor")
+    if drag_index < 1:
+        raise FuelModelError("T/O drag factor")
     if not points:
         raise FuelModelError("Planned route")
     required = float(ALLOWANCE_LB)
@@ -188,36 +205,41 @@ def remaining_route_fuel(model: RoutePerformance, points: list[RoutePoint],
 
     for index in range(len(points) - 1, -1, -1):
         point = points[index]
-        hold = _number(point.hold_hours, "hold duration")
-        if hold < 0 or hold > 24:
-            raise FuelModelError("Hold duration")
-        if hold:
-            steps = max(1, math.ceil(hold * 120))
-            dt = hold / steps
-            for _ in range(steps):
-                first, _ = model.flow(point.altitude_ft, point.cas_kt, dry + required, drag_index)
-                middle, _ = model.flow(point.altitude_ft, point.cas_kt,
-                                       dry + required + first * dt / 2, drag_index)
+        from_number = point.number
+        try:
+            hold = _number(point.hold_hours, "hold duration")
+            if hold < 0 or hold > 24:
+                raise FuelModelError("Hold duration")
+            if hold:
+                steps = max(1, math.ceil(hold * 120))
+                dt = hold / steps
+                for _ in range(steps):
+                    first, _ = model.flow(point.altitude_ft, point.cas_kt, dry + required, drag_index)
+                    middle, _ = model.flow(point.altitude_ft, point.cas_kt,
+                                           dry + required + first * dt / 2, drag_index)
+                    required += middle * dt
+            result[point.number] = rounded()
+            if index == 0:
+                break
+            previous = points[index - 1]
+            from_number = previous.number
+            distance = math.hypot(point.north_ft - previous.north_ft,
+                                  point.east_ft - previous.east_ft) / FEET_PER_NM
+            if distance == 0:
+                if point.altitude_ft != previous.altitude_ft:
+                    raise FuelModelError("Zero-length altitude transition")
+                continue
+            gradient = (point.altitude_ft - previous.altitude_ft) / (distance * FEET_PER_NM)
+            steps = max(1, math.ceil(distance / 2))
+            ds = distance / steps
+            for step in range(steps):
+                fraction = 1 - (step + .5) / steps
+                altitude = previous.altitude_ft + fraction * (point.altitude_ft - previous.altitude_ft)
+                first, speed = model.flow(altitude, point.cas_kt, dry + required, drag_index, gradient)
+                dt = ds / speed
+                middle, _ = model.flow(altitude, point.cas_kt, dry + required + first * dt / 2,
+                                       drag_index, gradient)
                 required += middle * dt
-        result[point.number] = rounded()
-        if index == 0:
-            break
-        previous = points[index - 1]
-        distance = math.hypot(point.north_ft - previous.north_ft,
-                              point.east_ft - previous.east_ft) / FEET_PER_NM
-        if distance == 0:
-            if point.altitude_ft != previous.altitude_ft:
-                raise FuelModelError("Zero-length altitude transition")
-            continue
-        gradient = (point.altitude_ft - previous.altitude_ft) / (distance * FEET_PER_NM)
-        steps = max(1, math.ceil(distance / 2))
-        ds = distance / steps
-        for step in range(steps):
-            fraction = 1 - (step + .5) / steps
-            altitude = previous.altitude_ft + fraction * (point.altitude_ft - previous.altitude_ft)
-            first, speed = model.flow(altitude, point.cas_kt, dry + required, drag_index, gradient)
-            dt = ds / speed
-            middle, _ = model.flow(altitude, point.cas_kt, dry + required + first * dt / 2,
-                                   drag_index, gradient)
-            required += middle * dt
+        except FuelModelError as exc:
+            raise RouteFuelError(str(exc), result, from_number, point.number) from exc
     return result

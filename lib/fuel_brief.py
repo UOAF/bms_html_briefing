@@ -1,6 +1,7 @@
 """Attach MFOB cells using the planned route and the player's takeoff loadout."""
 from __future__ import annotations
 
+import logging
 import math
 import os
 import re
@@ -8,9 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from lib.fuel import ASSUMPTIONS, FuelModelError
-from lib.route_fuel import RoutePerformance, RoutePoint, remaining_route_fuel
+from lib.route_fuel import RouteFuelError, RoutePerformance, RoutePoint, remaining_route_fuel
 
 _LAND_ACTIONS = {7, 27}
+logger = logging.getLogger("html_brief_log")
 
 
 def _attr(value: Any, name: str, default=None):
@@ -161,6 +163,19 @@ def _route_points(rows: list, dtc: Any) -> tuple[list[RoutePoint], int]:
     return route, landing
 
 
+def _route_failure_tooltip(error: RouteFuelError) -> str:
+    reason = str(error)
+    if reason in {"MSL altitude range", "Subsonic CAS range"}:
+        reason = "Speed or altitude outside model limits"
+    elif reason == "Zero-length altitude transition":
+        reason = "Altitude change over zero distance"
+    elif reason != "Required thrust exceeds full AB":
+        reason = "Aircraft performance data unavailable or out of range"
+    location = (f"STPT {error.from_number} hold" if error.from_number == error.to_number
+                else f"STPT {error.from_number}–{error.to_number}")
+    return f"MFOB unavailable: {reason} ({location})"
+
+
 def build_fuel_plan(*, summary: Any, briefing: Any, dtc: Any, bms_base_dir: str,
                     theater: str, player_name: str = "") -> dict:
     """Return non-editable values and tooltips keyed by displayed STPT number."""
@@ -169,6 +184,10 @@ def build_fuel_plan(*, summary: Any, briefing: Any, dtc: Any, bms_base_dir: str,
     result = {"tooltip": ASSUMPTIONS, "steerpoints": cells}
 
     def unavailable(reason: str) -> dict:
+        own = _attr(briefing, "own_flight")
+        logger.debug("MFOB unavailable: package=%s flight=%s callsign=%s: %s",
+                     _attr(_attr(briefing, "overview"), "package_id"),
+                     _attr(own, "flight"), _attr(own, "callsign"), reason)
         for cell in cells.values():
             cell["tooltip"] = "MFOB unavailable: " + reason + " · " + ASSUMPTIONS
         return result
@@ -191,13 +210,26 @@ def build_fuel_plan(*, summary: Any, briefing: Any, dtc: Any, bms_base_dir: str,
         if takeoff_fuel < 0:
             raise ValueError("T/O fuel")
         route, landing_number = _route_points(rows, dtc)
-        values = remaining_route_fuel(model, route, gross - takeoff_fuel, member.get("drag_index"))
+        failure_tooltip = None
+        try:
+            values = remaining_route_fuel(model, route, gross - takeoff_fuel, member.get("drag_index"))
+        except RouteFuelError as exc:
+            values = exc.values
+            failure_tooltip = _route_failure_tooltip(exc)
+            logger.debug("MFOB unavailable: package=%s flight=%s callsign=%s from=%s to=%s: %s",
+                         _attr(_attr(briefing, "overview"), "package_id"),
+                         flight.get("flight_number"), flight.get("callsign"),
+                         exc.from_number, exc.to_number, exc)
         for row in rows:
             number = _integer(_attr(row, "number"))
+            cell = cells[str(_attr(row, "number"))]
             if number > landing_number:
-                cells[str(_attr(row, "number"))]["tooltip"] = "Outside the planned route through landing. " + ASSUMPTIONS
+                cell["tooltip"] = "Outside the planned route through landing."
                 continue
-            cells[str(_attr(row, "number"))]["value"] = values[number]
+            if failure_tooltip is not None and number not in values:
+                cell["tooltip"] = failure_tooltip
+            else:
+                cell["value"] = values[number]
         return result
     except (ValueError, TypeError, KeyError, FuelModelError) as exc:
         # Never leave partly computed values when required inputs are invalid.
