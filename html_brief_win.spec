@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-hiddenimports = ['pystray._win32', 'lib.pdf_worker', 'openchart.fonts']
+hiddenimports = ['pystray._win32', 'lib.pdf_worker', 'lib._version', 'openchart.fonts']
 
 a = Analysis(
     ['html_brief.py'],

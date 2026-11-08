@@ -8,17 +8,15 @@ SPEC_FILE="$SCRIPT_DIR/html_brief.spec"
 DIST_ROOT="$SCRIPT_DIR/pyinstaller_dist"
 APP_NAME="html_brief"
 APP_DIR="$DIST_ROOT/$APP_NAME"
-VERSION=""
+BUILD_ARCHIVE=false
 
-while getopts ":v:" opt; do
-  case "$opt" in
-    v) VERSION="$OPTARG" ;;
-    *) echo "Usage: $0 [-v VERSION]" >&2; exit 1 ;;
+for arg in "$@"; do
+  case "$arg" in
+    --archive) BUILD_ARCHIVE=true ;;
+    -h|--help) echo "Usage: $0 [--archive]"; exit 0 ;;
+    *) echo "Usage: $0 [--archive]" >&2; exit 1 ;;
   esac
 done
-
-source "$SCRIPT_DIR/lib/build_version.sh"
-confirm_build_version "$VERSION" "$SCRIPT_DIR/html_brief.py"
 
 if [[ ! -d "$VENV_DIR" ]]; then
   echo "Virtualenv not found at $VENV_DIR" >&2
@@ -26,7 +24,9 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 
 source "$VENV_DIR/bin/activate"
+VERSION="$(python "$SCRIPT_DIR/lib/app_version.py")"
 
+cd "$SCRIPT_DIR"
 python -m PyInstaller --noconfirm --distpath "$DIST_ROOT" "$SPEC_FILE"
 
 if [[ ! -d "$APP_DIR" ]]; then
@@ -82,7 +82,7 @@ while IFS= read -r -d '' ini_rel; do
   copy_file "$SCRIPT_DIR/$ini_rel" "$APP_DIR/$(basename "$ini_rel")"
 done < <(git -C "$SCRIPT_DIR" ls-files -z -- 'theaters*.ini')
 
-if [[ -n "$VERSION" ]]; then
+if [[ "$BUILD_ARCHIVE" == true ]]; then
   ARCHIVE_NAME="bms_html_briefing_${VERSION}_linux.tar.gz"
   echo "Creating archive $ARCHIVE_NAME..."
   tar -C "$DIST_ROOT" -czf "$DIST_ROOT/$ARCHIVE_NAME" "$(basename "$APP_DIR")"

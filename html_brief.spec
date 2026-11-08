@@ -2,7 +2,7 @@
 
 import sys
 
-hiddenimports = ["lib.pdf_worker", "openchart.fonts"]
+hiddenimports = ["lib.pdf_worker", "lib._version", "openchart.fonts"]
 hooksconfig = {}
 if sys.platform == "win32":
     hiddenimports.append("pystray._win32")

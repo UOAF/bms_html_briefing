@@ -37,3 +37,4 @@ config.local.ini
 theaters_4.37.local.ini
 theaters_4.38.local.ini
 /install_win.sh
+/lib/_version.py

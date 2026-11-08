@@ -2,7 +2,6 @@ import configparser
 import json
 import logging
 import os
-import re
 import sys
 import time
 import multiprocessing
@@ -30,6 +29,7 @@ from fastapi import Request
 from fastapi.responses import Response
 
 from lib.bms_config import BmsConfig
+from lib.app_version import get_app_version, version_tuple
 from lib.server.cam_routes import register_cam_routes
 from lib.server.chart_routes import register_chart_routes
 from lib.server.config_routes import register_config_routes
@@ -61,17 +61,9 @@ PDF_RENDER_TIMEOUT_SECONDS = int(os.environ.get("BMS_HTML_BRIEF_PDF_TIMEOUT", "2
 DEFAULT_CONFIG_PATH = RUN_DIR / "config.ini"
 WEB_DIR = STATIC_ROOT / "web"
 KNEEBOARDS_DIR = RUN_DIR / "kneeboards"
-APP_VERSION = "1.3.2"
+APP_VERSION = get_app_version()
 APP_SOURCE_URL = "https://github.com/UOAF/bms_html_briefing"
 APP_RELEASE_API_URL = "https://api.github.com/repos/UOAF/bms_html_briefing/releases/latest"
-
-
-def version_tuple(version: str) -> tuple[int, int, int]:
-    match = re.fullmatch(r"v?([0-9]+)\.([0-9]+)(?:\.([0-9]+))?", str(version).strip())
-    if match is None:
-        raise ValueError(version)
-    major, minor, patch = match.groups()
-    return int(major), int(minor), int(patch or 0)
 
 
 def app_version_status() -> Dict[str, Any]:
@@ -84,9 +76,17 @@ def app_version_status() -> Dict[str, Any]:
         request = UrlRequest(APP_RELEASE_API_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": "bms-html-briefing"})
         with urlopen(request, timeout=3) as response:
             release = json.load(response)
-        latest = str(release.get("tag_name", "")).strip().removeprefix("v")
+        latest_tag = str(release.get("tag_name", "")).strip()
+        latest = latest_tag.removeprefix("v")
         latest_url = str(release.get("html_url", "")).strip()
-        if latest and latest_url and version_tuple(latest) > version_tuple(APP_VERSION):
+        latest_version = version_tuple(latest_tag)
+        if (
+            latest_url
+            and not release.get("draft")
+            and not release.get("prerelease")
+            and latest_version.stable
+            and latest_version > version_tuple(APP_VERSION)
+        ):
             data.update({"latest_version": latest, "latest_url": latest_url, "outdated": True})
     except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
         logger.debug("App release check failed: %s", exc)
