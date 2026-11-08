@@ -9,12 +9,15 @@ DIST_ROOT="$SCRIPT_DIR/pyinstaller_dist"
 APP_NAME="html_brief"
 APP_DIR="$DIST_ROOT/$APP_NAME"
 BUILD_ARCHIVE=false
+VERSION_ARGS=()
+ARCHIVE_VERSION=""
 
 for arg in "$@"; do
   case "$arg" in
     --archive) BUILD_ARCHIVE=true ;;
-    -h|--help) echo "Usage: $0 [--archive]"; exit 0 ;;
-    *) echo "Usage: $0 [--archive]" >&2; exit 1 ;;
+    --nightly) VERSION_ARGS=(--nightly); ARCHIVE_VERSION=nightly ;;
+    -h|--help) echo "Usage: $0 [--nightly] [--archive]"; exit 0 ;;
+    *) echo "Usage: $0 [--nightly] [--archive]" >&2; exit 1 ;;
   esac
 done
 
@@ -24,7 +27,8 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 
 source "$VENV_DIR/bin/activate"
-VERSION="$(python "$SCRIPT_DIR/lib/app_version.py")"
+VERSION="$(python "$SCRIPT_DIR/lib/app_version.py" "${VERSION_ARGS[@]}")"
+ARCHIVE_VERSION="${ARCHIVE_VERSION:-$VERSION}"
 
 cd "$SCRIPT_DIR"
 python -m PyInstaller --noconfirm --distpath "$DIST_ROOT" "$SPEC_FILE"
@@ -83,7 +87,7 @@ while IFS= read -r -d '' ini_rel; do
 done < <(git -C "$SCRIPT_DIR" ls-files -z -- 'theaters*.ini')
 
 if [[ "$BUILD_ARCHIVE" == true ]]; then
-  ARCHIVE_NAME="bms_html_briefing_${VERSION}_linux.tar.gz"
+  ARCHIVE_NAME="bms_html_briefing_${ARCHIVE_VERSION}_linux.tar.gz"
   echo "Creating archive $ARCHIVE_NAME..."
   tar -C "$DIST_ROOT" -czf "$DIST_ROOT/$ARCHIVE_NAME" "$(basename "$APP_DIR")"
 fi
