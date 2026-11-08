@@ -2,6 +2,7 @@ import configparser
 import json
 import logging
 import os
+import re
 import sys
 import time
 import multiprocessing
@@ -60,14 +61,17 @@ PDF_RENDER_TIMEOUT_SECONDS = int(os.environ.get("BMS_HTML_BRIEF_PDF_TIMEOUT", "2
 DEFAULT_CONFIG_PATH = RUN_DIR / "config.ini"
 WEB_DIR = STATIC_ROOT / "web"
 KNEEBOARDS_DIR = RUN_DIR / "kneeboards"
-APP_VERSION = "1.3"
+APP_VERSION = "1.3.2"
 APP_SOURCE_URL = "https://github.com/UOAF/bms_html_briefing"
 APP_RELEASE_API_URL = "https://api.github.com/repos/UOAF/bms_html_briefing/releases/latest"
 
 
-def version_pair(version: str) -> tuple[int, int]:
-    major, minor = str(version).strip().lstrip("v").split(".", 1)
-    return int(major), int(minor)
+def version_tuple(version: str) -> tuple[int, int, int]:
+    match = re.fullmatch(r"v?([0-9]+)\.([0-9]+)(?:\.([0-9]+))?", str(version).strip())
+    if match is None:
+        raise ValueError(version)
+    major, minor, patch = match.groups()
+    return int(major), int(minor), int(patch or 0)
 
 
 def app_version_status() -> Dict[str, Any]:
@@ -80,9 +84,9 @@ def app_version_status() -> Dict[str, Any]:
         request = UrlRequest(APP_RELEASE_API_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": "bms-html-briefing"})
         with urlopen(request, timeout=3) as response:
             release = json.load(response)
-        latest = str(release.get("tag_name", "")).strip().lstrip("v")
+        latest = str(release.get("tag_name", "")).strip().removeprefix("v")
         latest_url = str(release.get("html_url", "")).strip()
-        if latest and latest_url and version_pair(latest) > version_pair(APP_VERSION):
+        if latest and latest_url and version_tuple(latest) > version_tuple(APP_VERSION):
             data.update({"latest_version": latest, "latest_url": latest_url, "outdated": True})
     except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
         logger.debug("App release check failed: %s", exc)

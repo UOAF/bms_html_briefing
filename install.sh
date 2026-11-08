@@ -17,6 +17,9 @@ while getopts ":v:" opt; do
   esac
 done
 
+source "$SCRIPT_DIR/lib/build_version.sh"
+confirm_build_version "$VERSION" "$SCRIPT_DIR/html_brief.py"
+
 if [[ ! -d "$VENV_DIR" ]]; then
   echo "Virtualenv not found at $VENV_DIR" >&2
   exit 1

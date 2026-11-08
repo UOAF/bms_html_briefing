@@ -18,6 +18,9 @@ while getopts ":v:" opt; do
   esac
 done
 
+source "$SCRIPT_DIR/lib/build_version.sh"
+confirm_build_version "$VERSION" "$SCRIPT_DIR/html_brief.py"
+
 cd "$SCRIPT_DIR"
 WINEPREFIX="$WINEPFX" wineconsole pyinstaller.exe --distpath pyinstaller_dist "$SPEC_FILE"
 
