@@ -11,6 +11,7 @@ APP_DIR="$DIST_ROOT/$APP_NAME"
 BUILD_ARCHIVE=false
 VERSION_ARGS=()
 ARCHIVE_VERSION=""
+BUILD_INFO="$SCRIPT_DIR/build/build-info-linux.json"
 
 for arg in "$@"; do
   case "$arg" in
@@ -27,7 +28,7 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 
 source "$VENV_DIR/bin/activate"
-VERSION="$(python "$SCRIPT_DIR/lib/app_version.py" "${VERSION_ARGS[@]}")"
+VERSION="$(python "$SCRIPT_DIR/lib/app_version.py" "${VERSION_ARGS[@]}" --metadata "$BUILD_INFO" --platform linux)"
 ARCHIVE_VERSION="${ARCHIVE_VERSION:-$VERSION}"
 
 cd "$SCRIPT_DIR"
@@ -85,6 +86,9 @@ copy_file "$SCRIPT_DIR/LICENSE" "$APP_DIR/LICENSE"
 while IFS= read -r -d '' ini_rel; do
   copy_file "$SCRIPT_DIR/$ini_rel" "$APP_DIR/$(basename "$ini_rel")"
 done < <(git -C "$SCRIPT_DIR" ls-files -z -- 'theaters*.ini')
+
+python "$SCRIPT_DIR/lib/app_version.py" --finalize-metadata "$BUILD_INFO"
+copy_file "$BUILD_INFO" "$APP_DIR/build-info.json"
 
 if [[ "$BUILD_ARCHIVE" == true ]]; then
   ARCHIVE_NAME="bms_html_briefing_${ARCHIVE_VERSION}_linux.tar.gz"
