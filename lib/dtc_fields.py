@@ -127,7 +127,7 @@ def field_payload(callsign_ini, scope, theater="", *, base_dir=None):
     sections = {"ICP": callsign_ini.icp_settings, **callsign_ini.fcc_settings}
     # Pop-up results belong to this callsign and route, not merely to the template.
     coordinates = [
-        [(point.number, point.coord_x, point.coord_y) for point in points]
+        [(point.number, point.coord_x, point.coord_y, getattr(point, "coord_z", None)) for point in points]
         for points in (callsign_ini.steerpoints, callsign_ini.tgtsteerpoints, callsign_ini.threat_steerpoints)
     ]
     magnetic_variation = magnetic_variation_for_steerpoints(

@@ -357,3 +357,4 @@ def generate_html_file(
                                                  ))
     except Exception as e:
         logger.error(f"Couldn't generate HTML: {e}")
+        raise

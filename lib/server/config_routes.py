@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from lib.bms_config import BmsConfig
 from lib.bms_paths import callsign_ini_path
+from lib.server.source_files import source_files
 from lib.html_gen import page_contents_ini_to_list
 from lib.kneeboard_order import (
     KNEEBOARD_ORDER_SECTION,
@@ -440,10 +441,9 @@ def register_config_routes(
             target_folder = ""
             if bms.theater_config.has_section(bms.theater):
                 target_folder = bms.theater_config[bms.theater].get("target_folder", "")
-            brief_path = Path(bms.base_dir) / "User" / "Briefings" / "briefing.txt"
-            callsign_path = callsign_ini_path(bms)
-            brief_mtime = brief_path.stat().st_mtime if brief_path.exists() else None
-            callsign_mtime = callsign_path.stat().st_mtime if callsign_path.exists() else None
+            versions = source_files(bms)
+            brief_mtime = int(versions["briefing"]["mtime"]) / 1e9 if versions["briefing"] else None
+            callsign_mtime = int(versions["callsign"]["mtime"]) / 1e9 if versions["callsign"] else None
             data.update(
                 {
                     "callsign": bms.callsign,
@@ -457,6 +457,7 @@ def register_config_routes(
                     "center_source": getattr(bms, "theater_center_source", ""),
                     "brief_mtime": brief_mtime,
                     "callsign_mtime": callsign_mtime,
+                    "source_files": versions,
                     "brief_changed": None if (app.state.brief_mtime_ref is None or brief_mtime is None) else brief_mtime > app.state.brief_mtime_ref,
                     "callsign_changed": None if (app.state.callsign_mtime_ref is None or callsign_mtime is None) else callsign_mtime > app.state.callsign_mtime_ref,
                 }

@@ -12,8 +12,9 @@
   <script src="/templates/interface.js" defer></script>
   <script src="/templates/dtc_fields.js"></script>
   <script src="/templates/popup_briefing.js"></script>
+  <script src="/templates/draft_state.js"></script>
 </head>
-<body class="dtc-page">
+<body class="dtc-page" data-dtc-scope="{{ dtc_fields.scope|e }}" data-popup-scope="{{ dtc_fields.popup_scope|e }}">
   <div class="dtc-main-tabs" role="tablist" aria-label="DTC page">
     <button title="Switch to the Steerpoints tab" type="button" class="dtc-tab-button is-active" data-dtc-page-tab="steerpoints">Steerpoints</button>
     <button title="Switch to the Pop-up tab" type="button" class="dtc-tab-button" data-dtc-page-tab="popup">Pop-up</button>
@@ -451,6 +452,10 @@
     function resetContenteditables() {}
 
     const dtcNavOffsets = {{ nav_offsets|tojson }};
+    const dtcSourceScope = {{ dtc_fields.scope|tojson }};
+    window.dtcSourceVersion = {{ source_version|default(none)|tojson }};
+    window.dtcSaveBusy = 0;
+    window.dtcPendingEdits = 0;
     const dtcBinding = DtcFields.attach(window, {{ dtc_fields|tojson }});
     const dtcPopupScope = {{ dtc_fields.popup_scope|tojson }};
     const dtcMagneticVariation = {{ dtc_fields.magnetic_variation|default({})|tojson }};
@@ -555,6 +560,7 @@
       const isIcp = section === "ICP";
       const status = document.getElementById(isIcp ? "dtc-icp-status" : "dtc-fcc-status");
       const buttons = document.querySelectorAll("#dtc-save-icp, [data-fcc-save-section]");
+      window.dtcSaveBusy++;
       try {
         const scope = window.dtcFieldStore.scope;
         const settings = window.dtcFieldStore.section(section);
@@ -573,6 +579,7 @@
         console.error("Failed to save " + section, error);
         if (status) status.textContent = error.message;
       } finally {
+        window.dtcSaveBusy--;
         buttons.forEach((button) => { button.disabled = false; });
       }
     }
@@ -605,6 +612,7 @@
     }
 
     async function saveDtcLaserSettings() {
+      window.dtcSaveBusy++;
       try {
         const laserSettings = collectDtcLaserSettings();
         Object.assign(dtcLaserSettings, laserSettings);
@@ -617,12 +625,15 @@
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
+        window.acknowledgeDtcDraft?.("laser", laserSettings);
         const status = document.getElementById("dtc-laser-status");
         if (status) status.textContent = "Laser saved to callsign.ini.";
       } catch (error) {
         console.error("Failed to save Laser", error);
         const status = document.getElementById("dtc-laser-status");
         if (status) status.textContent = "Failed to save Laser.";
+      } finally {
+        window.dtcSaveBusy--;
       }
     }
 
@@ -998,6 +1009,7 @@
 
     async function updateOffsetRowElevationFromCoord(offsetRow, coord) {
       if (!offsetRow || !coord) return;
+      window.dtcPendingEdits++;
       try {
         const elevation = await fetchTerrainElevationFeet(coord);
         if (elevation == null) return;
@@ -1005,6 +1017,8 @@
         renderOffsetPanel();
       } catch (error) {
         console.warn("Failed to resolve terrain elevation", error);
+      } finally {
+        window.dtcPendingEdits--;
       }
     }
 
@@ -1522,18 +1536,23 @@
     }
 
     async function saveDtcNavOffsets() {
+      window.dtcSaveBusy++;
       try {
+        const submitted = structuredClone(dtcNavOffsets);
         const response = await fetch("/api/dtc/nav-offsets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nav_offsets: dtcNavOffsets })
+          body: JSON.stringify({ nav_offsets: submitted })
         });
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(errorText || response.statusText);
         }
+        window.acknowledgeDtcDraft?.("nav", submitted);
       } catch (error) {
         console.error("Failed to save NAV OFFSETS", error);
+      } finally {
+        window.dtcSaveBusy--;
       }
     }
 
@@ -1695,5 +1714,6 @@
       setTimeout(() => map.invalidateSize(), 50);
     }
   </script>
+  <script src="/templates/dtc_refresh.js"></script>
 </body>
 </html>

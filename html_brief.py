@@ -138,6 +138,7 @@ def build_default_config() -> configparser.ConfigParser:
         "pdf_output_dir": str(KNEEBOARDS_DIR),
         "wine_prefix": "",
         "auto_export_on_change": "False",
+        "auto_refresh_on_change": "False",
         "auto_export_pdf_only": "False",
         "debug_log": "False",
         "map": "local",

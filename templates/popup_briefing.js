@@ -43,7 +43,9 @@
         let owner = win;
         try { if (win.parent.PopupBriefing) owner = win.parent; } catch { /* Standalone page. */ }
         const store = owner.popupBriefingStore || (owner.popupBriefingStore = createStore(owner.localStorage));
-        store.configure(scope);
+        // The parent may already have observed a newer route while this frame
+        // was loading. A stale frame must not reactivate its saved plan.
+        if (owner === win || store.scope == null) store.configure(scope);
         win.popupBriefingStore = store;
         const elements = Array.from(win.document.querySelectorAll("[data-popup-result]"));
         const render = () => {

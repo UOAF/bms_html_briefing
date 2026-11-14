@@ -3,6 +3,7 @@ from __future__ import annotations
 import configparser
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel
 from lib.bms_paths import callsign_ini_path
 from lib.bms_config import BmsConfig
 from lib.html_gen import generate_html_file, page_contents_ini_to_list
+from lib.server.source_files import source_files
 
 logger = logging.getLogger("html_brief_log")
 
@@ -26,6 +28,7 @@ class PreviewRequest(BaseModel):
     selected_package_index: Optional[int] = None
     update_change_refs: Optional[bool] = True
     operation_id: Optional[str] = None
+    expected_source_files: Optional[Dict[str, Any]] = None
 
 
 def resolve_brief_render_state(
@@ -74,7 +77,7 @@ def register_render_routes(
     """Register HTML render endpoints."""
 
     @app.post("/api/generate")
-    def generate(payload: PreviewRequest = None) -> Dict[str, str]:
+    def generate(payload: PreviewRequest = None) -> Dict[str, Any]:
         operation_id = getattr(payload, "operation_id", None) if payload else None
         progress = app.state.progress_registry.begin(
             operation_id,
@@ -104,6 +107,7 @@ def register_render_routes(
             raise HTTPException(status_code=500, detail=f"Generate config error: {exc}")
         ensure_dirs(cfg_generate)
         try:
+            inputs = source_files(bms_cfg_generate)
             brief_summary, selected_package_index = resolve_brief_render_state(
                 app,
                 getattr(payload, "selected_package_index", None) if payload else None,
@@ -126,10 +130,11 @@ def register_render_routes(
             logger.error("Failed to generate HTML: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to generate HTML: {exc}")
         app.state.progress_registry.complete(operation_id, "Briefing preview is ready.")
-        return {"status": "ok", "output_file": str(output_file)}
+        return {"status": "ok", "output_file": str(output_file),
+                "source_files": inputs if inputs == source_files(bms_cfg_generate) else None}
 
     @app.post("/api/preview")
-    def preview(payload: PreviewRequest) -> Dict[str, str]:
+    def preview(payload: PreviewRequest) -> Dict[str, Any]:
         operation_id = payload.operation_id
         progress = app.state.progress_registry.begin(
             operation_id,
@@ -155,30 +160,46 @@ def register_render_routes(
             raise HTTPException(status_code=500, detail=f"Preview config error: {exc}")
         ensure_dirs(cfg_preview)
         try:
+            inputs = source_files(bms_cfg_preview)
+            if payload.expected_source_files is not None and (
+                inputs != payload.expected_source_files
+                or any(not item or not item["size"] for item in inputs.values())
+            ):
+                raise HTTPException(status_code=409, detail="Source files changed")
             brief_summary, selected_package_index = resolve_brief_render_state(
                 app,
                 payload.selected_package_index,
                 request_index_provided=selected_package_index_provided(payload),
             )
-            generate_html_file(
-                cfg_preview,
-                bms_cfg_preview,
-                "index",
-                brief_summary=brief_summary,
-                selected_package_index=selected_package_index,
-                progress=progress,
-            )
             output_file = resolve_path(cfg_preview["system"]["output_dir"]) / "index.html"
+            # Keep the previous complete preview available until rendering and
+            # the source-version check both succeed.
+            with tempfile.TemporaryDirectory(dir=output_file.parent, prefix=".preview-") as staging:
+                render_cfg = copy_config_with_overrides(cfg_preview, system={"output_dir": staging})
+                generate_html_file(
+                    render_cfg,
+                    bms_cfg_preview,
+                    "index",
+                    brief_summary=brief_summary,
+                    selected_package_index=selected_package_index,
+                    progress=progress,
+                )
+                if source_files(bms_cfg_preview) != inputs:
+                    raise HTTPException(status_code=409, detail="Source files changed")
+                os.replace(Path(staging) / "index.html", output_file)
             app.state.last_brief_path = str(output_file)
             if payload.update_change_refs is not False:
                 _update_brief_mtime_state(app, bms_cfg_preview)
             app.state.brief_pages_ref = len(page_contents_ini_to_list(cfg_preview))
+        except HTTPException:
+            app.state.progress_registry.fail(operation_id, "Source files changed")
+            raise
         except Exception as exc:
             app.state.progress_registry.fail(operation_id, f"Failed to generate HTML: {exc}")
             logger.error("Failed to generate preview HTML: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to generate HTML: {exc}")
         app.state.progress_registry.complete(operation_id, "Briefing preview is ready.")
-        return {"status": "ok", "output_file": str(output_file)}
+        return {"status": "ok", "output_file": str(output_file), "source_files": inputs}
 
 
 def _update_brief_mtime_state(app: FastAPI, bms_cfg: BmsConfig) -> None:

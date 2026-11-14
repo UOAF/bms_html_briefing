@@ -46,6 +46,7 @@
         let revision = 0;
         const listeners = new Set();
         const validators = new Set();
+        const sessionDrafts = new Map();
         const storageKey = () => "dtc-fields:v1:" + scope;
         const emit = (event = {}) => listeners.forEach((listener) => listener(event));
         const read = (key) => {
@@ -115,12 +116,17 @@
             configure(payload, reset = false) {
                 revision++;
                 const changedScope = scope !== payload.scope;
+                if (changedScope && scope != null) sessionDrafts.set(scope, overrides());
                 const previous = baseline;
                 scope = payload.scope;
                 fields = payload.fields;
                 baseline = Object.fromEntries(Object.entries(payload.values).map(([key, value]) => [key, numeric(value)]));
                 if (changedScope) {
                     load();
+                    if (sessionDrafts.has(scope)) {
+                        Object.assign(values, sessionDrafts.get(scope));
+                        emit({ force: true });
+                    }
                 } else {
                     for (const [key, value] of Object.entries(baseline)) {
                         if (reset || values[key] == null || values[key] === previous[key]) values[key] = value;

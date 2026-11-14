@@ -189,6 +189,10 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .mfd-settings .interface-cycle-button {
+      width: 100%;
+    }
+
     a {
       color: var(--line);
       text-decoration: none;
@@ -994,6 +998,7 @@
   <script src="/templates/interface.js"></script>
   <script src="/templates/dtc_fields.js"></script>
   <script src="/templates/popup_briefing.js"></script>
+  <script src="/templates/draft_state.js"></script>
   <script>window.dtcFieldStore = DtcFields.createStore(localStorage);</script>
   <script>window.popupBriefingStore = PopupBriefing.createStore(localStorage);</script>
 </head>
@@ -1052,7 +1057,6 @@
             <button id="pdf-btn" title="Generate PDF from the current briefing">Gen PDF</button>
             <button id="open-pdf-btn" title="Open the generated PDF">Open PDF</button>
             <button id="export-btn" title="Export the briefing as kneeboard .dds files">Export</button>
-            <button id="auto-export-mode-btn" class="auto-export-mode-btn" type="button">AUTO-EXPORT<br>OFF</button>
           </div>
         </section>
 
@@ -1150,6 +1154,18 @@
             <div>
               <label for="pdf_output_dir">PDF output dir</label>
               <input class="interface-text-input" id="pdf_output_dir" name="pdf_output_dir" placeholder="./kneeboards">
+            </div>
+            <div>
+              <label for="auto-refresh-btn">Auto-refresh</label>
+              <button id="auto-refresh-btn" class="interface-cycle-button" type="button" aria-pressed="false">OFF</button>
+            </div>
+            <div>
+              <label for="auto-export-mode-btn">Auto-export</label>
+              <button id="auto-export-mode-btn" class="interface-cycle-button" type="button">OFF</button>
+            </div>
+            <div>
+              <label for="default-briefing-view-btn">Default view</label>
+              <button id="default-briefing-view-btn" class="interface-cycle-button" type="button" value="continuous" title="Briefing view on app startup">CONTINUOUS</button>
             </div>
           </form>
         </section>
@@ -1291,7 +1307,9 @@
     const layoutEl = document.querySelector(".layout");
     const toggleToolbarBtn = document.getElementById("toggle-toolbar");
     const autoExportModeBtn = document.getElementById("auto-export-mode-btn");
+    const autoRefreshBtn = document.getElementById("auto-refresh-btn");
     const briefingScrollModeBtn = document.getElementById("briefing-scroll-mode-btn");
+    const defaultBriefingViewBtn = document.getElementById("default-briefing-view-btn");
     const copyToKtoBtn = document.getElementById("copy_to_kto_btn");
     const pdfBtn = document.getElementById("pdf-btn");
     const exportBtn = document.getElementById("export-btn");
@@ -1392,6 +1410,13 @@
     let logPollTimer = null;
     let statusPollTimer = null;
     let pendingBriefingResetFromToolbar = false;
+    let autoRefreshOnChange = false;
+    let previewBusy = false;
+    let autoRefreshBusy = false;
+    let briefingRefreshDraft = null;
+    let dtcRefreshDraft = null;
+    const previewWatcher = DraftState.createWatcher();
+    let latestSourceFiles = null;
     let currentMainView = localStorage.getItem(MAIN_VIEW_STORAGE_KEY) === "dtc" ? "dtc" : "briefing";
     const sectionLabels = {
       airbase: "Airbase",
@@ -1830,7 +1855,26 @@
         stateLabel = "ON";
         autoExportModeBtn.title = "Auto-export enabled";
       }
-      autoExportModeBtn.innerHTML = `AUTO-EXPORT<br>${stateLabel}`;
+      autoExportModeBtn.textContent = stateLabel;
+    }
+
+    function applyAutoRefresh(on) {
+      autoRefreshOnChange = !!on;
+      autoRefreshBtn.classList.toggle("is-active", autoRefreshOnChange);
+      autoRefreshBtn.setAttribute("aria-pressed", String(autoRefreshOnChange));
+      autoRefreshBtn.textContent = autoRefreshOnChange ? "ON" : "OFF";
+    }
+
+    function flashSettingsCycle(button) {
+      button.classList.remove("is-flashing");
+      void button.offsetWidth;
+      button.classList.add("is-flashing");
+      setTimeout(() => button.classList.remove("is-flashing"), 120);
+    }
+
+    function applyDefaultBriefingView(mode) {
+      defaultBriefingViewBtn.value = normalizeBriefingScrollMode(mode);
+      defaultBriefingViewBtn.textContent = defaultBriefingViewBtn.value.toUpperCase();
     }
 
     function normalizeBriefingScrollMode(mode) {
@@ -2069,7 +2113,7 @@
       }
     }
 
-    function updateBadges({ briefChanged, callsignChanged, pdfOverflow, pdfStatus, pdfError }) {
+    function updateFileBadge({ briefChanged, callsignChanged }) {
       if (fileBadge) {
         fileBadge.classList.remove("ok", "error", "warn", "muted");
         let cls = "ok";
@@ -2080,7 +2124,12 @@
         if (cls === "error") fileBadge.title = "Briefing.txt or callsign.ini changed on disk";
         if (cls === "muted") fileBadge.title = "File change status unknown (generate/preview once)";
       }
-      updatePdfBadge({ pdfOverflow, pdfStatus, pdfError });
+    }
+
+    function markPreviewSources(files) {
+      previewWatcher.mark(files);
+      const changes = previewWatcher.changes(latestSourceFiles || files);
+      if (changes) updateFileBadge(changes);
     }
 
     function showShutdownScreen() {
@@ -2235,11 +2284,13 @@
           checkbox.checked = configuredCharts.has(checkbox.value);
         });
         setSelectedMapSource(detectMapSource(sys));
+        applyAutoRefresh(String(sys.auto_refresh_on_change || "False").toLowerCase() === "true");
         applyAutoExportMode(
           String(sys.auto_export_on_change || "False").toLowerCase() === "true",
           String(sys.auto_export_pdf_only || "False").toLowerCase() === "true"
         );
-        applyBriefingScrollMode(sys.briefing_scroll_mode || "continuous", { applyFrame: false });
+        applyDefaultBriefingView(sys.briefing_scroll_mode);
+        applyBriefingScrollMode(defaultBriefingViewBtn.value, { applyFrame: false });
         await loadTheater();
       } catch (err) {
         log(`Failed to load config: ${err.message}`);
@@ -2248,6 +2299,7 @@
 
     function applyStatusData(data) {
       const appStateReset = clearTransientAppStateOnInstanceChange(data.app_instance_id);
+      latestSourceFiles = data.source_files || null;
       hasSeenStatusSuccess = true;
       document.getElementById("config-path").textContent = data.config_path || "–";
       document.getElementById("config-path").title = data.config_path || "–";
@@ -2267,9 +2319,12 @@
         globalStatusBadge.classList.remove("ok", "error", "warn", "muted");
         globalStatusBadge.classList.add(hasError ? "error" : "ok");
       }
-      updateBadges({
-        briefChanged: data.brief_changed,
-        callsignChanged: data.callsign_changed,
+      // Export acknowledgements are independent of the displayed preview.
+      updateFileBadge(previewWatcher.changes(latestSourceFiles) || {
+        briefChanged: null,
+        callsignChanged: null,
+      });
+      updatePdfBadge({
         pdfOverflow: data.pdf_overflow,
         pdfStatus: data.pdf_status,
         pdfError: data.pdf_error
@@ -2299,7 +2354,6 @@
         if (!hasError && pages.length > 0) {
           await doPreview(currentOverrides(), {
             operationId: options.operationId,
-            waitForFrame: !!options.operationId,
           });
         }
         if (hasError && allowRetry) {
@@ -2332,6 +2386,7 @@
           callBriefingLoadedFrame("loadChangedData");
         }
         await maybeAutoExportOnFileChange(data);
+        await maybeAutoRefreshOnFileChange(data);
       } catch (err) {
         if (hasSeenStatusSuccess) {
           showShutdownScreen();
@@ -2348,8 +2403,10 @@
       payload.system.wine_prefix = wineInput.value;
       payload.system.output_dir = document.getElementById("output_dir").value;
       payload.system.pdf_output_dir = document.getElementById("pdf_output_dir").value;
+      payload.system.auto_refresh_on_change = autoRefreshOnChange ? "True" : "False";
       payload.system.auto_export_on_change = autoExportOnChange ? "True" : "False";
       payload.system.auto_export_pdf_only = autoExportPdfOnly ? "True" : "False";
+      payload.system.briefing_scroll_mode = defaultBriefingViewBtn.value;
       Object.assign(payload.system, selectedMapSystemOverrides());
       try {
         await fetchJSON("/api/config", { method: "POST", body: JSON.stringify(payload) });
@@ -2535,7 +2592,6 @@
           wine_prefix: wineInput.value,
           output_dir: document.getElementById("output_dir").value,
           pdf_output_dir: document.getElementById("pdf_output_dir").value,
-          briefing_scroll_mode: briefingScrollMode,
           ...selectedMapSystemOverrides()
         },
         selected_package_index: (() => {
@@ -2633,11 +2689,13 @@
     }
 
     async function doGenerate(overrides = null) {
-      if (pdfBusy || exportBusy) {
+      if (pdfBusy || exportBusy || previewBusy || autoRefreshBusy) {
         log("Generate skipped: PDF pipeline is busy");
         return;
       }
       const operationId = createOperationId("preview");
+      previewBusy = true;
+      updateBusyUi();
       startOperationProgress(operationId, {
         operation: "preview",
         title: "Preparing briefing",
@@ -2653,24 +2711,28 @@
           fetchJSON("/api/generate", { method: "POST", body: JSON.stringify(payload) })
         );
         log(`HTML generated at ${res.output_file}`);
-        refreshBrief();
+        if (await refreshBrief(true)) markPreviewSources(res.source_files);
         await pollStatusBadges();
         await loadChartStatus(true);
       } catch (err) {
         log(`Generate failed: ${err.message}`);
       } finally {
+        previewBusy = false;
+        updateBusyUi();
         closeOperationProgress(operationId);
       }
     }
 
     async function doPreview(overrides = null, options = {}) {
-      if (pdfBusy || exportBusy) {
+      if (pdfBusy || exportBusy || previewBusy || (autoRefreshBusy && !options.automatic)) {
         log("Preview skipped: PDF pipeline is busy");
         return false;
       }
       const operationId = options.operationId || createOperationId("preview");
+      previewBusy = true;
+      updateBusyUi();
       const ownsProgress = !options.operationId;
-      startOperationProgress(operationId, {
+      if (!options.automatic) startOperationProgress(operationId, {
         operation: "preview",
         title: "Preparing briefing",
         message: "Checking briefing inputs...",
@@ -2684,14 +2746,18 @@
         const res = await withActiveLogPolling(
           fetchJSON("/api/preview", { method: "POST", body: JSON.stringify(payload) })
         );
+        if (options.automatic && (!autoRefreshOnChange || refreshIsBlocked())) return false;
         log(`Preview generated at ${res.output_file}`);
-        const loaded = await refreshBrief(!!options.waitForFrame);
+        const loaded = await refreshBrief(true);
+        if (loaded) markPreviewSources(res.source_files);
         await pollStatusBadges();
         return loaded !== false;
       } catch (err) {
         log(`Preview failed: ${err.message}`);
         return false;
       } finally {
+        previewBusy = false;
+        updateBusyUi();
         if (ownsProgress) closeOperationProgress(operationId);
       }
     }
@@ -3041,7 +3107,7 @@
     }
 
     function updateBusyUi() {
-      const pipelineBusy = pdfBusy || exportBusy || layoutBusy;
+      const pipelineBusy = pdfBusy || exportBusy || layoutBusy || previewBusy || autoRefreshBusy;
       layoutEditor?.setBusy(pipelineBusy);
       if (pdfBtn) {
         if (pdfBusy) {
@@ -3051,7 +3117,7 @@
             : `Stop PDF Gen (${formatPdfElapsed()})`;
           pdfBtn.title = pdfCancelRequested ? "Stopping PDF generation" : "Stop PDF generation";
         } else {
-          pdfBtn.disabled = exportBusy || layoutBusy;
+          pdfBtn.disabled = exportBusy || layoutBusy || previewBusy || autoRefreshBusy;
           pdfBtn.textContent = "Gen PDF";
           pdfBtn.title = exportBusy ? "Kneeboard export in progress" : "Generate PDF from the current briefing";
         }
@@ -3222,7 +3288,8 @@
     }
 
     async function runExportFlow(source = "manual") {
-      if (pdfBusy || exportBusy || layoutBusy) return { ok: false, skipped: true };
+      if (pdfBusy || exportBusy || layoutBusy || previewBusy || autoRefreshBusy) return { ok: false, skipped: true };
+      if (source === "auto" && refreshIsBlocked()) return { ok: false, skipped: true };
       setPdfBusy(true);
       setExportBusy(true);
       const pdfController = beginPdfClientOperation();
@@ -3253,6 +3320,8 @@
               if (!refreshed) {
                 throw new Error("Auto-export preview refresh timed out");
               }
+              markPreviewSources(prevRes.source_files);
+              await refreshDtcLinkedDiffIndicators();
             } catch (err) {
               if (isPdfAbortError(err)) throw err;
               const message = `Auto-export preview refresh failed: ${err && err.message ? err.message : err}`;
@@ -3364,7 +3433,7 @@
         return;
       }
       if (autoExportSuppressedChangeKey === changeKey) return;
-      if (pdfBusy || exportBusy || layoutBusy) {
+      if (pdfBusy || exportBusy || layoutBusy || previewBusy || autoRefreshBusy) {
         pendingAutoExport = true;
         return;
       }
@@ -3405,6 +3474,7 @@
         return;
       }
       if (exportBusy) return;
+      if (previewBusy || autoRefreshBusy) return;
       setPdfBusy(true);
       const pdfController = beginPdfClientOperation();
       const started = performance.now();
@@ -3484,11 +3554,53 @@
               window.dtcFieldStore.configure(payload);
               window.popupBriefingStore.configure(payload.popup_scope);
             }
+            return payload;
           })
           .catch((error) => log("DTC field refresh failed: " + error.message))
           .finally(() => { dtcFieldRefresh = null; });
       }
       return dtcFieldRefresh;
+    }
+
+    function frameIsEditing(frame) {
+      const doc = frame?.contentDocument;
+      const active = doc?.activeElement;
+      return !!(doc?.hasFocus() && active && (active.isContentEditable
+        || active.matches("input, textarea, select") || active.closest(".layout-editor-menu")));
+    }
+
+    function refreshIsBlocked() {
+      if (frameIsEditing(briefFrame) || frameIsEditing(dtcFrame) || document.querySelector("dialog[open]")) return true;
+      if (dtcFrame?.contentWindow?.dtcSaveBusy || dtcFrame?.contentWindow?.dtcPendingEdits) return true;
+      try { window.dtcFieldStore.flush(); } catch { return true; }
+      return false;
+    }
+
+    async function maybeAutoRefreshOnFileChange(data) {
+      const needsPreview = previewWatcher.needsRefresh(data.source_files);
+      const cw = dtcFrame?.contentWindow;
+      const needsDtc = typeof cw?.collectDtcRefreshDraft === "function"
+        && !DraftState.equal(cw.dtcSourceVersion, data.source_files?.callsign);
+      if (!needsPreview && !needsDtc) return;
+      if (!autoRefreshOnChange || !previewWatcher.stable(data.source_files) || pdfBusy || exportBusy || layoutBusy || previewBusy || autoRefreshBusy || refreshIsBlocked()) return;
+      const payload = await refreshDtcLinkedDiffIndicators();
+      const refreshDtcNow = needsDtc && payload && cw.canRefreshDtc(payload);
+      if (!payload || (!needsPreview && !refreshDtcNow) || !autoRefreshOnChange
+          || pdfBusy || exportBusy || layoutBusy || previewBusy || autoRefreshBusy || refreshIsBlocked()) return;
+      autoRefreshBusy = true;
+      updateBusyUi();
+      try {
+        if (needsPreview) {
+          await doPreview({ ...currentOverrides(), update_change_refs: false, expected_source_files: data.source_files },
+            { automatic: true });
+        }
+        if (refreshDtcNow && autoRefreshOnChange && !refreshIsBlocked() && cw.canRefreshDtc(payload)) await refreshDtc(true, true);
+      } catch (error) {
+        console.error("Auto-refresh", error);
+      } finally {
+        autoRefreshBusy = false;
+        updateBusyUi();
+      }
     }
 
     function updateMainViewControls() {
@@ -3583,8 +3695,11 @@
         const clearLinkedStorage = pendingBriefingResetFromToolbar;
         pendingBriefingResetFromToolbar = false;
         if (clearLinkedStorage) window.dtcFieldStore.reset();
-        callBriefingLoadedFrame("loadChangedData");
-        restoreLayoutDrafts();
+        const draft = briefingRefreshDraft;
+        briefingRefreshDraft = null;
+        const restored = !clearLinkedStorage && briefFrame.contentWindow?.restoreRefreshDraft?.(draft);
+        if (!restored) callBriefingLoadedFrame("loadChangedData");
+        restoreLayoutDrafts(restored ? draft.fields : {});
         attachLayoutEditor();
         bindCamPackageSelectorInPreview();
         applyBriefingPageModeToFrame();
@@ -3594,6 +3709,10 @@
         }
       });
     }
+    dtcFrame?.addEventListener("load", () => {
+      if (dtcRefreshDraft) dtcFrame.contentWindow?.restoreDtcRefreshDraft?.(dtcRefreshDraft);
+      dtcRefreshDraft = null;
+    });
 
     if (briefingViewBtn) {
       briefingViewBtn.addEventListener("click", () => setMainView("briefing"));
@@ -3625,6 +3744,7 @@
         resetPending = false;
       }
       if (resetResult !== "false") return;
+      briefingRefreshDraft = null;
       pendingBriefingResetFromToolbar = true;
       layoutDrafts.clear();
       const query = getPreviewCamPackageQuery();
@@ -3648,7 +3768,7 @@
       }
     }
 
-    function refreshFrame(frame, path, waitForLoad = false, { preserveScroll = true } = {}) {
+    function refreshFrame(frame, path, waitForLoad = false, { preserveScroll = true, html = null } = {}) {
       if (!frame) return waitForLoad ? Promise.resolve(false) : undefined;
       const prevScroll = preserveScroll ? getFrameScroll(frame) : 0;
       let resolveLoad = null;
@@ -3674,16 +3794,42 @@
       if (resolveLoad) {
         timeoutId = setTimeout(() => resolveLoad(false), 6000);
       }
-      frame.src = path + "?ts=" + Date.now();
+      if (html !== null) frame.srcdoc = html;
+      else {
+        frame.removeAttribute("srcdoc");
+        frame.src = path + "?ts=" + Date.now();
+      }
       return loadPromise;
     }
 
     function refreshBrief(waitForLoad = false) {
+      window.dtcFieldStore.flush();
+      const cw = briefFrame?.contentWindow;
+      if (!pendingBriefingResetFromToolbar && typeof cw?.collectRefreshDraft === "function") {
+        briefingRefreshDraft = cw.collectRefreshDraft();
+      }
       return refreshFrame(briefFrame, "/brief", waitForLoad, { preserveScroll: true });
     }
 
-    function refreshDtc(waitForLoad = false) {
-      return refreshFrame(dtcFrame, "/dtc", waitForLoad, { preserveScroll: false });
+    async function refreshDtc(waitForLoad = false, preserveDraft = false) {
+      let html = null;
+      dtcRefreshDraft = null;
+      if (preserveDraft) {
+        const cw = dtcFrame.contentWindow;
+        const fieldRevision = window.dtcFieldStore.revision;
+        const saveRevision = cw.dtcSaveRevision;
+        // Fetch and inspect the actual replacement before discarding the old
+        // document. A route can change between the status poll and this read.
+        const response = await fetch("/dtc?ts=" + Date.now(), { cache: "no-store" });
+        if (!response.ok) return false;
+        html = await response.text();
+        const body = new DOMParser().parseFromString(html, "text/html").body;
+        const payload = { scope: body.dataset.dtcScope, popup_scope: body.dataset.popupScope };
+        if (!autoRefreshOnChange || refreshIsBlocked() || fieldRevision !== window.dtcFieldStore.revision
+            || saveRevision !== cw.dtcSaveRevision || !payload.scope || !cw.canRefreshDtc(payload)) return false;
+        dtcRefreshDraft = cw.collectDtcRefreshDraft();
+      }
+      return refreshFrame(dtcFrame, "/dtc", waitForLoad, { preserveScroll: preserveDraft, html });
     }
 
     async function pollLogs() {
@@ -4025,11 +4171,11 @@
       });
     }
 
-    function restoreLayoutDrafts() {
+    function restoreLayoutDrafts(currentFields = {}) {
       const doc = briefFrame?.contentDocument;
       layoutDrafts.forEach((html, id) => {
         const el = doc?.getElementById(id);
-        if (el?.dataset.localStorage === "ignore") el.innerHTML = html;
+        if (el?.dataset.localStorage === "ignore" && !Object.hasOwn(currentFields, id)) el.innerHTML = html;
       });
     }
 
@@ -4090,7 +4236,7 @@
         renderPages();
         if (layoutEditor?.canRender(next)) {
           layoutEditor.render(next);
-        } else if (!await doPreview(currentOverrides(), { waitForFrame: true })) {
+        } else if (!await doPreview(currentOverrides())) {
           throw new Error("Preview failed");
         }
         applied = true;
@@ -4178,6 +4324,21 @@
       });
     }
 
+    autoRefreshBtn.addEventListener("click", async () => {
+      const previous = autoRefreshOnChange;
+      applyAutoRefresh(!previous);
+      flashSettingsCycle(autoRefreshBtn);
+      autoRefreshBtn.disabled = true;
+      try {
+        await fetchJSON("/api/config/runtime", {
+          method: "POST", body: JSON.stringify({ system: { auto_refresh_on_change: autoRefreshOnChange ? "True" : "False" } }),
+        });
+      } catch (error) {
+        applyAutoRefresh(previous);
+        console.error("Auto-refresh", error);
+      } finally { autoRefreshBtn.disabled = false; }
+    });
+
     if (autoExportModeBtn) {
       autoExportModeBtn.addEventListener("click", async () => {
         const prevOn = autoExportOnChange;
@@ -4186,6 +4347,8 @@
         const nextOn = nextMode !== 0;
         const nextPdfOnly = nextMode === 2;
         applyAutoExportMode(nextOn, nextPdfOnly);
+        flashSettingsCycle(autoExportModeBtn);
+        autoExportModeBtn.disabled = true;
         try {
           await fetchJSON("/api/config/runtime", {
             method: "POST",
@@ -4206,29 +4369,22 @@
         } catch (err) {
           applyAutoExportMode(prevOn, prevPdfOnly);
           log(`Failed to save auto-export setting: ${err.message}`);
+        } finally {
+          autoExportModeBtn.disabled = false;
         }
       });
     }
 
+    defaultBriefingViewBtn.addEventListener("click", () => {
+      applyDefaultBriefingView(defaultBriefingViewBtn.value === "paged" ? "continuous" : "paged");
+      flashSettingsCycle(defaultBriefingViewBtn);
+    });
+
     if (briefingScrollModeBtn) {
-      briefingScrollModeBtn.addEventListener("click", async () => {
-        const previousMode = briefingScrollMode;
+      briefingScrollModeBtn.addEventListener("click", () => {
         const nextMode = briefingScrollMode === "paged" ? "continuous" : "paged";
         applyBriefingScrollMode(nextMode);
-        try {
-          await fetchJSON("/api/config/runtime", {
-            method: "POST",
-            body: JSON.stringify({
-              system: {
-                briefing_scroll_mode: nextMode
-              }
-            })
-          });
-          log(`Briefing scroll mode: ${nextMode === "paged" ? "one page at a time" : "continuous"}`);
-        } catch (err) {
-          applyBriefingScrollMode(previousMode);
-          log(`Failed to change briefing scroll mode: ${err.message}`);
-        }
+        log(`Briefing scroll mode: ${nextMode === "paged" ? "one page at a time" : "continuous"}`);
       });
     }
 

@@ -1,8 +1,12 @@
+let briefingDefaults = {};
+let savedContentDefaults = {};
 window.onload = function()
 {
     DtcFields.attach(window, dtcFieldPayload);
     PopupBriefing.attach(window, dtcFieldPayload.popup_scope);
     bindClipboardImagePasteHandlers();
+    try { savedContentDefaults = JSON.parse(localStorage.getItem("contenteditablesDef") || "{}"); }
+    catch { savedContentDefaults = {}; }
     saveContenteditablesDefaults();
 
     const restore = localStorage.getItem("onrefresh");
@@ -10,6 +14,35 @@ window.onload = function()
     if (restore === "reset") saveChangedData();
     localStorage.setItem("onrefresh", "");
 };
+
+function collectRefreshDraft() {
+    const fields = {};
+    document.querySelectorAll('[contenteditable="true"], [data-persistent-field="true"]').forEach((el) => {
+        if (el.id && !el.hasAttribute("data-dtc-field")) fields[el.id] = serializeEditableContent(el);
+    });
+    const view = {};
+    document.querySelectorAll('.hidable').forEach((el) => { view[el.id + '_display'] = el.style.display; });
+    if (typeof map !== "undefined") {
+        view.mapBaseMode = typeof MAP_BASE_MODE !== "undefined" ? MAP_BASE_MODE : "local_tiles";
+        view.mapCenter = map.getCenter();
+        view.mapZoom = map.getZoom();
+        // A generated bullseye must follow the new mission unless it was edited.
+        const bullseye = bullseye_overlay.getCenter();
+        if (!DraftState.equal(bullseye, briefingDefaults.bullseyePos)) view.bullseyePos = bullseye;
+    }
+    return { scope: dtcFieldPayload.scope, baseline: briefingDefaults, fields, view };
+}
+
+function restoreRefreshDraft(draft) {
+    if (!draft || draft.scope !== dtcFieldPayload.scope) return false;
+    const fields = DraftState.rebase(draft.baseline, draft.fields, briefingDefaults);
+    document.querySelectorAll('[contenteditable="true"], [data-persistent-field="true"]').forEach((el) => {
+        if (!el.hasAttribute("data-dtc-field") && Object.hasOwn(fields, el.id)) el.innerHTML = fields[el.id];
+    });
+    loadContenteditables(draft.view);
+    restoreMapView(draft.view);
+    return true;
+}
 
 function getPersistentContenteditableElements() {
     return Array.from(document.querySelectorAll('[contenteditable="true"], [data-persistent-field="true"]'))
@@ -107,6 +140,7 @@ function collectChangedData() {
     const contentData = {
         __dtc_fields: window.dtcFieldStore.snapshot(),
         __popup_plan: window.popupBriefingStore.snapshot(),
+        __defaults: briefingDefaults,
     };
     contenteditableElements.forEach(el => {
         const key = el.id;
@@ -142,6 +176,7 @@ function saveChangedData() {
     try { retained = JSON.parse(localStorage.getItem('contenteditables') || '{}'); }
     catch { /* Replace malformed storage with the current snapshot. */ }
     const contentData = { ...retained, ...collectChangedData() };
+    if (Object.keys(briefingDefaults).length) contentData.__defaults = { ...retained.__defaults, ...briefingDefaults };
     window.dtcFieldStore.save();
     localStorage.setItem('contenteditables', JSON.stringify(contentData));
     return contentData;
@@ -165,6 +200,10 @@ function saveContenteditablesDefaults() {
 	console.error(error);
     }
     localStorage.setItem('contenteditablesDef', JSON.stringify(contentDataDef));
+    briefingDefaults = { ...contentDataDef };
+    document.querySelectorAll('[contenteditable="true"][data-local-storage="ignore"][id]').forEach((el) => {
+        briefingDefaults[el.id] = el.innerHTML;
+    });
 }
 
 function loadChangedData() {
@@ -231,12 +270,14 @@ function restoreMapView(contentData) {
     }
 }
 
-function loadContenteditables() {
-    const contentData = JSON.parse(localStorage.getItem('contenteditables') || '{}');
+function loadContenteditables(data = null) {
+    const contentData = data || JSON.parse(localStorage.getItem('contenteditables') || '{}');
+    const defaults = contentData.__defaults || savedContentDefaults;
     Object.keys(contentData).forEach(key => {
         const el = document.getElementById(key);
         if (el && el.dataset.localStorage !== "ignore" && !el.hasAttribute("data-dtc-field")) {
-            el.innerHTML = contentData[key];
+            el.innerHTML = !data && contentData[key] === defaults[key] && Object.hasOwn(briefingDefaults, key)
+                ? briefingDefaults[key] : contentData[key];
 	}
         if (key.split("_").at(-1) == "display") {
 	    const el_display = document.getElementById(key.slice(0, -8));

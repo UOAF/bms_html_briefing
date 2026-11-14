@@ -16,6 +16,7 @@ from lib.map_sources import map_selection as select_map, map_source_options as g
 from lib.map_tiles import local_map_available, prepare_local_map_tiles, resolve_local_map_file
 from lib.parsers.parse_callsign_ini import Callsign_ini, replace_fcc_sections, replace_icp_section, replace_laser_section, replace_nav_offsets_section
 from lib.terrain_elevation import TerrainElevationError, get_terrain_elevation_feet
+from lib.server.source_files import source_files
 
 logger = logging.getLogger("html_brief_log")
 logger_ui = logging.getLogger("ui_logger")
@@ -48,6 +49,7 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
         if bms_conf is None:
             raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
 
+        version = source_files(bms_conf)["callsign"]
         callsignini_contents = _read_callsign_ini(bms_conf)
 
         ci = Callsign_ini(callsignini_contents)
@@ -55,7 +57,7 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
         templates_dir = static_root / "templates"
         env = Environment(loader=FileSystemLoader(str(templates_dir)))
         template = env.get_template("dtc.html")
-        return HTMLResponse(
+        response = HTMLResponse(
             template.render(
                 stpt_coords=ci.steerpoints,
                 tstpt_coords=ci.threat_steerpoints,
@@ -67,6 +69,7 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
                 fcc_settings=ci.fcc_settings,
                 laser_settings=ci.laser_settings,
                 dtc_fields=field_payload(ci, callsign_ini_path(bms_conf), bms_conf.theater, base_dir=bms_conf.base_dir),
+                source_version=version,
                 callsign=bms_conf.callsign,
                 theater_name=bms_conf.theater,
                 enable_map_bullseye_edit=False,
@@ -74,6 +77,9 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
                 **map_context,
             )
         )
+        if not version or not version["size"] or version != source_files(bms_conf)["callsign"]:
+            raise HTTPException(status_code=409, detail="Source files changed")
+        return response
 
     @app.post("/api/dtc/nav-offsets")
     def save_dtc_nav_offsets(payload: DtcNavOffsetsRequest) -> Dict[str, str]:
@@ -99,8 +105,12 @@ def register_dtc_routes(app: FastAPI, *, static_root: Path) -> None:
         bms_conf = app.state.bms_cfg
         if bms_conf is None:
             raise HTTPException(status_code=500, detail="BMS config is not loaded. Reload and try again.")
+        version = source_files(bms_conf)["callsign"]
         ci = Callsign_ini(_read_callsign_ini(bms_conf))
-        return field_payload(ci, callsign_ini_path(bms_conf), getattr(bms_conf, "theater", ""), base_dir=bms_conf.base_dir)
+        if not version or not version["size"] or version != source_files(bms_conf)["callsign"]:
+            raise HTTPException(status_code=409, detail="Source files changed")
+        return {**field_payload(ci, callsign_ini_path(bms_conf), getattr(bms_conf, "theater", ""), base_dir=bms_conf.base_dir),
+                "source_version": version}
 
     @app.get("/api/dtc/icp")
     def get_dtc_icp() -> Dict[str, Dict[str, str]]:
