@@ -6,18 +6,28 @@ from typing import Callable
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import Headers
+
+
+APP_MEDIA_TYPES = {
+    "text/html", "text/css", "text/javascript", "application/javascript",
+    "application/x-javascript",
+}
+
+
+def is_app_content(headers: Headers) -> bool:
+    return headers.get("content-type", "").split(";", 1)[0] in APP_MEDIA_TYPES
 
 
 class NoCacheAppStaticFiles(StaticFiles):
-    """StaticFiles variant that prevents stale app JS/CSS during local updates."""
+    """Always send app HTML/JS/CSS, even when an older browser cache has validators."""
 
-    async def get_response(self, path: str, scope):
-        response = await super().get_response(path, scope)
-        if path.endswith((".js", ".css")):
-            response.headers["Cache-Control"] = "no-store, max-age=0"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-        return response
+    def is_not_modified(self, response_headers: Headers, request_headers: Headers) -> bool:
+        # File timestamps and sizes can survive an update without matching its
+        # contents. A 304 would let a browser keep executing the old code.
+        if is_app_content(response_headers):
+            return False
+        return super().is_not_modified(response_headers, request_headers)
 
 
 def register_file_routes(
@@ -31,12 +41,23 @@ def register_file_routes(
 ) -> None:
     """Register static mounts and simple file-serving endpoints."""
 
-    app.mount("/assets", StaticFiles(directory=static_root / "assets"), name="assets")
+    @app.middleware("http")
+    async def prevent_app_caching(request, call_next):
+        response = await call_next(request)
+        # Include generated pages: inline scripts and script tags must stay in
+        # sync with the external JavaScript after an application update.
+        if is_app_content(response.headers):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+    app.mount("/assets", NoCacheAppStaticFiles(directory=static_root / "assets"), name="assets")
     app.mount("/templates", NoCacheAppStaticFiles(directory=static_root / "templates"), name="templates")
-    app.mount("/dist", StaticFiles(directory=static_root / "dist"), name="dist")
-    app.mount("/kneeboards", StaticFiles(directory=kneeboards_dir), name="kneeboards")
+    app.mount("/dist", NoCacheAppStaticFiles(directory=static_root / "dist"), name="dist")
+    app.mount("/kneeboards", NoCacheAppStaticFiles(directory=kneeboards_dir), name="kneeboards")
     if web_dir.exists():
-        app.mount("/web", StaticFiles(directory=web_dir), name="web")
+        app.mount("/web", NoCacheAppStaticFiles(directory=web_dir), name="web")
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
