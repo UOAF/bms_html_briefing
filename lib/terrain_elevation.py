@@ -43,9 +43,10 @@ class HeightmapSpec:
 
 
 class HeightmapSampler:
-    def __init__(self, spec: HeightmapSpec):
+    def __init__(self, spec: HeightmapSpec, water_spec: HeightmapSpec | None = None):
         self.spec = spec
-        self._file = None
+        self.water_spec = water_spec
+        self._files = {}
         self._lock = threading.Lock()
 
     def elevation_feet(self, north_feet: float, east_feet: float) -> int:
@@ -58,24 +59,48 @@ class HeightmapSampler:
 
         east_ratio = east_feet / self.spec.max_east_feet if self.spec.max_east_feet else 0
         north_ratio = north_feet / self.spec.max_north_feet if self.spec.max_north_feet else 0
-        pixel_x = int(east_ratio * (self.spec.width - 1))
-        pixel_y = int((1.0 - north_ratio) * (self.spec.height - 1))
+        # BMS grid spacing is theater size / sample count, with north flipped.
+        pixel_x = east_ratio * self.spec.width
+        pixel_y = self.spec.height - 1 - north_ratio * self.spec.height
         pixel_x = max(0, min(self.spec.width - 1, pixel_x))
         pixel_y = max(0, min(self.spec.height - 1, pixel_y))
-
-        offset = (pixel_y * self.spec.width + pixel_x) * 2
+        x0, y0 = int(pixel_x), int(pixel_y)
+        x1, y1 = min(x0 + 1, self.spec.width - 1), min(y0 + 1, self.spec.height - 1)
+        dx, dy = pixel_x - x0, pixel_y - y0
         with self._lock:
-            if self._file is None:
-                try:
-                    self._file = self.spec.path.open("rb")
-                except OSError as exc:
-                    raise HeightmapReadError(f"Could not open heightmap {self.spec.path}: {exc}") from exc
-            try:
-                self._file.seek(offset)
-                raw = self._file.read(2)
-            except OSError as exc:
-                raise HeightmapReadError(f"Could not read heightmap {self.spec.path}: {exc}") from exc
+            h00 = self._surface_height(x0, y0)
+            h10 = self._surface_height(x1, y0)
+            h01 = self._surface_height(x0, y1)
+            h11 = self._surface_height(x1, y1)
+        top = h00 + (h10 - h00) * dx
+        bottom = h01 + (h11 - h01) * dx
+        return round(top + (bottom - top) * dy)
 
+    def _surface_height(self, pixel_x: int, pixel_y: int) -> int:
+        terrain = self._read_sample(self.spec, pixel_x, pixel_y)
+        if self.water_spec is None:
+            return terrain
+        # LoadHybridHeightmap raises each terrain sample to its water cell
+        # before GetGroundLevel interpolates the resulting surface.
+        water_x = pixel_x * self.water_spec.width // self.spec.width
+        water_y = pixel_y * self.water_spec.height // self.spec.height
+        water = self._read_sample(self.water_spec, water_x, water_y)
+        return max(terrain, water)
+
+    def _read_sample(self, spec: HeightmapSpec, pixel_x: int, pixel_y: int) -> int:
+        offset = (pixel_y * spec.width + pixel_x) * 2
+        heightmap = self._files.get(spec.path)
+        if heightmap is None:
+            try:
+                heightmap = spec.path.open("rb")
+            except OSError as exc:
+                raise HeightmapReadError(f"Could not open heightmap {spec.path}: {exc}") from exc
+            self._files[spec.path] = heightmap
+        try:
+            heightmap.seek(offset)
+            raw = heightmap.read(2)
+        except OSError as exc:
+            raise HeightmapReadError(f"Could not read heightmap {spec.path}: {exc}") from exc
         if len(raw) != 2:
             raise HeightmapReadError(f"Expected 2 bytes at offset {offset}, got {len(raw)}")
         return int(struct.unpack("<h", raw)[0])
@@ -109,7 +134,8 @@ def get_heightmap_sampler(
     with _CACHE_LOCK:
         sampler = _SAMPLER_CACHE.get(key)
         if sampler is None:
-            sampler = HeightmapSampler(_resolve_heightmap_spec(base_dir, theater_name, theater_size_km))
+            spec = _resolve_heightmap_spec(base_dir, theater_name, theater_size_km)
+            sampler = HeightmapSampler(spec, _resolve_water_heightmap_spec(spec))
             _SAMPLER_CACHE[key] = sampler
         return sampler
 
@@ -143,6 +169,27 @@ def _resolve_heightmap_spec(
     )
     logger.info("Resolved BMS heightmap for %s: %s (%dx%d)", theater_name, heightmap_path, width, height)
     return spec
+
+
+def _resolve_water_heightmap_spec(terrain_spec: HeightmapSpec) -> HeightmapSpec | None:
+    path = _resolve_case_insensitive(terrain_spec.path.parent, ["WaterHeightMap.raw"])
+    if path is None:
+        return None
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise HeightmapReadError(f"Could not stat {path}: {exc}") from exc
+    side = math.isqrt(size // 2)
+    if (side == 0 or side * side * 2 != size
+            or terrain_spec.width % side or terrain_spec.height % side):
+        raise HeightmapReadError(f"Invalid water heightmap dimensions: {path}")
+    return HeightmapSpec(
+        path=path,
+        width=side,
+        height=side,
+        max_north_feet=terrain_spec.max_north_feet,
+        max_east_feet=terrain_spec.max_east_feet,
+    )
 
 
 def _read_theater_values(theater_txt: Path) -> dict[str, str]:

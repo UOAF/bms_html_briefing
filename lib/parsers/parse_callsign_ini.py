@@ -254,6 +254,13 @@ def _normalized_laser_settings(laser_settings = None):
                 normalized[key] = _canonical_numeric_value(clean_value)
     return normalized
 
+def _export_offset_elevation(value):
+    value = _clean_offset_value(value)
+    # BMS stores NAV OFFSETS altitude as uint32; negative input wraps around.
+    if _NUMERIC_VALUE_RE.fullmatch(value) and Decimal(value) < 0:
+        return "0"
+    return value
+
 def build_nav_offsets_section(nav_offsets = None, newline = "\n"):
     nav_offsets = _normalized_nav_offsets(nav_offsets)
     lines = ["[NAV OFFSETS]" + newline, f"Modesel={nav_offsets['modesel']}" + newline]
@@ -264,14 +271,16 @@ def build_nav_offsets_section(nav_offsets = None, newline = "\n"):
         stpt = _clean_offset_value(row.get("stpt"))
         if stpt == "":
             continue
-        lines.append(f"{key.upper()}={stpt},{row['brg']},{row['rng']},{row['elev']}" + newline)
+        elev = _export_offset_elevation(row["elev"])
+        lines.append(f"{key.upper()}={stpt},{row['brg']},{row['rng']},{elev}" + newline)
     for stpt in sorted(nav_offsets["oa"], key=_offset_sort_key):
         rows = nav_offsets["oa"][stpt]
         for row_key in ("oa1", "oa2"):
             row = rows.get(row_key)
             if not row or _offset_is_zero(row):
                 continue
-            lines.append(f"{row_key.upper()}-{stpt}={row['brg']},{row['rng']},{row['elev']}" + newline)
+            elev = _export_offset_elevation(row["elev"])
+            lines.append(f"{row_key.upper()}-{stpt}={row['brg']},{row['rng']},{elev}" + newline)
     return lines
 
 def build_icp_section(icp_settings = None, newline = "\n"):
