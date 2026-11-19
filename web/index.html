@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>Falcon BMS Briefing Server</title>
   <link rel="icon" type="image/png" href="/assets/icon.png">
+  <link rel="stylesheet" href="/templates/map_controls.css">
   <style>
     @font-face {
       font-family: "IBMPlexMono";
@@ -3572,6 +3573,7 @@
     function refreshIsBlocked() {
       if (frameIsEditing(briefFrame) || frameIsEditing(dtcFrame) || document.querySelector("dialog[open]")) return true;
       if (briefFrame?.contentWindow?.briefingMapAnnotations?.isBusy()) return true;
+      if (briefFrame?.contentWindow?.briefingMapExpansion?.isOpen()) return true;
       if (dtcFrame?.contentWindow?.dtcSaveBusy || dtcFrame?.contentWindow?.dtcPendingEdits) return true;
       try { window.dtcFieldStore.flush(); } catch { return true; }
       return false;

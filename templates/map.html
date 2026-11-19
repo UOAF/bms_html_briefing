@@ -1,5 +1,6 @@
 <link rel="stylesheet" href="templates/map_controls.css">
 <script src="templates/map_controls.js"></script>
+<script src="templates/map_expansion.js"></script>
 <style>
 		@font-face {
 		    font-family: "Map Overlay Mono";
@@ -2240,6 +2241,7 @@ if (!IS_DTC_PAGE && window.BriefingAnnotations && typeof dtcFieldPayload !== "un
         onActivate: () => setMapRulerMode(false),
         onChange: () => saveChangedData(),
     });
+    window.briefingMapExpansion = MapExpansion.attach(map, mapInstrumentControl.getContainer());
 }
 
 try {

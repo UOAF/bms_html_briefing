@@ -4,13 +4,14 @@
  * Changes: independent briefing annotations, BMS-plane geometry, persistent
  * rectangles, local undo/redo, standalone toolbar, and canvas export.
  * No DTC, campaign, multiplayer, or weather writes.
+ * Changes (2026-11-19): local, transient BMS-Cards laser pointer.
  */
 (function (global) {
     "use strict";
     const NM = 6076.12;
     const DEFAULT_COLOR = "#f5c842";
-    const SYMBOLS = ["armor", "mech", "inf", "art", "rocket", "missile", "ad", "shorad", "aaa",
-        "hq", "sup", "eng", "ship", "carrier", "sub", "trk", "ab", "IP", "CP", "tgt", "bull", "orbit", "hold", "ring"];
+    const SYMBOLS = ["armor", "inf", "art", "missile", "ad", "hq", "eng", "generic",
+        "trk", "ab", "IP", "CP", "tgt", "bull", "orbit", "hold", "ring"];
     const PAIRED_SYMBOLS = ["trk", "orbit", "hold", "ring"];
     const KINDS = ["point", "line", "rectangle", "pen", "marker", "arrow", "circle", "text", "symbol"];
     const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -101,6 +102,7 @@
         let dragBefore = null, dragging = false, handleUpdates = [];
         let color = DEFAULT_COLOR, width = 4, symbol = "armor", side = "hostile";
         let gesture = null, suppressClickUntil = 0, savedNavigation = null;
+        let laserTrail = [], laserHead = null, laserFrame = null;
         const drawing = global.BriefingAnnotationDrawing;
         const paneName = "briefingAnnotations", handlePane = "briefingAnnotationHandles";
         map.createPane(paneName).style.zIndex = 750;
@@ -109,6 +111,8 @@
         const container = map.getContainer();
         const canvas = L.DomUtil.create("canvas", "briefing-annotation-canvas", map.getPane(paneName));
         canvas.setAttribute("aria-hidden", "true");
+        const laserCanvas = L.DomUtil.create("canvas", "briefing-annotation-laser", map.getPane(paneName));
+        laserCanvas.setAttribute("aria-hidden", "true");
         const hitContext = document.createElement("canvas").getContext("2d");
         const toMap = (p) => L.latLng(options.toMap(p));
         const fromMap = (p) => options.fromMap(L.latLng(p));
@@ -133,6 +137,7 @@
         }
         function cancel(nextMode = null) {
             abortGesture();
+            clearLaser();
             mode = nextMode;
             draft = null;
             hover = null;
@@ -267,7 +272,7 @@
             strip.append(tools);
             bar.setAttribute("role", "toolbar");
             bar.setAttribute("aria-label", "Annotations");
-            for (const [kind, title] of [["pan", "Move map"], ["select", "Select"], ["pen", "Pen"],
+            for (const [kind, title] of [["pan", "Move map"], ["select", "Select"], ["laser", "Laser pointer"], ["pen", "Pen"],
                 ["marker", "Marker"], ["arrow", "Arrow"], ["line", "Line"], ["circle", "Circle"],
                 ["rectangle", "Box"], ["text", "Text"], ["symbol", "Symbol"], ["point", "Point"], ["erase", "Eraser"]]) {
                 button(tools, kind, title, () => start(kind), kind);
@@ -408,6 +413,51 @@
                 edge.y + (edge.y - center.y) * 24 / length]);
         }
         const pixel = (p) => map.latLngToContainerPoint(toMap(p));
+        // The laser has its own canvas and never enters features or history.
+        // Keep map coordinates so the fading trail follows zoom/pan correctly.
+        function renderLaser(now = performance.now()) {
+            const size = map.getSize(), ratio = global.devicePixelRatio || 1;
+            L.DomUtil.setPosition(laserCanvas, map.containerPointToLayerPoint([0, 0]));
+            const width = Math.ceil(size.x * ratio), height = Math.ceil(size.y * ratio);
+            if (laserCanvas.width !== width || laserCanvas.height !== height) {
+                laserCanvas.width = width;
+                laserCanvas.height = height;
+            }
+            laserCanvas.style.width = size.x + "px";
+            laserCanvas.style.height = size.y + "px";
+            const ctx = laserCanvas.getContext("2d");
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+            ctx.clearRect(0, 0, width / ratio, height / ratio);
+            drawing.drawLaser(ctx, laserTrail.map(({ latlng, time }) => ({
+                point: latlng ? map.latLngToContainerPoint(latlng) : null, time,
+            })), laserHead ? map.latLngToContainerPoint(laserHead) : null, now);
+        }
+        function animateLaser(now) {
+            laserFrame = null;
+            laserTrail = laserTrail.filter((sample) => now - sample.time < drawing.LASER_TTL);
+            renderLaser(now);
+            if (laserTrail.length) laserFrame = requestAnimationFrame(animateLaser);
+        }
+        function pointLaser(position) {
+            const time = performance.now();
+            if (laserHead && !laserTrail.length) laserTrail.push({ latlng: laserHead, time });
+            laserHead = map.containerPointToLatLng(position);
+            laserTrail.push({ latlng: laserHead, time });
+            if (laserTrail.length > 512) laserTrail.shift();
+            if (laserFrame === null) laserFrame = requestAnimationFrame(animateLaser);
+        }
+        function releaseLaser() {
+            laserHead = null;
+            // Break the trail between separate presses.
+            if (laserTrail.length) laserTrail.push({ latlng: null, time: performance.now() });
+        }
+        function clearLaser() {
+            laserHead = null;
+            laserTrail = [];
+            if (laserFrame !== null) cancelAnimationFrame(laserFrame);
+            laserFrame = null;
+            renderLaser();
+        }
         function paintFeature(ctx, feature) {
             if (!feature.center && !feature.points?.length) return;
             let coords = points(feature).map(pixel);
@@ -443,6 +493,7 @@
                     className: "briefing-annotation-label briefing-annotation-guide" }).setLatLng(rotationPosition(feature, 1))
                     .setContent(String(Math.round(feature.rotation % 360)).padStart(3, "0") + "°").addTo(shapes);
             }
+            renderLaser();
         }
         function renderHandles() {
             handles.clearLayers();
@@ -519,7 +570,7 @@
             root.hidden = !active;
             root.style.setProperty("--annotation-height", Math.max(80, map.getSize().y - 100) + "px");
             buttons.toggle.setAttribute("aria-pressed", String(active));
-            for (const kind of ["pan", "select", "erase", ...KINDS]) {
+            for (const kind of ["pan", "select", "laser", "erase", ...KINDS]) {
                 buttons[kind].setAttribute("aria-pressed", String(kind === "select" ? !mode : mode === kind));
             }
             buttons.undo.disabled = !past.length;
@@ -548,7 +599,7 @@
         function click(event) {
             if (!active || dragging) return;
             if (event.originalEvent && performance.now() < suppressClickUntil) return;
-            if (mode === "pan") return;
+            if (mode === "pan" || mode === "laser") return;
             const coord = fromMap(event.latlng);
             if (!mode || mode === "erase") {
                 const feature = pick(map.latLngToContainerPoint(event.latlng));
@@ -592,6 +643,7 @@
         let spacePan = false;
         function abortGesture() {
             if (!gesture) return;
+            if (gesture.kind === "laser") clearLaser();
             if (gesture.before) features = gesture.before;
             const id = gesture.id;
             gesture = null;
@@ -603,18 +655,19 @@
             if (!active || gesture || isControl(event) || mode === "pan") return;
             const position = eventPixel(event), coord = eventCoord(event);
             const pan = event.button === 1 || (event.button === 0 && spacePan);
-            if (!pan && (event.button !== 0 || !inBounds(coord))) return;
+            if (!pan && (event.button !== 0 || (mode !== "laser" && !inBounds(coord)))) return;
             const feature = !mode ? pick(position) : null;
-            const draw = ["pen", "marker", "arrow", "circle", "rectangle", "line"].includes(mode)
+            const draw = ["laser", "pen", "marker", "arrow", "circle", "rectangle", "line"].includes(mode)
                 || (mode === "symbol" && PAIRED_SYMBOLS.includes(symbol));
             if (!pan && !feature && mode !== "erase" && !draw) return;
             if (!pan && draft && (mode !== "line" || draft.points.length)) return;
-            gesture = { id: event.pointerId, before: clone(features), start: coord, position,
+            gesture = { id: event.pointerId, before: mode === "laser" ? null : clone(features), start: coord, position,
                 last: position, kind: pan ? "pan" : feature ? "move" : mode,
                 original: feature ? clone(feature) : null, moved: false };
             dragging = true;
             if (feature) selected = feature.id;
             if (mode === "erase" && !pan) eraseAt(position);
+            if (gesture.kind === "laser") pointLaser(position);
             // A synthetic test event has no active pointer to capture.
             try { container.setPointerCapture(event.pointerId); } catch (_) { /* no active pointer */ }
             if (mode !== "line" && mode !== "rectangle" || pan || feature) event.preventDefault();
@@ -628,6 +681,11 @@
             if (!gesture || event.pointerId !== gesture.id) return;
             const position = eventPixel(event), coord = eventCoord(event);
             const g = gesture;
+            if (g.kind === "laser") {
+                pointLaser(position);
+                event.preventDefault();
+                return;
+            }
             if (g.kind === "pan") {
                 map.panBy([g.last.x - position.x, g.last.y - position.y], { animate: false });
                 g.last = position;
@@ -665,6 +723,12 @@
             gesture = null;
             dragging = false;
             if (container.hasPointerCapture?.(g.id)) container.releasePointerCapture(g.id);
+            if (g.kind === "laser") {
+                releaseLaser();
+                suppressClickUntil = performance.now() + 350;
+                render();
+                return;
+            }
             if (g.moved || g.kind === "erase" || g.kind === "move") suppressClickUntil = performance.now() + 350;
             if (g.kind === "move" || g.kind === "erase") {
                 if (features.every((f) => validFeature(f, options.extent))) changed(g.before);
@@ -727,7 +791,8 @@
             }
         }
         function keyup(event) { if (event.code === "Space") spacePan = false; }
-        function blur() { spacePan = false; pointercancel({}); }
+        function blur() { spacePan = false; pointercancel({}); clearLaser(); }
+        function visibilityChanged() { if (document.hidden) blur(); }
         function zoom() { renderShapes(); if (!dragging) renderHandles(); }
         function resized() { render(); }
         map.on("click", click);
@@ -736,6 +801,7 @@
         map.on("resize", resized);
         document.addEventListener("keydown", keydown);
         document.addEventListener("keyup", keyup);
+        document.addEventListener("visibilitychange", visibilityChanged);
         global.addEventListener("blur", blur);
         container.addEventListener("pointerdown", pointerdown, true);
         container.addEventListener("pointermove", pointermove, true);
@@ -777,6 +843,7 @@
                 map.off("resize", resized);
                 document.removeEventListener("keydown", keydown);
                 document.removeEventListener("keyup", keyup);
+                document.removeEventListener("visibilitychange", visibilityChanged);
                 global.removeEventListener("blur", blur);
                 container.removeEventListener("pointerdown", pointerdown, true);
                 container.removeEventListener("pointermove", pointermove, true);
@@ -788,6 +855,7 @@
                 shapes.remove();
                 handles.remove();
                 canvas.remove();
+                laserCanvas.remove();
                 buttons.toggle.remove();
                 control.remove();
                 container.classList.remove("briefing-annotation-active", "briefing-annotation-adding", "briefing-annotation-drawing");

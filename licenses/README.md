@@ -79,8 +79,9 @@
 | --- | --- | --- |
 | Rectangle editing | `app/js/core/mapview.js` | `templates/map_annotations.js` |
 | Drawing and selection | `app/js/core/briefing.js` | `templates/map_annotations.js`, `templates/map_annotation_drawing.js` |
+| Laser pointer and fading trail | `app/js/core/briefing.js` | `templates/map_annotations.js`, `templates/map_annotation_drawing.js` |
 | Drawing-toolbar icons | `app/js/core/briefing.js` | `templates/map_controls.js` |
-| Control symbols and legacy Supply/Submarine symbols | `app/js/core/mapsymbols.js`, `app/js/core/briefing.js` | `templates/map_annotation_drawing.js` |
+| Control symbols | `app/js/core/mapsymbols.js`, `app/js/core/briefing.js` | `templates/map_annotation_drawing.js` |
 | Toolbar and palette styling | `app/css/style-11.css` | `templates/map_annotations.css` |
 
 ## Bundled asset licenses

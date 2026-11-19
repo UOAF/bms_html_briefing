@@ -4,23 +4,22 @@
  * Changes (2026-11-17): standalone canvas drawing and hit testing, shared by
  * briefing display/export, with projected BMS coordinates and no room state.
  * Changes (2026-11-19): render separately licensed Wikimedia NATO artwork.
+ * Changes (2026-11-19): standalone BMS-Cards laser glow and fading trail.
  */
 (function (global) {
     "use strict";
     const COLORS = ["#f5c842", "#ef4444", "#38bdf8", "#4ade80", "#ffffff"];
+    const LASER_TTL = 900;
     const SIDES = { hostile: "#ff5d5d", friend: "#4f8cff", neutral: "#4cc38a", unknown: "#f5d742" };
     const UNITS = [
         ["armor", "Armor"], ["inf", "Infantry"], ["art", "Artillery"],
-        ["missile", "SSM"], ["ad", "Air defence"], ["hq", "HQ"], ["eng", "Engineer"], ["ship", "Ship"],
+        ["missile", "SSM"], ["ad", "Air defence"], ["hq", "HQ"], ["eng", "Engineer"], ["generic", "Generic"],
     ];
     const CONTROLS = [["trk", "Radar track"], ["ab", "Airbase"], ["IP", "IP"], ["CP", "CP"],
         ["tgt", "Target"], ["bull", "Bullseye"], ["orbit", "CAP orbit"], ["hold", "Holding"], ["ring", "Threat ring"]];
-    // Keep historical feature keys intact when loading saved briefings. The
-    // available Wikimedia set uses broader categories for these subtypes.
-    const TACTICAL_ALIASES = { mech: "inf", rocket: "art", shorad: "ad", aaa: "ad", carrier: "ship" };
     const paths = new WeakMap();
     function tacticalPaths(symbol, side) {
-        return global.BriefingNatoSymbols[TACTICAL_ALIASES[symbol] || symbol]?.[side];
+        return global.BriefingNatoSymbols[symbol]?.[side];
     }
     function tacticalIcon(shapes) {
         return '<svg viewBox="-16 -16 32 32" xmlns="http://www.w3.org/2000/svg">' + shapes.map((shape) =>
@@ -47,17 +46,6 @@
             ctx.restore();
         }
     }
-    // These two BMS-Cards signs remain only for existing saved annotations;
-    // they are omitted from the palette until replacement artwork is available.
-    const GLYPHS = {
-        sub: "M-1 .3a1 .35 0 1 0 2 0a1 .35 0 1 0-2 0M-.15-.05V-.6H.3V-.05",
-        sup: "T:S",
-    };
-    function frame(side) {
-        if (side === "hostile") return "M0-13L13 0L0 13L-13 0Z";
-        if (side === "unknown") return "M-6-6A6 6 0 0 1 6-6A6 6 0 0 1 6 6A6 6 0 0 1-6 6A6 6 0 0 1-6-6Z";
-        return side === "neutral" ? "M-10-10H10V10H-10Z" : "M-13-9H13V9H-13Z";
-    }
     function symbolIcon(symbol, side, threatRingStyle) {
         const shapes = tacticalPaths(symbol, side);
         if (shapes) return tacticalIcon(shapes);
@@ -66,10 +54,6 @@
             return `<svg viewBox="-16 -16 32 32" xmlns="http://www.w3.org/2000/svg"><circle r="11" fill="${style.fillColor}" fill-opacity="${style.fillOpacity}" stroke="${style.color}" stroke-opacity="${style.opacity}" stroke-width="${style.weight}" stroke-linecap="${style.lineCap}" stroke-dasharray="${style.dashPattern.join(" ")}"/></svg>`;
         }
         const color = SIDES[side];
-        const glyph = GLYPHS[symbol];
-        const inner = glyph?.startsWith("T:")
-            ? `<text y="3" font-size="9" text-anchor="middle" fill="${color}" stroke="none">${glyph.slice(2)}</text>`
-            : glyph ? `<path d="${glyph}" transform="scale(6)" stroke-width=".23"/>` : "";
         const control = {
             trk: '<path d="M-4-4H4V4H-4ZM4-4L13-10"/>',
             ab: '<path d="M-7 10L4-10M-3 10L8-10M-10-1L10 5"/>',
@@ -81,7 +65,7 @@
             hold: '<rect x="-14" y="-7" width="28" height="14" rx="7"/><path d="M8 7l-4-3v6z"/>',
             ring: '<circle r="11" stroke-dasharray="3 2"/>',
         };
-        return `<svg viewBox="-16 -16 32 32" xmlns="http://www.w3.org/2000/svg" style="color:${color}" fill="none" stroke="${color}" stroke-width="1.6">${glyph ? `<path d="${frame(side)}" fill="#0d1b2a"/>${inner}` : control[symbol]}</svg>`;
+        return `<svg viewBox="-16 -16 32 32" xmlns="http://www.w3.org/2000/svg" style="color:${color}" fill="none" stroke="${color}" stroke-width="1.6">${control[symbol]}</svg>`;
     }
     function text(ctx, value, x, y, color = "#fff", size = 12, align = "center") {
         ctx.save();
@@ -136,7 +120,7 @@
         return path;
     }
     function drawSymbol(ctx, f, p) {
-        const color = SIDES[f.side], a = p[0], glyph = GLYPHS[f.symbol];
+        const color = SIDES[f.side], a = p[0];
         const shapes = tacticalPaths(f.symbol, f.side);
         ctx.save();
         ctx.translate(a.x, a.y);
@@ -145,16 +129,6 @@
         ctx.fillStyle = "#0d1b2ad9";
         if (shapes) {
             drawTactical(ctx, shapes);
-        } else if (glyph) {
-            const outline = new Path2D(frame(f.side));
-            ctx.fill(outline);
-            ctx.stroke(outline);
-            if (glyph.startsWith("T:")) text(ctx, glyph.slice(2), 0, 5, color, 9);
-            else {
-                ctx.scale(6, 6);
-                ctx.lineWidth = .24;
-                ctx.stroke(new Path2D(glyph));
-            }
         } else if (f.symbol === "trk") {
             ctx.strokeRect(-5, -5, 10, 10);
             ctx.beginPath();
@@ -240,6 +214,37 @@
         }
         ctx.restore();
     }
+    // Transient overlay only: callers must not use this in saved map exports.
+    function drawLaser(ctx, samples, head, now) {
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (let i = 1; i < samples.length; i++) {
+            const a = samples[i - 1].point, b = samples[i].point;
+            if (!a || !b) continue;
+            const fade = Math.max(0, 1 - (now - samples[i].time) / LASER_TTL);
+            ctx.strokeStyle = `rgba(255,40,40,${.25 * fade})`;
+            ctx.lineWidth = 12 * fade + 2;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+            ctx.strokeStyle = `rgba(255,90,90,${.9 * fade})`;
+            ctx.lineWidth = 3 * fade + .5;
+            ctx.stroke();
+        }
+        if (head) {
+            const glow = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 14);
+            glow.addColorStop(0, "rgba(255,255,255,1)");
+            glow.addColorStop(.25, "rgba(255,60,60,.95)");
+            glow.addColorStop(1, "rgba(255,0,0,0)");
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(head.x, head.y, 14, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
     function hit(ctx, f, p, anchor, at) {
         if (!p.length) return false;
         ctx.lineCap = "round";
@@ -260,5 +265,5 @@
         return ctx.isPointInStroke(path, at.x, at.y)
             || ((["point", "rectangle", "circle"].includes(f.kind) || f.symbol === "ring") && ctx.isPointInPath(path, at.x, at.y));
     }
-    global.BriefingAnnotationDrawing = { COLORS, SIDES, UNITS, CONTROLS, symbolIcon, draw, hit };
+    global.BriefingAnnotationDrawing = { COLORS, SIDES, UNITS, CONTROLS, LASER_TTL, symbolIcon, draw, drawLaser, hit };
 })(window);

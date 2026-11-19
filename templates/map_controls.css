@@ -57,4 +57,33 @@
 .leaflet-container .map-control-icon * { color: inherit; }
 .map-instrument-list { display: flex; flex-direction: column; overflow: hidden; }
 .leaflet-container .map-instrument-list > .map-icon-button:not(:last-child) { border-bottom: 1px solid var(--map-control-border); }
+dialog.map-expanded-dialog {
+    width: calc(100vw - 32px);
+    height: calc(100dvh - 32px);
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    border: 1px solid var(--map-control-border);
+    background: var(--map-control-bg);
+    overflow: hidden;
+}
+dialog.map-expanded-dialog[open] { display: grid; grid-template-rows: var(--map-control-size) minmax(0, 1fr); }
+dialog.map-expanded-dialog.in-frame { width: 100vw; height: 100dvh; margin: 0; }
+dialog.map-expanded-dialog::backdrop { background: #0009; }
+.map-expanded-header { display: flex; align-items: center; justify-content: space-between; padding-left: 10px; }
+.map-expanded-header span { color: var(--map-control-fg); font: bold 14px sans-serif; }
+.map-expanded-dialog #image-map { width: 100% !important; height: 100% !important; max-height: none; min-height: 0; }
+/* Widen the existing preview iframe in place: reparenting an iframe reloads it. */
+.map-expanded-host-frame {
+    position: fixed !important;
+    top: 16px !important;
+    left: 16px !important;
+    width: calc(100vw - 32px) !important;
+    height: calc(100dvh - 32px) !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    z-index: 10000 !important;
+}
+.map-expanded-backdrop { position: fixed; inset: 0; background: #0009; z-index: 9999; }
 @media print { .map-control-surface { display: none !important; } }

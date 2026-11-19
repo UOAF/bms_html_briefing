@@ -71,7 +71,7 @@
 .briefing-annotation-control [hidden] { display: none; }
 .briefing-annotation-status { color: #a12626; background: var(--map-control-bg); width: max-content; padding: 2px 4px; }
 .briefing-annotation-status:empty { display: none; }
-.briefing-annotation-canvas { position: absolute; pointer-events: none; }
+.briefing-annotation-canvas, .briefing-annotation-laser { position: absolute; pointer-events: none; }
 .briefing-annotation-adding { cursor: crosshair !important; }
 .briefing-annotation-drawing { touch-action: none; }
 /* Existing map symbols retain their data and become click-through while drawing. */
@@ -93,5 +93,6 @@
 }
 .leaflet-tooltip.briefing-annotation-label::before { display: none; }
 @media print {
-    .briefing-annotation-control, .briefing-annotation-handle, .briefing-annotation-guide { display: none !important; }
+    .briefing-annotation-control, .briefing-annotation-handle, .briefing-annotation-guide,
+    .briefing-annotation-laser { display: none !important; }
 }
