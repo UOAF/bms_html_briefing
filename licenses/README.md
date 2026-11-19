@@ -64,7 +64,29 @@
 - `falcon-bms-tacview-converter-LICENSE` covers the heightmap elevation lookup algorithm adapted from the Falcon BMS Tacview Converter.
 - `openchart-OpenTaxiway-LICENSE.md` covers code derived from OpenTaxiway in the bundled OpenChart runtime.
 
+## Adapted JavaScript and CSS
+
+### BMS Cards
+
+- Upstream: [Evilangel19/BMS-Cards](https://github.com/Evilangel19/BMS-Cards)
+- Revision: [7436fa4deff6f337f66b255fc944b564db04e4d1](https://github.com/Evilangel19/BMS-Cards/tree/7436fa4deff6f337f66b255fc944b564db04e4d1)
+- License: [GNU Affero General Public License v3.0](assets/bms-cards-LICENSE) (`AGPL-3.0-only`)
+- Adaptation dates: 2026-11-17–2026-11-19
+- Symbol provenance: [upstream credits](https://github.com/Evilangel19/BMS-Cards/blob/7436fa4deff6f337f66b255fc944b564db04e4d1/CREDITS.md)
+- Symbol style: APP-6 / MIL-STD-2525
+
+| Adapted component | Upstream file | Local file |
+| --- | --- | --- |
+| Rectangle editing | `app/js/core/mapview.js` | `templates/map_annotations.js` |
+| Drawing and selection | `app/js/core/briefing.js` | `templates/map_annotations.js`, `templates/map_annotation_drawing.js` |
+| Drawing-toolbar icons | `app/js/core/briefing.js` | `templates/map_controls.js` |
+| Control symbols and legacy Supply/Submarine symbols | `app/js/core/mapsymbols.js`, `app/js/core/briefing.js` | `templates/map_annotation_drawing.js` |
+| Toolbar and palette styling | `app/css/style-11.css` | `templates/map_annotations.css` |
+
 ## Bundled asset licenses
+
+- [Wikimedia NATO symbols — CdnMCG, CC BY-SA 4.0](assets/wikimedia-nato-symbols.md): `assets/nato_symbols.js`
+- `bms-cards-LICENSE`
 - `ibm-plex-mono-OFL-1.1.txt`
 - `inter-OFL-1.1.txt`
 - `leaflet-LICENSE`

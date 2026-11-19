@@ -3571,6 +3571,7 @@
 
     function refreshIsBlocked() {
       if (frameIsEditing(briefFrame) || frameIsEditing(dtcFrame) || document.querySelector("dialog[open]")) return true;
+      if (briefFrame?.contentWindow?.briefingMapAnnotations?.isBusy()) return true;
       if (dtcFrame?.contentWindow?.dtcSaveBusy || dtcFrame?.contentWindow?.dtcPendingEdits) return true;
       try { window.dtcFieldStore.flush(); } catch { return true; }
       return false;

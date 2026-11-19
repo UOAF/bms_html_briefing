@@ -1,0 +1,60 @@
+/* Shared map-control appearance. Tune these variables to restyle every icon. */
+.leaflet-container {
+    --map-control-size: 30px;
+    --map-icon-size: 20px;
+    --map-icon-stroke: 2.4;
+    --map-control-bg: #fff;
+    --map-control-fg: #111;
+    --map-control-hover: #f4f4f4;
+    --map-control-border: #ccc;
+    --map-control-active: #555;
+    --map-control-radius: 4px;
+}
+.map-control-surface {
+    color: var(--map-control-fg);
+    background: var(--map-control-bg);
+    border: 2px solid #0003;
+    border-radius: var(--map-control-radius);
+    box-shadow: 0 1px 5px #0004;
+}
+.leaflet-container .map-icon-button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--map-control-size);
+    width: var(--map-control-size);
+    height: var(--map-control-size);
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    color: var(--map-control-fg);
+    background: var(--map-control-bg);
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1;
+    box-sizing: border-box;
+}
+.leaflet-container .map-icon-button:hover,
+.leaflet-container .map-icon-button[aria-pressed="true"] { background: var(--map-control-hover); }
+.leaflet-container .map-icon-button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--map-control-active); }
+.leaflet-container .map-icon-button:focus-visible { outline: 2px solid var(--map-control-active); outline-offset: -2px; }
+.leaflet-container .map-icon-button:disabled { opacity: .35; cursor: default; }
+.leaflet-container .map-icon-button[hidden] { display: none; }
+.leaflet-container .map-control-icon {
+    display: block;
+    width: var(--map-icon-size);
+    height: var(--map-icon-size);
+    color: inherit;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: var(--map-icon-stroke);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+.leaflet-container .map-control-icon * { color: inherit; }
+.map-instrument-list { display: flex; flex-direction: column; overflow: hidden; }
+.leaflet-container .map-instrument-list > .map-icon-button:not(:last-child) { border-bottom: 1px solid var(--map-control-border); }
+@media print { .map-control-surface { display: none !important; } }

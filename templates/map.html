@@ -1,3 +1,5 @@
+<link rel="stylesheet" href="templates/map_controls.css">
+<script src="templates/map_controls.js"></script>
 <style>
 		@font-face {
 		    font-family: "Map Overlay Mono";
@@ -158,46 +160,6 @@
 		.map-source-select {
 		    width: 100%;
 		    margin: 0;
-		}
-		.leaflet-control-map-ruler a {
-		    position: relative;
-		    display: block;
-		    width: 30px;
-		    height: 30px;
-		    background: #ffffff;
-		    color: #111111;
-		    text-decoration: none;
-		}
-		.leaflet-control-map-ruler a:hover,
-		.leaflet-control-map-ruler a.is-active {
-		    background: #f4f4f4;
-		}
-		.leaflet-control-map-ruler a.is-active {
-		    box-shadow: inset 0 0 0 2px #555555;
-		}
-		.leaflet-control-map-ruler a.map-ruler-toggle::before {
-		    content: "";
-		    position: absolute;
-		    inset: 5px;
-		    background: center / 20px 20px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 15l11-11 5 5L9 20z'/%3E%3Cpath d='M13 6l2 2'/%3E%3Cpath d='M10 9l2 2'/%3E%3Cpath d='M7 12l2 2'/%3E%3C/svg%3E");
-		}
-		.leaflet-control-map-ruler a.map-ruler-clear::before {
-		    content: "";
-		    position: absolute;
-		    inset: 6px;
-		    background: center / 18px 18px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6L6 18'/%3E%3Cpath d='M6 6l12 12'/%3E%3C/svg%3E");
-		}
-		.leaflet-control-map-ruler a.map-threat-toggle {
-		    display: flex;
-		    align-items: center;
-		    justify-content: center;
-		    font-family: "Map Overlay Mono", "DejaVu Sans Mono", monospace;
-		    font-size: 24px;
-		    font-weight: 700;
-		    line-height: 1;
-		}
-		.leaflet-control-map-ruler a::after {
-		    display: none;
 		}
 		.map-ruler-tooltip {
 		    white-space: nowrap;
@@ -1903,6 +1865,7 @@ function getCanvasTargetSteerpointAt(latlng) {
 }
 
 function openWebTargetSteerpointPopup(ev) {
+    if (window.briefingMapAnnotations?.isActive()) return;
     if (mapRulerMode || ev?.originalEvent?._mapRulerHandled) return;
     if (!IS_WEB_MAP) return;
     const entry = getCanvasTargetSteerpointAt(ev.latlng);
@@ -1916,50 +1879,29 @@ function openWebTargetSteerpointPopup(ev) {
 
 function setMapRulerButtonActive(active) {
     const button = document.getElementById("mapRulerButton");
-    if (button) button.classList.toggle("is-active", active);
+    if (button) button.setAttribute("aria-pressed", String(active));
 }
 
 const MapRulerControl = L.Control.extend({
     options: { position: "topleft" },
     onAdd: function() {
-        const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-map-ruler");
-        const button = L.DomUtil.create("a", "map-ruler-toggle", container);
-        button.href = "#";
-        button.id = "mapRulerButton";
-        button.title = "Ruler";
-        button.setAttribute("role", "button");
-        button.setAttribute("aria-label", "Ruler");
+        const container = L.DomUtil.create("div", "map-control-surface map-instrument-list leaflet-control-map-ruler");
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
-        L.DomEvent.on(button, "click", function(ev) {
-            L.DomEvent.stop(ev);
-            setMapRulerMode(!mapRulerMode);
-        });
-        const clearButton = L.DomUtil.create("a", "map-ruler-clear", container);
-        clearButton.href = "#";
+        const button = MapControls.button("Ruler", "ruler", () => setMapRulerMode(!mapRulerMode));
+        button.id = "mapRulerButton";
+        button.setAttribute("aria-pressed", String(mapRulerMode));
+        const clearButton = MapControls.button("Clear ruler", "close", clearMapRuler);
         clearButton.id = "mapRulerClearButton";
-        clearButton.title = "Clear ruler";
-        clearButton.setAttribute("role", "button");
-        clearButton.setAttribute("aria-label", "Clear ruler");
-        L.DomEvent.on(clearButton, "click", function(ev) {
-            L.DomEvent.stop(ev);
-            clearMapRuler();
-        });
-        const threatButton = L.DomUtil.create("a", "map-threat-toggle", container);
-        threatButton.href = "#";
+        const threatButton = MapControls.button("Threat circle display", "threat-filled", cycleThreatCircleMode);
         threatButton.id = "mapThreatCircleButton";
-        threatButton.setAttribute("role", "button");
-        threatButton.setAttribute("aria-label", "Threat circle display");
-        L.DomEvent.on(threatButton, "click", function(ev) {
-            L.DomEvent.stop(ev);
-            cycleThreatCircleMode();
-        });
+        container.append(button, clearButton, threatButton);
         updateThreatCircleButton(threatButton);
         return container;
     }
 });
 
-new MapRulerControl().addTo(map);
+const mapInstrumentControl = new MapRulerControl().addTo(map);
 
 function getThreatCircleModeLabel(mode) {
     if (mode === "outline") return "Threat circles: outline";
@@ -1967,17 +1909,13 @@ function getThreatCircleModeLabel(mode) {
     return "Threat circles: filled";
 }
 
-function getThreatCircleModeSymbol(mode) {
-    if (mode === "outline") return "○";
-    if (mode === "none") return "⊗";
-    return "●";
-}
 
 function updateThreatCircleButton(button = null) {
     button = button || document.getElementById("mapThreatCircleButton");
     if (!button) return;
-    button.textContent = getThreatCircleModeSymbol(mapThreatCircleMode);
+    MapControls.setIcon(button, "threat-" + mapThreatCircleMode);
     button.title = getThreatCircleModeLabel(mapThreatCircleMode);
+    button.setAttribute("aria-label", button.title);
 }
 
 function setThreatCircleMode(mode) {
@@ -1985,6 +1923,7 @@ function setThreatCircleMode(mode) {
     localStorage.setItem(THREAT_CIRCLE_MODE_STORAGE_KEY, mapThreatCircleMode);
     updateThreatCircleButton();
     renderMapDrawings();
+    window.briefingMapAnnotations?.redraw();
 }
 
 function cycleThreatCircleMode() {
@@ -2004,6 +1943,7 @@ function resetMapRuler({ clearFixed = true } = {}) {
 }
 
 function setMapRulerMode(active) {
+    if (active && window.briefingMapAnnotations?.setActive(false, { confirmEdit: true }) === false) return;
     mapRulerMode = Boolean(active);
     setMapRulerButtonActive(mapRulerMode);
     map.getContainer().style.cursor = mapRulerMode ? "crosshair" : "";
@@ -2285,6 +2225,23 @@ if (IS_WEB_MAP) {
 }
 bindCamFlightPathControls();
 
+if (!IS_DTC_PAGE && window.BriefingAnnotations && typeof dtcFieldPayload !== "undefined") {
+    window.briefingMapAnnotations = BriefingAnnotations.create(map, L, {
+        instrumentContainer: mapInstrumentControl.getContainer(),
+        threatRingStyle: MAP_STYLE.threatCircle,
+        getThreatRingMode: () => mapThreatCircleMode,
+        scope: JSON.stringify([dtcFieldPayload.popup_scope, THEATER_NAME, getTheaterSizeMeters()]),
+        extent: IS_WEB_MAP ? getTheaterSizeMeters() * METERS_TO_FEET : fHeight,
+        toMap: ([east, north]) => convertCoord([north, east]),
+        fromMap: (latlng) => {
+            const coord = mapLatLngToRulerCoord(latlng);
+            return coord ? [coord.eastFeet, coord.northFeet] : null;
+        },
+        onActivate: () => setMapRulerMode(false),
+        onChange: () => saveChangedData(),
+    });
+}
+
 try {
     if (typeof restoreMapView === "function") {
         restoreMapView(JSON.parse(localStorage.getItem('contenteditables') || '{}'));
@@ -2307,6 +2264,7 @@ map.on("mousemove", handleMapRulerMouseMove);
 
 if (MAP_ENABLE_BULLSEYE_EDIT) {
     map.on("dblclick", function(ev) {
+        if (window.briefingMapAnnotations?.isActive()) return;
         if (mapRulerMode || ev?.originalEvent?._mapRulerHandled) return;
         setBullseye(ev.latlng);
     });
@@ -2735,6 +2693,8 @@ async function exportMapImage(options = {}) {
         renderThreatsCanvas(ctx);
         renderSteerpointLinesCanvas(ctx);
         renderTargetSteerpointsCanvas(ctx);
+
+        window.briefingMapAnnotations?.drawCanvas(ctx);
 
         const dataUrl = canvas.toDataURL(MAP_EXPORT_IMAGE_TYPE, MAP_EXPORT_JPEG_QUALITY);
         window.exportMapLastError = "ok:" + (dataUrl ? dataUrl.length : 0);

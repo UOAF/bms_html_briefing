@@ -30,6 +30,7 @@ function collectRefreshDraft() {
         const bullseye = bullseye_overlay.getCenter();
         if (!DraftState.equal(bullseye, briefingDefaults.bullseyePos)) view.bullseyePos = bullseye;
     }
+    if (window.briefingMapAnnotations) view.__map_annotations = window.briefingMapAnnotations.snapshot();
     return { scope: dtcFieldPayload.scope, baseline: briefingDefaults, fields, view };
 }
 
@@ -142,6 +143,7 @@ function collectChangedData() {
         __popup_plan: window.popupBriefingStore.snapshot(),
         __defaults: briefingDefaults,
     };
+    if (window.briefingMapAnnotations) contentData.__map_annotations = window.briefingMapAnnotations.snapshot();
     contenteditableElements.forEach(el => {
         const key = el.id;
         contentData[key] = serializeEditableContent(el);
@@ -249,6 +251,7 @@ function loadImages() {
 }
 
 function restoreMapView(contentData) {
+    window.briefingMapAnnotations?.restore(contentData.__map_annotations);
     try {
 	const currentMapBaseMode = typeof MAP_BASE_MODE != 'undefined' ? MAP_BASE_MODE : "local_tiles";
 	const savedMapBaseMode = contentData["mapBaseMode"];

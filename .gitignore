@@ -13,6 +13,7 @@ assets/*
 !assets/targets
 !assets/fonts
 !assets/logo.png
+!assets/nato_symbols.js
 
 backup/
 

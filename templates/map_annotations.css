@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+ * Adapted from BMS-Cards style-11.css at 7436fa4 (AGPLv3):
+ * https://github.com/Evilangel19/BMS-Cards
+ * Changes (2026-11-17): scoped Leaflet control, responsive panel and inspector.
+ */
+.briefing-annotation-control {
+    position: absolute;
+    top: 10px;
+    left: 54px;
+    right: 10px;
+    z-index: 1000;
+    margin: 0 !important;
+    font: 12px/1.4 system-ui, sans-serif;
+    color: var(--map-control-fg);
+    pointer-events: none;
+}
+.briefing-annotation-control * { font-family: inherit; font-size: inherit; color: inherit; }
+.briefing-annotation-control[hidden] { display: none; }
+.briefing-annotation-panel { max-width: 100%; }
+.briefing-annotation-bar { display: flex; max-width: 100%; pointer-events: auto; overflow: hidden; }
+.briefing-annotation-strip {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+}
+.briefing-annotation-tools,
+.briefing-annotation-styles { display: flex; flex: 0 0 auto; align-items: center; }
+.briefing-annotation-styles { gap: 4px; padding: 0 6px; border-left: 1px solid var(--map-control-border); }
+.leaflet-container .briefing-annotation-bar > [data-annotation="close"] {
+    border-left: 1px solid var(--map-control-border);
+    height: auto;
+    min-height: var(--map-control-size);
+}
+.leaflet-container .briefing-annotation-control .annotation-swatch {
+    flex-basis: 18px; width: 18px; height: 18px; border-radius: 50%;
+    box-shadow: 0 0 0 1px #0004;
+}
+.leaflet-container .briefing-annotation-control .annotation-swatch[aria-pressed="true"] {
+    box-shadow: 0 0 0 2px var(--map-control-bg), 0 0 0 3px var(--map-control-active);
+}
+.briefing-annotation-control input[type="color"] {
+    width: 26px; height: 25px; flex: 0 0 26px; padding: 1px;
+    border: 1px solid var(--map-control-border); background: var(--map-control-bg);
+}
+.annotation-width i { width: 18px; background: currentColor; border-radius: 4px; }
+.briefing-annotation-inspector {
+    display: flex; gap: 6px; align-items: center; padding: 4px;
+    width: 360px; max-width: 100%; margin-top: 6px; pointer-events: auto;
+}
+.briefing-annotation-inspector label { display: grid; min-width: 0; }
+.briefing-annotation-inspector label:first-child { flex: 1; }
+.briefing-annotation-inspector input, .briefing-annotation-inspector textarea {
+    box-sizing: border-box; min-width: 0; width: 100%;
+    color: var(--map-control-fg); background: var(--map-control-bg);
+    border: 1px solid var(--map-control-border); border-radius: var(--map-control-radius);
+    padding: 4px; font: inherit;
+}
+.briefing-annotation-inspector input[type="number"] { width: 52px; }
+.briefing-annotation-inspector textarea { resize: vertical; max-height: 120px; }
+.briefing-annotation-palette {
+    width: 360px; max-width: 100%; max-height: var(--annotation-height, 400px);
+    overflow: auto; overscroll-behavior: contain;
+    padding: 6px; margin-top: 6px; pointer-events: auto;
+}
+.annotation-palette-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.annotation-palette-row + .annotation-palette-row { border-top: 1px solid var(--map-control-border); margin-top: 5px; padding-top: 5px; }
+.annotation-palette-row svg { width: 24px; height: 24px; }
+.briefing-annotation-control [hidden] { display: none; }
+.briefing-annotation-status { color: #a12626; background: var(--map-control-bg); width: max-content; padding: 2px 4px; }
+.briefing-annotation-status:empty { display: none; }
+.briefing-annotation-canvas { position: absolute; pointer-events: none; }
+.briefing-annotation-adding { cursor: crosshair !important; }
+.briefing-annotation-drawing { touch-action: none; }
+/* Existing map symbols retain their data and become click-through while drawing. */
+.briefing-annotation-active .leaflet-marker-pane .leaflet-interactive,
+.briefing-annotation-active .leaflet-overlay-pane .leaflet-interactive { pointer-events: none; }
+.briefing-annotation-handle { display: grid; place-items: center; }
+.briefing-annotation-handle i {
+    display: block; width: 12px; height: 12px; box-sizing: border-box;
+    border: 2px solid #154957; background: #fff; box-shadow: 0 0 0 1px #fff;
+}
+.briefing-annotation-handle.center i { border-radius: 50%; background: #d0a3ff; }
+.briefing-annotation-handle.rotate i { border-radius: 50%; background: #4dd0e1; }
+.briefing-annotation-handle.center { cursor: move; }
+.briefing-annotation-handle.rotate { cursor: grab; }
+.leaflet-tooltip.briefing-annotation-label {
+    border: 0; background: transparent; box-shadow: none; padding: 0;
+    color: #fff; font: bold 12px sans-serif; white-space: nowrap;
+    text-shadow: -1px -1px #111, 1px -1px #111, -1px 1px #111, 1px 1px #111;
+}
+.leaflet-tooltip.briefing-annotation-label::before { display: none; }
+@media print {
+    .briefing-annotation-control, .briefing-annotation-handle, .briefing-annotation-guide { display: none !important; }
+}
