@@ -1413,6 +1413,7 @@
     let pendingBriefingResetFromToolbar = false;
     let autoRefreshOnChange = false;
     let previewBusy = false;
+    let camBusy = false;
     let autoRefreshBusy = false;
     let briefingRefreshDraft = null;
     let dtcRefreshDraft = null;
@@ -2843,7 +2844,7 @@
 
     async function loadCamFromSelection(options = {}) {
       const silent = !!options.silent;
-      if (pdfBusy || exportBusy) {
+      if (pdfBusy || exportBusy || camBusy || previewBusy || autoRefreshBusy || layoutBusy) {
         if (!silent) log("CAM load skipped: PDF pipeline is busy");
         return;
       }
@@ -2852,11 +2853,18 @@
         if (!silent) log("Select a campaign save first");
         return;
       }
+      const operationId = createOperationId("cam");
+      camBusy = true;
+      updateBusyUi();
+      startOperationProgress(operationId, {
+        operation: "cam", title: "Loading save", message: "Save", can_cancel: false,
+        current: null, total: null,
+      }, { showDelay: 0 });
       try {
-        const response = await fetchJSON("/api/cam/load-local", {
+        const response = await withActiveLogPolling(fetchJSON("/api/cam/load-local", {
           method: "POST",
-          body: JSON.stringify({ path: selectedPath })
-        });
+          body: JSON.stringify({ path: selectedPath, operation_id: operationId })
+        }));
         const camData = response.summary || null;
         if (camSaveSelect && typeof response.source_file === "string" && response.source_file) {
           camSaveSelect.value = response.source_file;
@@ -2879,9 +2887,13 @@
         saveCamSupportPackageIndex(selectedIndex);
         const overrides = currentOverrides();
         overrides.selected_package_index = selectedIndex;
-        await doPreview(overrides);
+        await doPreview(overrides, { operationId });
       } catch (err) {
         if (!silent) log(`CAM load failed: ${err.message}`);
+      } finally {
+        camBusy = false;
+        updateBusyUi();
+        closeOperationProgress(operationId);
       }
     }
 
@@ -3108,7 +3120,7 @@
     }
 
     function updateBusyUi() {
-      const pipelineBusy = pdfBusy || exportBusy || layoutBusy || previewBusy || autoRefreshBusy;
+      const pipelineBusy = pdfBusy || exportBusy || layoutBusy || previewBusy || autoRefreshBusy || camBusy;
       layoutEditor?.setBusy(pipelineBusy);
       if (pdfBtn) {
         if (pdfBusy) {
@@ -3118,7 +3130,7 @@
             : `Stop PDF Gen (${formatPdfElapsed()})`;
           pdfBtn.title = pdfCancelRequested ? "Stopping PDF generation" : "Stop PDF generation";
         } else {
-          pdfBtn.disabled = exportBusy || layoutBusy || previewBusy || autoRefreshBusy;
+          pdfBtn.disabled = exportBusy || layoutBusy || previewBusy || autoRefreshBusy || camBusy;
           pdfBtn.textContent = "Gen PDF";
           pdfBtn.title = exportBusy ? "Kneeboard export in progress" : "Generate PDF from the current briefing";
         }

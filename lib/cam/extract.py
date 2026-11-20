@@ -5,9 +5,12 @@ from pathlib import Path
 
 from lib.theater_paths import resolve_theater_data_root
 from lib.cam.brief_data import build_cam_brief_data
+from lib.cam.map_units import load_map_units
+from lib.campaign_paths import campaign_dirs
 from lib.cam.types import ParsedCmpData, ParsedL16Data, ParsedTwxData, SummaryOutput, Vuid
 from lib.parsers.parse_l16 import load_parsed_l16_for_save
 from lib.parsers.parse_twx import load_parsed_twx_for_cam_path, load_parsed_twx_for_save
+from lib.progress import ProgressCallback
 
 from .opencam.cam_container import CamContainer, DecodedEntry
 from .opencam.cmp_parser import parse_cmp_record
@@ -32,6 +35,7 @@ def extract_cam_brief_data(
     theater_target_folder: str | Path | None = None,
     theater_name: str | None = None,
     save_stem: str | None = None,
+    progress: ProgressCallback | None = None,
 ) -> SummaryOutput:
     """Parse a CAM-like save and return app brief JSON."""
 
@@ -43,6 +47,8 @@ def extract_cam_brief_data(
     )
 
     warnings: list[str] = []
+    if progress:
+        progress(stage="save", message="Save", current=None, total=None)
     container = CamContainer.from_path(source_path)
     container_version = detect_container_version(container)
     cmp_entry = _entry_by_ext(container, ".cmp")
@@ -56,6 +62,8 @@ def extract_cam_brief_data(
         save_stem=save_stem,
     )
     cmp_data = _parse_cmp_data(cmp_entry, container_version, warnings)
+    if progress:
+        progress(stage="units", message="Units", current=None, total=None)
     units = _parse_uni_units(
         uni_entry,
         source_path=source_path,
@@ -67,6 +75,22 @@ def extract_cam_brief_data(
     warnings.extend(twx_data.warnings)
     warnings.extend(l16_data.warnings)
 
+    support = units[0].support if units else None
+    if support is None and support_base_dir is not None:
+        try:
+            support = load_support_data(_support_paths_from_base(support_base_dir))
+        except BmsSupportError:
+            pass
+    if progress:
+        progress(stage="map", message="Map units", current=None, total=None)
+    map_units = load_map_units(
+        container, source_path=source_path, cmp=cmp_data, units=units,
+        support=support, warnings=warnings,
+        campaign_directories=campaign_dirs(
+            bms_base_dir=bms_base_dir, theater_target_folder=theater_target_folder,
+            theater_name=theater_name),
+    )
+
     return build_cam_brief_data(
         source_path=source_path,
         support_base_dir=support_base_dir,
@@ -74,9 +98,11 @@ def extract_cam_brief_data(
         l16_data=l16_data,
         cmp_data=cmp_data,
         units=units,
+        map_units=map_units,
         warnings=warnings,
         bms_base_dir=bms_base_dir,
         theater_name=theater_name,
+        progress=progress,
     )
 
 
@@ -138,6 +164,9 @@ def _parse_cmp_data(
         bullseye_x=campaign.bullseye_x,
         bullseye_y=campaign.bullseye_y,
         player_squadron_id=_as_vuid(player_squadron_id),
+        scenario=record.get("scenario_raw").split(b"\0", 1)[0].decode("utf-8", errors="replace"),
+        team_names=tuple(team.team_name_raw.split(b"\0", 1)[0].decode("utf-8", errors="replace")
+                         for team in record.get("team_info")),
     )
 
 

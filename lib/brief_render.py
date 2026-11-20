@@ -417,6 +417,7 @@ def _build_summary_render_context(
         "moon_data": _default_moon_data(),
         "map_flight_overlays": [],
         "map_tanker_overlay": None,
+        "map_units": {"owner_team_id": None, "items": []},
     }
     if not isinstance(brief_summary, dict):
         logger.debug("Brief render context requested without summary data; using empty defaults.")
@@ -589,6 +590,7 @@ def _build_summary_render_context(
         "moon_data": moon_data,
         "map_flight_overlays": map_flight_overlays,
         "map_tanker_overlay": map_tanker_overlay,
+        "map_units": brief_summary.get("map_units", empty_context["map_units"]),
     }
 
 

@@ -52,7 +52,9 @@ class RackDefinition:
 @dataclass(frozen=True)
 class PylonDefinition:
     ct_index: int | None
-    rack_names: tuple[str, ...]
+    # None preserves the position of a malformed AddRack directive; its raw
+    # arguments and source line remain available in directives.
+    rack_names: tuple[str | None, ...]
     directives: tuple[RackDirective, ...]
 
     def to_view(self) -> dict[str, object]:
@@ -103,6 +105,15 @@ class AircraftRackCatalog:
         group = self.group(group_name)
         for pylon_index, pylon in enumerate(group.pylons):
             for rack_index, rack_name in enumerate(pylon.rack_names):
+                if rack_name is None:
+                    directive = tuple(
+                        d for d in pylon.directives if d.command == "addrack"
+                    )[rack_index]
+                    raise ValueError(
+                        f"{self.source_path}:{directive.line_number}: "
+                        f"group {group_name!r}: addrack requires one argument "
+                        f"(got {directive.arguments!r})"
+                    )
                 rack = self.rack(rack_name)
                 context = f"{self.source_path}: group {group_name!r} rack {rack_name!r}"
                 if rack.station_count is None or rack.station_count < 0:
@@ -135,7 +146,7 @@ class AircraftRackCatalog:
 
 
 def parse_rack_catalog(text: str, source_path: str | Path) -> AircraftRackCatalog:
-    """Preserve declaration and preference order, including all directives."""
+    """Preserve directives and order; validate AddRack references on selection."""
     path = Path(source_path)
     racks, groups = [], []
     kind = name = None
@@ -167,7 +178,10 @@ def parse_rack_catalog(text: str, source_path: str | Path) -> AircraftRackCatalo
                 name=name,
                 pylons=tuple(PylonDefinition(
                     ct_index=integer(items, "pylonct"),
-                    rack_names=args(items, "addrack"),
+                    rack_names=tuple(
+                        d.arguments[0] if len(d.arguments) == 1 else None
+                        for d in items if d.command == "addrack"
+                    ),
                     directives=tuple(items),
                 ) for items in pylons),
             ))
@@ -203,7 +217,7 @@ def parse_rack_catalog(text: str, source_path: str | Path) -> AircraftRackCatalo
                 raise ValueError("directive outside a rack or pylon")
             if command not in allowed:
                 raise ValueError(f"unsupported directive {command}")
-            if command in {"rackct", "rackstations", "pylonct", "addrack"}:
+            if command in {"rackct", "rackstations", "pylonct"}:
                 if len(arguments) != 1:
                     raise ValueError(f"{command} requires one argument")
             if command == "addany" and arguments:

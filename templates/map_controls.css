@@ -55,6 +55,30 @@
     pointer-events: none;
 }
 .leaflet-container .map-control-icon * { color: inherit; }
+.map-toolbar {
+    position: absolute; top: 10px; left: 54px; right: 10px;
+    z-index: 1000; margin: 0 !important;
+    font: 12px/1.4 system-ui, sans-serif; color: var(--map-control-fg); pointer-events: none;
+}
+.map-toolbar[hidden] { display: none; }
+.map-toolbar-bar { display: flex; max-width: 100%; pointer-events: auto; overflow: hidden; }
+.map-toolbar-strip {
+    display: flex; flex: 1; min-width: 0; overflow-x: auto;
+    scrollbar-width: thin; overscroll-behavior: contain;
+}
+.map-toolbar-group { display: flex; flex: 0 0 auto; align-items: center; }
+.map-toolbar-group + .map-toolbar-group { border-left: 1px solid var(--map-control-border); }
+.map-toolbar-bar > .map-icon-button { border-left: 1px solid var(--map-control-border); height: auto; min-height: var(--map-control-size); }
+.map-unit-marker { background: none; border: 0; }
+.map-unit-marker svg { display: block; width: 32px; height: 32px; }
+.map-unit-tooltip {
+    width: max-content;
+    max-width: min(360px, calc(100vw - 16px));
+    white-space: pre-line;
+    word-break: normal;
+    overflow-wrap: anywhere;
+}
+.map-unit-tooltip::before { display: none; }
 .map-instrument-list { display: flex; flex-direction: column; overflow: hidden; }
 .leaflet-container .map-instrument-list > .map-icon-button:not(:last-child) { border-bottom: 1px solid var(--map-control-border); }
 dialog.map-expanded-dialog {

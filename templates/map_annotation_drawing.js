@@ -46,7 +46,15 @@
             ctx.restore();
         }
     }
-    function symbolIcon(symbol, side, threatRingStyle) {
+    function flightPath(heading) {
+        const square = "M-5-5H5V5H-5Z";
+        if (!Number.isFinite(heading)) return square;
+        const angle = heading * Math.PI / 180;
+        const x = Math.sin(angle), y = -Math.cos(angle);
+        const edge = 5 / Math.max(Math.abs(x), Math.abs(y));
+        return `${square}M${x * edge} ${y * edge}L${x * 14} ${y * 14}`;
+    }
+    function symbolIcon(symbol, side, threatRingStyle, heading) {
         const shapes = tacticalPaths(symbol, side);
         if (shapes) return tacticalIcon(shapes);
         if (symbol === "ring" && threatRingStyle) {
@@ -55,6 +63,7 @@
         }
         const color = SIDES[side];
         const control = {
+            flight: `<path d="${flightPath(heading)}" stroke-linecap="round" stroke-linejoin="round"/>`,
             trk: '<path d="M-4-4H4V4H-4ZM4-4L13-10"/>',
             ab: '<path d="M-7 10L4-10M-3 10L8-10M-10-1L10 5"/>',
             IP: '<text y="4" text-anchor="middle" fill="currentColor" stroke="none">IP</text>',
@@ -129,6 +138,9 @@
         ctx.fillStyle = "#0d1b2ad9";
         if (shapes) {
             drawTactical(ctx, shapes);
+        } else if (f.symbol === "flight") {
+            ctx.lineWidth = 1.6;
+            ctx.stroke(new Path2D(flightPath(f.heading)));
         } else if (f.symbol === "trk") {
             ctx.strokeRect(-5, -5, 10, 10);
             ctx.beginPath();

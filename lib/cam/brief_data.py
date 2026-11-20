@@ -11,6 +11,7 @@ from lib.cam.types import (
     FuelProfile,
     SummaryFlight,
     SummaryOutput,
+    SavedMapUnits,
     SummaryPackage,
     SummaryPackageTiming,
     SummaryTasking,
@@ -24,6 +25,7 @@ from .opencam.uni_wrappers import FlightUnit, PackageUnit, Unit
 from .loadout_data import build_aircraft_members
 from lib.fuel import FuelModelError
 from lib.route_fuel import RoutePerformance
+from lib.progress import ProgressCallback
 
 logger = logging.getLogger("html_brief_log")
 
@@ -39,10 +41,12 @@ def build_cam_brief_data(
     warnings: list[str],
     bms_base_dir: str | Path | None = None,
     theater_name: str | None = None,
+    map_units: SavedMapUnits | None = None,
+    progress: ProgressCallback | None = None,
 ) -> SummaryOutput:
     """Build the app-facing CAM brief JSON from parsed source data."""
 
-    packages = _packages_from_units(units, l16_data.by_flight)
+    packages = _packages_from_units(units, l16_data.by_flight, progress=progress)
     bullseye_x = cmp_data.bullseye_x
     bullseye_y = cmp_data.bullseye_y
     map_lat: float | None = None
@@ -79,6 +83,7 @@ def build_cam_brief_data(
         },
         "package_count": len(packages),
         "packages": packages,
+        "map_units": map_units if map_units is not None else {"owner_team_id": None, "items": []},
         "warnings": list(warnings),
     }
 
@@ -86,6 +91,7 @@ def build_cam_brief_data(
 def _packages_from_units(
     units: tuple[Unit, ...],
     l16_by_flight: dict[int, dict[str, int]],
+    *, progress: ProgressCallback | None = None,
 ) -> list[SummaryPackage]:
     by_id = {unit.unit_id: unit for unit in units}
     packages = [unit for unit in units if isinstance(unit, PackageUnit)]
@@ -93,6 +99,11 @@ def _packages_from_units(
 
     out: list[SummaryPackage] = []
     fuel_cache: dict[int, FuelProfile] = {}
+    completed = 0
+    total = sum(isinstance(by_id.get(element_id), FlightUnit)
+                for package in packages for element_id in package.element_ids)
+    if progress:
+        progress(stage="flights", message="Flights", current=completed, total=total)
     for package in packages:
         flights: list[SummaryFlight] = []
         for element_id in package.element_ids:
@@ -101,6 +112,9 @@ def _packages_from_units(
                 continue
             flight_row = _flight_row(flight, l16_by_flight, fuel_cache)
             flights.append(flight_row)
+            completed += 1
+            if progress:
+                progress(stage="flights", message="Flights", current=completed, total=total)
         flights.sort(
             key=lambda item: item.get("flight_number")
             if isinstance(item.get("flight_number"), int)

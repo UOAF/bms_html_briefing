@@ -1,6 +1,7 @@
 <link rel="stylesheet" href="templates/map_controls.css">
 <script src="templates/map_controls.js"></script>
 <script src="templates/map_expansion.js"></script>
+<script src="templates/map_units.js"></script>
 <style>
 		@font-face {
 		    font-family: "Map Overlay Mono";
@@ -2238,10 +2239,21 @@ if (!IS_DTC_PAGE && window.BriefingAnnotations && typeof dtcFieldPayload !== "un
             const coord = mapLatLngToRulerCoord(latlng);
             return coord ? [coord.eastFeet, coord.northFeet] : null;
         },
-        onActivate: () => setMapRulerMode(false),
+        onActivate: () => {
+            setMapRulerMode(false);
+            window.briefingMapUnits?.setOpen(false);
+        },
         onChange: () => saveChangedData(),
     });
     window.briefingMapExpansion = MapExpansion.attach(map, mapInstrumentControl.getContainer());
+    window.briefingMapUnits = BriefingMapUnits.create(map, L, {
+        data: {{ map_units | default({'owner_team_id': none, 'items': []}) | tojson }},
+        instrumentContainer: mapInstrumentControl.getContainer(),
+        // Campaign GridIndex coordinates are east/north in kilometres.
+        toMap: ([east, north]) => convertCoord([north * 1000 * METERS_TO_FEET, east * 1000 * METERS_TO_FEET]),
+        onOpen: () => window.briefingMapAnnotations.setActive(false, { confirmEdit: true }),
+        onChange: () => saveChangedData(),
+    });
 }
 
 try {
@@ -2696,6 +2708,7 @@ async function exportMapImage(options = {}) {
         renderSteerpointLinesCanvas(ctx);
         renderTargetSteerpointsCanvas(ctx);
 
+        window.briefingMapUnits?.drawCanvas(ctx);
         window.briefingMapAnnotations?.drawCanvas(ctx);
 
         const dataUrl = canvas.toDataURL(MAP_EXPORT_IMAGE_TYPE, MAP_EXPORT_JPEG_QUALITY);

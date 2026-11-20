@@ -137,6 +137,7 @@
   .interface-dialog progress::-moz-progress-bar { background: var(--ui-accent); }
 
   .interface-tooltip,
+  .leaflet-tooltip.map-unit-tooltip,
   .leaflet-tooltip.map-ruler-tooltip,
   .leaflet-tooltip.dtc-drag-offset-tooltip {
     box-sizing: border-box;
@@ -151,6 +152,7 @@
     text-shadow: none;
   }
   .interface-tooltip *,
+  .leaflet-tooltip.map-unit-tooltip *,
   .leaflet-tooltip.map-ruler-tooltip *,
   .leaflet-tooltip.dtc-drag-offset-tooltip * { font: inherit; color: inherit; }
   .interface-tooltip {

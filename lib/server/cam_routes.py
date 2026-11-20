@@ -19,6 +19,7 @@ CAM_SUFFIXES = {".cam", ".trn", ".tac"}
 
 class CamLoadLocalRequest(BaseModel):
     path: str
+    operation_id: str | None = None
 
 
 def register_cam_routes(
@@ -113,6 +114,10 @@ def register_cam_routes(
         output_dir = resolve_path(app.state.cfg["system"]["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        operation_id = payload.operation_id
+        progress = app.state.progress_registry.begin(
+            operation_id, operation="cam", title="Loading save", message="Save",
+        )
         try:
             cam_data = extract_cam_brief_data(
                 source_path,
@@ -120,17 +125,21 @@ def register_cam_routes(
                 theater_target_folder=theater_target_folder,
                 theater_name=theater_name,
                 save_stem=source_path.stem,
+                progress=progress,
             )
+            if progress:
+                progress(stage="summary", message="Summary", current=None, total=None)
+            json_path = output_dir / "summary.json"
+            json_path.write_text(json.dumps(cam_data, indent=2), encoding="utf-8")
         except Exception as exc:
+            app.state.progress_registry.fail(operation_id, str(exc))
             logger.error("CAM parsing failed: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to parse CAM file: {exc}") from exc
-
-        json_path = output_dir / "summary.json"
-        json_path.write_text(json.dumps(cam_data, indent=2), encoding="utf-8")
 
         app.state.last_brief_summary_path = str(json_path)
         app.state.last_brief_summary = cam_data
         app.state.last_selected_package_index = None
+        app.state.progress_registry.complete(operation_id)
 
         return {
             "status": "ok",

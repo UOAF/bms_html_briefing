@@ -3,30 +3,8 @@
  * https://github.com/Evilangel19/BMS-Cards
  * Changes (2026-11-17): scoped Leaflet control, responsive panel and inspector.
  */
-.briefing-annotation-control {
-    position: absolute;
-    top: 10px;
-    left: 54px;
-    right: 10px;
-    z-index: 1000;
-    margin: 0 !important;
-    font: 12px/1.4 system-ui, sans-serif;
-    color: var(--map-control-fg);
-    pointer-events: none;
-}
 .briefing-annotation-control * { font-family: inherit; font-size: inherit; color: inherit; }
-.briefing-annotation-control[hidden] { display: none; }
 .briefing-annotation-panel { max-width: 100%; }
-.briefing-annotation-bar { display: flex; max-width: 100%; pointer-events: auto; overflow: hidden; }
-.briefing-annotation-strip {
-    display: flex;
-    flex: 1;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    overscroll-behavior: contain;
-}
-.briefing-annotation-tools,
 .briefing-annotation-styles { display: flex; flex: 0 0 auto; align-items: center; }
 .briefing-annotation-styles { gap: 4px; padding: 0 6px; border-left: 1px solid var(--map-control-border); }
 .leaflet-container .briefing-annotation-bar > [data-annotation="close"] {

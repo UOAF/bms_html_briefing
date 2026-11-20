@@ -354,6 +354,7 @@ def generate_html_file(
                                                  moon_data = render_context["moon_data"],
                                                  map_flight_overlays = render_context["map_flight_overlays"],
                                                  map_tanker_overlay = render_context["map_tanker_overlay"],
+                                                 map_units = render_context["map_units"],
                                                  ))
     except Exception as e:
         logger.error(f"Couldn't generate HTML: {e}")

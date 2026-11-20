@@ -209,10 +209,22 @@ class SupportData:
     def wcd_by_ct_idx(self) -> dict[int, WeaponClassEntry]:
         return {entry.ct_idx: entry for entry in self.wcd_by_number.values()}
 
-    @cached_property
+    @property
     def rack_catalog(self) -> AircraftRackCatalog:
-        path = _casefold_path(self.paths.objects_dir, "BmsRack.dat")
-        return load_aircraft_rack_catalog(path)
+        result = self._rack_catalog_result
+        if isinstance(result, BmsSupportError):
+            raise BmsSupportError(str(result)) from None
+        return result
+
+    @cached_property
+    def _rack_catalog_result(self) -> AircraftRackCatalog | BmsSupportError:
+        # A failed optional catalog must not be reparsed for every hardpoint.
+        # Each save load gets fresh support data, so fixes on disk are retried.
+        try:
+            path = _casefold_path(self.paths.objects_dir, "BmsRack.dat")
+            return load_aircraft_rack_catalog(path)
+        except BmsSupportError as exc:
+            return BmsSupportError(str(exc))
 
     @cached_property
     def aircraft_rack_catalog(self) -> AircraftRackCatalog | None:

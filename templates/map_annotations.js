@@ -247,7 +247,7 @@
         }
 
         control.onAdd = () => {
-            root = L.DomUtil.create("div", "briefing-annotation-control");
+            root = L.DomUtil.create("div", "briefing-annotation-control map-toolbar");
             L.DomEvent.disableClickPropagation(root);
             L.DomEvent.disableScrollPropagation(root);
             const button = (parent, name, title, action, icon) => {
@@ -262,13 +262,13 @@
             panel.className = "briefing-annotation-panel";
             root.append(panel);
             const bar = document.createElement("div");
-            bar.className = "briefing-annotation-bar map-control-surface";
+            bar.className = "briefing-annotation-bar map-toolbar-bar map-control-surface";
             const strip = document.createElement("div");
-            strip.className = "briefing-annotation-strip";
+            strip.className = "briefing-annotation-strip map-toolbar-strip";
             bar.append(strip);
             panel.append(bar);
             const tools = document.createElement("div");
-            tools.className = "briefing-annotation-tools";
+            tools.className = "briefing-annotation-tools map-toolbar-group";
             strip.append(tools);
             bar.setAttribute("role", "toolbar");
             bar.setAttribute("aria-label", "Annotations");

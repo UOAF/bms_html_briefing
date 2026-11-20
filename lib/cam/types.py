@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 Vuid = tuple[int, int]
 
@@ -29,6 +29,8 @@ class ParsedCmpData:
     bullseye_x: int | None = None
     bullseye_y: int | None = None
     player_squadron_id: Vuid | None = None
+    scenario: str = ""
+    team_names: tuple[str, ...] = ()
 
 
 class VuidDict(TypedDict):
@@ -251,4 +253,21 @@ class SummaryOutput(TypedDict):
     bullseye: SummaryBullseye
     package_count: int
     packages: list[SummaryPackage]
+    map_units: SavedMapUnits
     warnings: list[str]
+
+
+class SavedMapUnit(TypedDict):
+    id: str
+    category: str
+    position: list[int]
+    symbol: str
+    side: str
+    label: str
+    team: str
+    heading_deg: NotRequired[int]
+
+
+class SavedMapUnits(TypedDict):
+    owner_team_id: int | None
+    items: list[SavedMapUnit]
