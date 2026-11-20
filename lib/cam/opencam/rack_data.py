@@ -208,7 +208,6 @@ def parse_rack_catalog(text: str, source_path: str | Path) -> AircraftRackCatalo
                 raise ValueError(f"unsupported directive {command}")
             if command in {"rackct", "rackstations", "pylonct", "addrack"}:
                 if len(arguments) != 1:
-                    print(f"Tokens: {tokens} - line: {line}")
                     raise ValueError(f"{command} requires one argument")
             if command == "addany" and arguments:
                 raise ValueError("addany requires no arguments")
