@@ -179,6 +179,9 @@ def parse_rack_catalog(text: str, source_path: str | Path) -> AircraftRackCatalo
                 continue
             command = tokens[0].lower()
             arguments = tuple(tokens[1:])
+            if command == 'addrack' and len(arguments) == 2 and arguments[0] == 'addrack':
+                # In some cases the `addrack` command is duplicated at the start of the line. This one case is caught and fixed
+                arguments = tuple(tokens[2:])
             if command in ("definerack", "definegroup"):
                 if len(arguments) != 1:
                     raise ValueError("definition requires one name")
@@ -205,6 +208,7 @@ def parse_rack_catalog(text: str, source_path: str | Path) -> AircraftRackCatalo
                 raise ValueError(f"unsupported directive {command}")
             if command in {"rackct", "rackstations", "pylonct", "addrack"}:
                 if len(arguments) != 1:
+                    print(f"Tokens: {tokens} - line: {line}")
                     raise ValueError(f"{command} requires one argument")
             if command == "addany" and arguments:
                 raise ValueError("addany requires no arguments")
