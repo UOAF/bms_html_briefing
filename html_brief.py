@@ -60,7 +60,7 @@ PDF_RENDER_TIMEOUT_SECONDS = int(os.environ.get("BMS_HTML_BRIEF_PDF_TIMEOUT", "2
 DEFAULT_CONFIG_PATH = RUN_DIR / "config.ini"
 WEB_DIR = STATIC_ROOT / "web"
 KNEEBOARDS_DIR = RUN_DIR / "kneeboards"
-APP_VERSION = "1.3"
+APP_VERSION = "1.3.2"
 APP_SOURCE_URL = "https://github.com/UOAF/bms_html_briefing"
 APP_RELEASE_API_URL = "https://api.github.com/repos/UOAF/bms_html_briefing/releases/latest"
 
